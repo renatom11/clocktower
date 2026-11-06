@@ -880,3 +880,10 @@ def info_text(ability, value, target=None):
     if ability == 'Ravenkeeper':
         return f'You learn that {target} is the {v["character"]}.'
     raise KeyError(ability)
+
+
+# The Bad Moon Rising characters (bmr.py) register themselves in characters.CHARACTERS. They need this module and
+# characters.py complete, so they load last, here: whichever of the two is imported first, both are done by now.
+from . import bmr  # noqa: E402
+
+BMR = bmr  # (a use, so pyflakes sees the import is wanted)

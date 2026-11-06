@@ -103,5 +103,17 @@ class NoNameTestsTests(unittest.TestCase):
         self.assertEqual(re.findall(rf"'({names})'", src), [])
 
 
+class ImportTests(unittest.TestCase):
+    def test_every_module_can_be_imported_first(self):
+        import subprocess
+        import sys
+        root = Path(characters.__file__).parent.parent
+        for module in ('state', 'characters', 'bmr', 'game', 'judge', 'official', 'cli', 'fingerprint'):
+            r = subprocess.run([sys.executable, '-c', f'import clocktower.{module}; '
+                                'from clocktower.characters import CHARACTERS; assert "Zombuul" in CHARACTERS'],
+                               cwd=root, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, f'importing clocktower.{module} first: {r.stderr[-400:]}')
+
+
 if __name__ == '__main__':
     unittest.main()

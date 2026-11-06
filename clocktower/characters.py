@@ -649,7 +649,4 @@ def script_text():
 
 
 # The hooks build the Storyteller's choices in state.py, which itself imports the lists above: import it last.
-from . import state  # noqa: E402
-from . import bmr  # noqa: E402,F401
-
-BMR_MODULE = bmr  # the Bad Moon Rising characters register themselves in CHARACTERS when imported
+from . import state  # noqa: E402  (state.py, once loaded, loads the Bad Moon Rising characters: see its end)
