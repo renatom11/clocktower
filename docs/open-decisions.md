@@ -27,10 +27,9 @@ conversation, so handing it to another model would make no sense; at a real tabl
 stores alignment on each player separately from their character (`state.Player.alignment`), so team changes are
 representable.
 
-**To fix in code before any script with team changes is played.** On resume from a checkpoint, seats are rebuilt
-from each player's *current* alignment (`Game.restore` calls the seat factory with `p.evil`, and `cli.seat_models`
-assigns models by `p.evil`), so a converted seat would silently get the other team's model after a restart. Seats
-must be rebuilt from their starting assignment. This cannot happen in Trouble Brewing, where nobody changes team.
+**Fixed.** On resume from a checkpoint, seats used to be rebuilt from each player's *current* alignment, so a
+converted seat would have got the other team's model after a restart. Games now record each seat's dealt team
+(`Game.start_teams`) and rebuild seats from it (test: `test_a_seat_that_changed_team_keeps_its_dealt_teams_model_on_resume`).
 
 **The decision: how to score a game in which a seat changed team.**
 
@@ -48,7 +47,39 @@ the converted seat decides the result. That number should guide the choice.
 
 **When.** Before the first rated Bad Moon Rising batch. It does not block building the rules.
 
-## 2. Other open decisions from the engine audit
+## 2. The Storyteller judge: following evil's bluffs
+
+**The problem.** The rulebook: "To run drunkenness and poisoning well, listen to the bluffs of the evil players, and
+support those bluffs wherever possible... Normally, you should make drunkenness and poisoning as harmful as possible
+to the drunk or poisoned player." The scripted Storyteller listens to nobody. Example: the Imp, claiming Washerwoman,
+is executed; the Scarlet Woman takes over; the Poisoner poisons the Undertaker that night to support the claim. Over
+20,000 draws of the v17 Storyteller, the Undertaker learns "Imp" 20% of the time (poisoned information is true on 20%
+of nights), "Washerwoman" 20% (2% when Washerwoman is not among the Demon's three bluffs), and another Demon bluff,
+which contradicts the Imp's own claim, about 40%.
+
+**Decided design (for new scripts; built in Phase 3 of the BMR plan).** The model listens, the code decides:
+1. Code lists every legal answer (the Choice), as now.
+2. A judge reads what a real Storyteller knows (the Grimoire, tonight's choices, everything said aloud; never
+   private whispers) and ranks the legal answers against a rubric written from the rulebook, almanacs and wiki
+   advice, with a short reason and quotes.
+3. Code picks from the ranking with fixed, tunable weights, so only legal answers appear and no single habit
+   takes over (the v1-v2 model Storyteller undid misinformation and repeated itself).
+4. Every ruling is logged with its reason and reused on replay or resume.
+
+Modes: `scripted` (today's weighted table: the default; random bots, tests and fingerprints use it), `rules` (a free
+deterministic judge that reads simple public claims), `dry-run` (writes the prompt the model would get, calls nothing)
+and `model` (a cheap model, opt-in with an API key, within the budget ledger). Tests use recorded answers and never
+call a paid API. A test set of situations with known rulings (starting with the Undertaker case above and the
+rulebook's "Doug the Baron bluffing Mayor") measures how often the judge agrees with an expert.
+
+**Still to decide.** Which model; whether the rubric includes TPI's "help the weaker team" advice (balancing) or
+only the rules-of-thumb for misinformation; the weights.
+
+**Trouble Brewing (a future v18 proposal).** The same judge would be the most valuable protocol change the audit
+found for TB. It changes play, so it needs a proposal to the original author and a calibration batch on matched seeds
+(paid), per CONTRIBUTING.md.
+
+## 3. Other open decisions from the engine audit
 
 From the November 2026 audit of the engine against the rulebook, almanacs, wiki and TPI's design essays. Each
 changes play, so each is a protocol change when adopted.
