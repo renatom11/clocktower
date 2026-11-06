@@ -38,9 +38,10 @@ class Choose:
     character: bool = False   # a character too (the Gambler) or instead (the Courtier)
 
 
-def choice_spec(c):
-    """A character's night choice as a Choose, or None. Trouble Brewing's tuples keep their v17 meaning."""
-    nc = c.night_choice
+def choice_spec(c, nc=None):
+    """A character's night choice (or `nc`, one its night_spec gave) as a Choose, or None. Trouble Brewing's tuples
+    keep their v17 meaning."""
+    nc = c.night_choice if nc is None else nc
     if nc is None or isinstance(nc, Choose):
         return nc
     k, text, may_self = nc
@@ -105,6 +106,12 @@ class Character:
         return None
 
     # ---- hooks --------------------------------------------------------------------------------
+    def night_spec(self, game, me, night):
+        """What `me`, who believes they are this character, is woken to choose tonight: `night_choice`, a choice of
+        another shape (the Po's three after choosing no one) or None not to wake them (the Zombuul when someone died
+        today, a spent Assassin). Asked before tonight's choice is recorded, so `g.last_choices` is last night's."""
+        return self.night_choice
+
     def setup(self, game):
         """A setup step, run once the characters are dealt (in `setup_order`)."""
 
@@ -595,3 +602,6 @@ def script_text():
 
 # The hooks build the Storyteller's choices in state.py, which itself imports the lists above: import it last.
 from . import state  # noqa: E402
+from . import bmr  # noqa: E402,F401
+
+BMR_MODULE = bmr  # the Bad Moon Rising characters register themselves in CHARACTERS when imported

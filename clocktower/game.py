@@ -47,11 +47,13 @@ class Night:
         self.characters = {}  # player name -> the character they chose tonight (the Courtier, the Gambler)
         self.deaths = []
         self.revived = []  # players alive again (the Professor, the Shabaloth), announced at dawn
+        self.before = {}  # each player's choice on their previous night, as it stood at dusk (the Shabaloth's meal)
 
     def choice_of(self, g, character):
-        """(The living player who really is `character`, their first choice tonight or None)."""
+        """(The living player who really is `character`, their first choice tonight or None: not woken, or they
+        chose no one)."""
         p = g.with_character(character)
-        return (p, self.chosen[p.name][0]) if p and p.name in self.chosen else (p, None)
+        return (p, (self.chosen[p.name] or [None])[0]) if p and p.name in self.chosen else (p, None)
 
     @staticmethod
     def steps(first, script=TB):
@@ -302,14 +304,15 @@ class Game:
         self.emit('notice', {'text': f'(You named no character on the script, so the Storyteller chose {c}.)'}, [name])
         return c
 
-    def kill(self, p, cause, source=None):
+    def kill(self, p, cause, source=None, final=False):
         """The one way anyone dies (Demon, execution, Slayer, starpass, any other ability). Returns whether the
-        player died as the town sees it. A character may live on while registering as dead (the Zombuul); every
-        death goes in the Grimoire's death log, and characters react through on_death (the Scarlet Woman takes over
-        a dead Demon). Abilities that last only while their source lives end."""
+        player died as the town sees it. A character may live on while registering as dead (the Zombuul), unless the
+        death is `final` (the Assassin's: "even if for some reason they could not"); every death goes in the
+        Grimoire's death log, and characters react through on_death (the Scarlet Woman takes over a dead Demon).
+        Abilities that last only while their source lives end."""
         g = self.g
         before = g.alive_count()
-        seems = rules(p.character).dies(self, p, cause) == 'seems'
+        seems = not final and rules(p.character).dies(self, p, cause) == 'seems'
         if seems:
             p.seems_dead = True
         else:
@@ -338,23 +341,27 @@ class Game:
                 rules(c).moment(self, p, when)
 
     def prevent_death(self, p, cause, unstoppable=False):
-        """Whether p, about to die from `cause`, doesn't: a protection (unless `unstoppable`, the Assassin's kill),
-        or their own ability (the Fool, once)."""
-        if not unstoppable and self.g.safe(p, cause):
+        """Whether p, about to die from `cause`, doesn't: a protection or their own ability (the Fool, once), unless
+        the kill is `unstoppable` (the Assassin's: the Fool dies and stays dead)."""
+        if unstoppable:
+            return False
+        if self.g.safe(p, cause):
             return True
         return rules(p.character).survives(self, p, cause)
 
     def attempt_kill(self, target, cause, source=None, night=None, unstoppable=False):
         """An ability tries to kill `target`: nothing if they are dead or saved; the Demon's attack may land on
-        someone else (the Mayor). A night death is announced at dawn. Returns the player who died, or None."""
-        if not target.alive or (target.seems_dead and cause != 'execution'):
+        someone else (the Mayor). A night death is announced at dawn. Returns the player who died, or None. An
+        `unstoppable` kill goes through every protection and survival, and kills even a player who only seems dead
+        (the Assassin's: "even if for some reason they could not")."""
+        if not target.alive or (target.seems_dead and cause != 'execution' and not unstoppable):
             return None
         if self.prevent_death(target, cause, unstoppable):
             return None
         victim = target
         if cause == 'demon':
             victim = rules(target.character).redirect_attack(self, target, source) or target
-        self.kill(victim, cause, source)
+        self.kill(victim, cause, source, final=unstoppable)
         if night is not None:
             night.deaths.append(victim)
         return victim
@@ -371,12 +378,16 @@ class Game:
         """Tell one player something in private (at night: the Demon learning who the Exorcist chose)."""
         self.emit('info', {'text': text}, [p.name])
 
-    def tell(self, p, role, choice, target=None):
-        """The Storyteller decides an information role's result and tells the player."""
-        text = info_text(role, self.decide(choice), target)
+    def woken(self, p):
+        """Record that p woke tonight to use their ability (the Chambermaid counts them)."""
         self.g.woke.setdefault(self.day, [])
         if p.name not in self.g.woke[self.day]:
             self.g.woke[self.day].append(p.name)
+
+    def tell(self, p, role, choice, target=None):
+        """The Storyteller decides an information role's result and tells the player."""
+        text = info_text(role, self.decide(choice), target)
+        self.woken(p)
         self.emit('info', {'text': f'Night {self.day} — {role}: {text}'}, [p.name])
         if rules(role).remembered:
             self.g.reminders.append(f'{p.name} ({role}) was shown: {text}')
@@ -391,7 +402,10 @@ class Game:
         for p in g.living():
             if p.shown not in roles:
                 continue
-            spec, v17 = choice_spec(rules(p.shown)), not isinstance(rules(p.shown).night_choice, Choose)
+            nc = rules(p.shown).night_spec(self, p, night)  # tonight's shape, or None: not woken tonight
+            if nc is None:
+                continue
+            spec, v17 = choice_spec(rules(p.shown), nc), not isinstance(nc, Choose)
             last = g.last_choices.get(p.name, []) if spec.not_last else []
             options = [x for x in names if (spec.may_self or x != p.name) and x not in last
                        and (not spec.alive_only or g[x].appears_alive)]
@@ -426,6 +440,7 @@ class Game:
         g.expire('night', n)  # last night's poison, protection and master end at dusk
         self.emit('header', {'text': f'Night {n}'})
         night = Night(n)
+        night.before = dict(g.last_choices)
         for batch in Night.steps(night.first, g.script):
             await self.wake(night, batch)
             for c in batch:
@@ -480,9 +495,9 @@ class Game:
             requests = {}
             for name in wave:
                 prompt = f'{head} — your turn{note}. {tail}'
-                if not g[name].alive:
+                if not g[name].appears_alive:
                     prompt += ' (You are dead, but you can still ' + ('whisper.)' if private else 'talk.)')
-                requests[name] = Request(kind, prompt, n, beat=beat, alive=g[name].alive,
+                requests[name] = Request(kind, prompt, n, beat=beat, alive=g[name].appears_alive,
                                          mode='private' if private else 'public')
             acts = await self.ask_many(requests)
             if private:
@@ -565,6 +580,7 @@ class Game:
         survived = died and self.prevent_death(p, 'execution')
         died = died and not survived
         self.executed_today = True
+        g.executions.append({'player': name, 'day': self.day, 'died': died})
         self.emit('execution', {'player': name, 'died': died, **({'survived': True} if survived else {})})
         if died:
             g.alive_at_execution = g.alive_count()
@@ -586,7 +602,7 @@ class Game:
 
     async def vote(self, nominee, block, top):
         g, n = self.g, self.day
-        needed = math.ceil(g.alive_count() / 2)
+        needed = math.ceil(sum(p.appears_alive for p in g.players) / 2)  # of the players the town sees alive
         required = max(needed, top + 1)
         yes, voted, early = [], set(), {}
 
@@ -599,7 +615,7 @@ class Game:
                 lines[0] += f' (more than the {top} of an earlier tied vote)'
             lines[0] += '.'
             lines.append(f'Yes so far: {", ".join(yes) if yes else "none"} ({len(yes)}).')
-            if not p.alive:
+            if not p.appears_alive:
                 lines.append('You are dead: voting yes uses your one ghost vote.')
             if rules(p.character).follows_master and p.alive and g.master:  # poisoned or not: they can't tell
                 up = g.master in yes or early.get(g.master, (False,))[0]
@@ -613,7 +629,7 @@ class Game:
             return a.get('vote') is True, clip(a.get('say'), WORDS['vote'])
 
         def can_vote(q):
-            return q.alive or q.ghost_vote
+            return q.appears_alive or q.ghost_vote
 
         for voter in self.vote_order(nominee):
             p = g[voter]
@@ -629,7 +645,7 @@ class Game:
                     and not (g.master in yes or early.get(g.master, (False,))[0])):
                 v, remark = False, ''  # a Butler may only raise their hand while their master's is up
                 self.emit('notice', {'text': f'(Your master {g.master} is not voting yes, so you cannot vote.)'}, [voter])
-            ghost = v and not p.alive
+            ghost = v and not p.appears_alive  # a Zombuul who seems dead spends their vote token too
             if ghost:
                 p.ghost_vote = False
             self.emit('vote', {'voter': voter, 'nominee': nominee, 'yes': v, 'ghost': ghost, 'text': remark})
@@ -660,7 +676,7 @@ class Game:
         nominators, nominees = set(), set()
         block, top = None, 0
         while not g.winner:
-            eligible = [p.name for p in g.living() if p.name not in nominators]
+            eligible = [p.name for p in g.living() if p.appears_alive and p.name not in nominators]
             options = [x for x in self.names if x not in nominees]
             if not eligible or not options:
                 break

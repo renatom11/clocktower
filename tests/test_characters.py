@@ -18,7 +18,7 @@ class OfficialDataTests(unittest.TestCase):
     def test_every_character_is_official_with_its_official_type(self):
         for name, c in characters.CHARACTERS.items():
             self.assertEqual(official.kind(name), c.kind, name)
-            self.assertEqual(official.role(name)['edition'], 'tb', name)
+            self.assertIn(official.role(name)['edition'], ('tb', 'bmr'), name)
 
     def test_the_night_order_is_the_official_one(self):
         steps = official.nightsheet()
@@ -36,10 +36,9 @@ class OfficialDataTests(unittest.TestCase):
         self.assertEqual(differ, set(WORDING))
 
     def test_every_character_with_a_night_choice_has_a_night_step(self):
-        steps = set(characters.FIRST_NIGHT) | set(characters.OTHER_NIGHTS)
         for name, c in characters.CHARACTERS.items():
             if c.night_choice or c.info:
-                self.assertIn(name, steps, name)
+                self.assertTrue(official.night_order([name], True) or official.night_order([name], False), name)
 
     def test_the_universal_night_order_covers_every_character_with_a_night_instruction(self):
         roles = official.roles()

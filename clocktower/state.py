@@ -146,6 +146,12 @@ POLICY = {
     'pair_partner_good': 0.9, # an Investigator's second player is a good player (else anyone)
     'mayor_bounce': 0.5,      # an attack on the Mayor kills someone else
     'bounce_evil': 0.05,      # a Mayor bounce may land on the Minion (else a good player)
+    # Bad Moon Rising
+    # the Shabaloth regurgitates one of the dead players it chose last night: the almanac says "only rarely ...
+    # once per game, maybe twice"; the wiki, usually a good player, a Minion "rarely". Default, for review.
+    'shabaloth_regurgitate': 0.25,  # per night with a candidate, while under the budget
+    'regurgitations': 2,            # the budget per game; beyond it the chance is a tenth
+    'regurgitate_evil': 0.1,        # the regurgitated player may be evil (else a good one, when there is one)
     # the Storyteller judge (judge.py; scripts other than TB, when one is chosen): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
@@ -187,6 +193,9 @@ class Choice:
         return norm(self.style(r))
 
 
+_PAUSING = set()  # states whose pause is being worked out (Grimoire.active), so a state can't loop on itself
+
+
 class Grimoire:
     def __init__(self, names, characters, drunk_as=None, script=TB):
         self.script = script
@@ -202,6 +211,9 @@ class Grimoire:
         self.woke = {}              # night -> players woken to use their own ability (the Chambermaid)
         self.nominations = []       # every nomination: {day, nominator, nominee, votes, voters, outcome}
         self.last_choices = {}      # player -> who they chose on their last night choice (the Exorcist)
+        self.executions = []        # every execution, killing or not: {player, day, died} (the Mastermind's day)
+        self.revivals = []          # every return to life: {player, day, source} (the Shabaloth's budget)
+        self.notes = {}             # an ability's own bookkeeping across nights (the Mastermind's extra day)
         self.day = 0
         self.executed_death = None  # who died by execution today (Undertaker)
         self.alive_at_execution = 0  # players alive just before that execution
@@ -219,6 +231,9 @@ class Grimoire:
         self.__dict__.setdefault('woke', {})
         self.__dict__.setdefault('nominations', [])
         self.__dict__.setdefault('last_choices', {})
+        self.__dict__.setdefault('executions', [])
+        self.__dict__.setdefault('revivals', [])
+        self.__dict__.setdefault('notes', {})
         if 'states' not in d:
             self.states, self.spent = [], set()
             for kind_, name in (('poisoned', old['poisoned']), ('safe', old['protected']), ('master', old['master'])):
@@ -242,11 +257,19 @@ class Grimoire:
 
     def active(self, s):
         """Whether a state is in force now: one that lasts only while its source works is paused (not removed)
-        while the source is dead, drunk or poisoned (the Courtier's drunkenness, when the Courtier is drunk)."""
+        while the source is dead, drunk or poisoned (the Courtier's drunkenness, when the Courtier is drunk). A state
+        that would pause itself is not in force, rather than the question looping: a Pukka who poisons themself is
+        not poisoned by it (and dies the next night, as the previously poisoned player)."""
         if not s.while_source_works or not s.source:
             return True
-        src = self[s.source]
-        return src.alive and not self.impaired(src)
+        if id(s) in _PAUSING:
+            return True
+        _PAUSING.add(id(s))
+        try:
+            src = self[s.source]
+            return src.alive and not self.impaired(src)
+        finally:
+            _PAUSING.discard(id(s))
 
     def holders(self, kind_):
         """Names of the players with a state of this kind, in the order the states were made."""
@@ -324,11 +347,12 @@ class Grimoire:
             return True
         return any(q is not p and rules(q.character).protects(self, q, p, cause) for q in self.players)
 
-    def revive(self, p):
+    def revive(self, p, source=None):
         """p comes back to life (the Professor, the Shabaloth): alive, with their vote token and their ability,
-        even a spent once-per-game one."""
+        even a spent once-per-game one. `source` names the ability (for the log)."""
         p.alive, p.seems_dead, p.ghost_vote = True, False, True
         self.spent.discard(p.character)
+        self.revivals.append({'player': p.name, 'day': self.day, 'source': source})
 
     def jinxed(self, a, b):
         """The official jinx between two characters on this script, or None."""
@@ -349,7 +373,8 @@ class Grimoire:
         self.states = [s for s in self.states if not (s.ends_with_source and s.source == p.name)]
 
     def neighbours(self, p):
-        """Nearest living players clockwise and anticlockwise (excluding p)."""
+        """Nearest living players clockwise and anticlockwise (excluding p). A Zombuul who seems dead is not an
+        alive neighbour."""
         n = len(self.players)
         out = []
         for step in (-1, 1):
@@ -357,7 +382,7 @@ class Grimoire:
             for _ in range(n - 1):
                 i = (i + step) % n
                 q = self.players[i]
-                if q.alive and q is not p:
+                if q.appears_alive and q is not p:
                     out.append(q)
                     break
         if len(out) == 2 and out[0] is out[1]:
@@ -489,7 +514,13 @@ class Grimoire:
             if p.shown != p.character: tags.append(f'thinks they are the {p.shown}')
             if not p.alive: tags.append('DEAD' + ('' if p.ghost_vote else ', ghost vote used'))
             if self.is_poisoned(p): tags.append('POISONED')
-            if self.has(p, 'safe'): tags.append('protected by the Monk tonight')
+            if any(s.kind == 'safe' and s.target == p.name and s.against == 'demon' and self.active(s)
+                   for s in self.states):
+                tags.append('protected by the Monk tonight')
+            tags += ['cannot die' + ('' if s.against == 'any' else f' by {s.against}')  # protections beyond TB's
+                     for s in self.states
+                     if s.kind == 'safe' and s.target == p.name and s.against != 'demon' and self.active(s)]
+            if p.seems_dead: tags.append('ALIVE, but registers as dead')
             if p.name == self.red_herring: tags.append("Fortune Teller's red herring")
             if self.has(p, 'master'): tags.append("Butler's master")
             team = 'evil' if p.evil else 'good'
