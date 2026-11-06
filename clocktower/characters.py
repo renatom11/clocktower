@@ -56,8 +56,10 @@ class Character:
     remembered = False       # the Grimoire keeps what they were shown (pair abilities; the Spy sees it)
     night_choice = None      # a Choose (or TB's (count, prompt, may choose themselves)) if they choose at night
     kills_at_night = False   # night choices after this step are asked only once it has resolved
-    public_action = None     # the move (schema field) through which anyone can claim this character's day action
+    public_action = None     # the move through which anyone can claim this character's day action: its own
+    #                          schema field ('slayer_shot', protocol v17) or the shared 'ability' field
     outsiders = 0            # setup modifier: Townsfolk turned into Outsiders (the Baron's +2)
+    outsider_choices = ()    # or the Storyteller picks one of these when dealing (the Godfather: -1 or +1)
     setup_order = None       # characters with a setup step run in this order
     misregisters = None      # the POLICY key for how often a working one registers as evil
     follows_master = False   # may vote only while their master votes (the Butler)
@@ -72,13 +74,14 @@ class Character:
         return official.ids()[self.name]
 
     # ---- registration: the set of answers an ability could get about player `me` --------------------
-    def registers_evil(self, g, me):
+    # (each takes the observer too: registration may differ by who is looking, and by check)
+    def registers_evil(self, g, me, observer=None):
         return {me.evil}
 
-    def registers_as(self, g, me):
+    def registers_as(self, g, me, observer=None):
         return {me.character}
 
-    def registers_demon_to_ft(self, g, me):
+    def registers_demon_to_ft(self, g, me, observer=None):
         return {self.kind == 'Demon' or me.name == g.red_herring}
 
     def safe_from_demon(self, g, me):
@@ -130,9 +133,20 @@ class Character:
     def end_of_day(self, game, me):
         """The day's nominations are over."""
 
-    def act_publicly(self, game, actor, target):
-        """`actor` publicly claims this character's day action on `target`: whether the target dies."""
+    def act_publicly(self, game, actor, target, text=None):
+        """`actor` publicly claims this character's day action (on `target`, with `text`, such as the Gossip's
+        statement). Anyone may claim it; it does something only for a real, working one. Returns whether the
+        target dies at once (the Slayer's shot)."""
         return False
+
+    def moment(self, game, me, when):
+        """A point of the day when the Storyteller may act for this character: 'dawn', 'beat' (after each beat),
+        'nominations' (before they open) or 'dusk' (after them). The Tinker may die at any of them."""
+
+    def overrides_end(self, g, me, winner, reason):
+        """The game would end with `winner` for `reason`: None to let it, False to keep it going (the Mastermind's
+        extra day), or a different (winner, reason)."""
+        return None
 
     def card(self):
         return f'{self.name} ({self.kind}, {"evil" if self.evil else "good"} team): {self.ability}'
@@ -290,7 +304,7 @@ class Slayer(Townsfolk):
     ability = 'Once per game, during the day, publicly choose a player: if they are the Demon, they die.'
     public_action = 'slayer_shot'
 
-    def act_publicly(self, game, actor, target):
+    def act_publicly(self, game, actor, target, text=None):
         g = game.g
         s, t = g[actor], g[target]
         if not (s.alive and s.character == self.name and not g.spent_ability(self.name)):
@@ -360,13 +374,13 @@ class Recluse(Outsider):
     ability = 'You might register as evil & as a Minion or Demon, even if dead.'
     misregisters = 'recluse_evil'
 
-    def registers_evil(self, g, me):
+    def registers_evil(self, g, me, observer=None):
         return {me.evil} if g.is_poisoned(me) else {True, False}
 
-    def registers_as(self, g, me):
+    def registers_as(self, g, me, observer=None):
         return {me.character} if g.is_poisoned(me) else {self.name, *g.script.minions, *g.script.demons}
 
-    def registers_demon_to_ft(self, g, me):
+    def registers_demon_to_ft(self, g, me, observer=None):
         if me.name == g.red_herring:
             return {True}
         return {False} if g.is_poisoned(me) else {True, False}
@@ -398,10 +412,10 @@ class Spy(Minion):
     ability = 'Each night, you see the Grimoire. You might register as good & as a Townsfolk or Outsider, even if dead.'
     misregisters = 'spy_evil'
 
-    def registers_evil(self, g, me):
+    def registers_evil(self, g, me, observer=None):
         return {me.evil} if g.is_poisoned(me) else {True, False}
 
-    def registers_as(self, g, me):
+    def registers_as(self, g, me, observer=None):
         return {me.character} if g.is_poisoned(me) else {self.name, *g.script.townsfolk, *g.script.outsiders}
 
     async def resolve_night(self, game, night):
@@ -510,10 +524,14 @@ class Script:
         self.other_nights = official.night_order(self.all, False)
         steps = [rules(n) for n in self.all if rules(n).setup_order is not None]
         self.setup_steps = sorted(steps, key=lambda c: c.setup_order)
-        self.public_actions = {rules(n).public_action: rules(n) for n in self.all if rules(n).public_action}
+        self.public_actions = {rules(n).public_action: rules(n) for n in self.all
+                               if rules(n).public_action not in (None, 'ability')}
+        self.claimable = [n for n in self.all if rules(n).public_action == 'ability']  # via the 'ability' field
         # Trouble Brewing asks night choices in batches (protocol v17); other scripts wake one character at a time,
         # since their steps depend on earlier ones (the Lunatic before the Demon, the Exorcist's target, the Goon)
         self.batched_night = self.id == 'tb'
+        # official jinxes between this script's characters (none within Trouble Brewing)
+        self.jinxes = {pair: text for pair, text in official.jinxes().items() if set(pair) <= set(self.all)}
 
     @classmethod
     def of(cls, name, characters, first_night=(), other_nights=()):
@@ -528,8 +546,10 @@ class Script:
         s.first_night, s.other_nights = list(first_night), list(other_nights)
         s.setup_steps = sorted((rules(n) for n in s.all if rules(n).setup_order is not None),
                                key=lambda c: c.setup_order)
-        s.public_actions = {rules(n).public_action: rules(n) for n in s.all if rules(n).public_action}
-        s.batched_night = False
+        s.public_actions = {rules(n).public_action: rules(n) for n in s.all
+                            if rules(n).public_action not in (None, 'ability')}
+        s.claimable = [n for n in s.all if rules(n).public_action == 'ability']
+        s.batched_night, s.jinxes = False, {}
         return s
 
     def __repr__(self):
@@ -549,6 +569,11 @@ class Script:
             lines.append(f'{title}:')
             lines += [f'- {c}: {rules(c).ability}' for c in group]
         lines.append('(* = not on the first night)')
+        seen = set()
+        for (a, b), text in self.jinxes.items():  # each pair once
+            if (b, a) not in seen:
+                seen.add((a, b))
+                lines.append(f'Jinx, {a} and {b}: {text}')
         return '\n'.join(lines)
 
 

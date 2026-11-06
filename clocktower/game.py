@@ -124,6 +124,7 @@ class Game:
         self.starting = None        # {seat: dealt character}
         self.start_teams = None     # {seat: 'good' or 'evil'} as dealt: which team's model plays the seat, all game
         self.probes, self.probe_tasks, self.probe_log = probes, [], []
+        self.pending = []  # abilities waiting for a player's answer (Game.later)
 
     # ---- logging -----------------------------------------------------------------------
     def _write(self, filename, line):
@@ -293,8 +294,24 @@ class Game:
                             'day': self.day, 'phase': self.phase, **({'seems': True} if seems else {})})
         self.emit('death', {'player': p.name, 'cause': cause, **({'seems': True} if seems else {})}, 'audit')
         for q in g.players:
-            rules(q.character).on_death(self, q, p, cause, before)
+            for c in g.abilities(q):
+                rules(c).on_death(self, q, p, cause, before)
         return True
+
+    def later(self, action):
+        """Run `action(game)`, a coroutine, at the next safe point (after the current turn, execution or night
+        step): for an ability that needs a player's answer when it triggers (the Moonchild's choice on death)."""
+        self.pending.append(action)
+
+    async def run_pending(self):
+        while self.pending and not self.g.winner:
+            await self.pending.pop(0)(self)
+
+    def moment(self, when):
+        """A point of the day when characters' abilities may act (see Character.moment)."""
+        for p in self.g.players:
+            for c in self.g.abilities(p):
+                rules(c).moment(self, p, when)
 
     def prevent_death(self, p, cause, unstoppable=False):
         """Whether p, about to die from `cause`, doesn't: a protection (unless `unstoppable`, the Assassin's kill),
@@ -389,6 +406,7 @@ class Game:
             await self.wake(night, batch)
             for c in batch:
                 await rules(c).resolve_night(self, night)
+                await self.run_pending()
 
         self.phase = 'day'
         self.emit('header', {'text': f'Day {n}'})
@@ -400,6 +418,8 @@ class Game:
                            **({'revived': [p.name for p in revived]} if revived else {})})
         if night.first:
             self.probe('dawn')
+        self.moment('dawn')
+        await self.run_pending()
 
     # ---- day ---------------------------------------------------------------------------------
     def whispers(self, name, action):
@@ -454,6 +474,8 @@ class Game:
                 if say:
                     self.emit('say', {'speaker': name, 'text': say})
             self.shots(wave, acts)
+            self.public_abilities(wave, acts)
+            await self.run_pending()
             if g.winner:
                 return
 
@@ -482,6 +504,23 @@ class Game:
             t = acts[name].get('slayer_shot')
             if t in self.names and t != name and not self.g.winner:
                 self.slayer(name, t)
+
+    def public_abilities(self, names, acts):
+        """Public day abilities claimed on these turns, beyond the Slayer's shot (the Gossip's statement): anyone may
+        claim one, the town hears the claim, and it does something only for a real, working one."""
+        g = self.g
+        for name in names:
+            use = acts[name].get('ability')
+            if not isinstance(use, dict) or use.get('character') not in g.script.claimable or g.winner:
+                continue
+            c, target = use['character'], use.get('target') if use.get('target') in self.names else None
+            text = clip(use.get('text'), WORDS['beat'])
+            self.emit('ability', {'player': name, 'character': c, **({'target': target} if target else {}),
+                                  **({'text': text} if text else {})})
+            if rules(c).act_publicly(self, name, target, text) and target:
+                if not self.prevent_death(g[target], c.lower()):
+                    self.kill(g[target], c.lower(), g[name])
+                    g.check_victory()
 
     def slayer(self, shooter, target):
         g = self.g
@@ -582,6 +621,8 @@ class Game:
             outcome = 'short'
         self.emit('vote_result', {'nominee': nominee, 'votes': count, 'needed': required, 'outcome': outcome,
                                   'voters': yes})
+        if g.nominations and g.nominations[-1]['nominee'] == nominee:
+            g.nominations[-1].update(votes=count, voters=list(yes), outcome=outcome)
         return block, top
 
     async def nominations(self):
@@ -621,6 +662,7 @@ class Game:
             nominators.add(nominator)
             nominees.add(nominee)
             self.emit('nomination', {'nominator': nominator, 'nominee': nominee, 'text': accusation})
+            g.nominations.append({'day': n, 'nominator': nominator, 'nominee': nominee})
             if self.virgin(nominator, nominee):
                 return
             d = await self.ask(nominee, Request('defense', f'Day {n}: {"you have nominated yourself" if nominator == nominee else nominator + " has nominated you"}. '
@@ -637,6 +679,7 @@ class Game:
             return
         if block:
             self.execute(block)
+            await self.run_pending()
         else:
             self.emit('no_execution', {})
 
@@ -648,14 +691,22 @@ class Game:
                 await self.beat(n, k, private)
                 if g.winner:
                     return
+                self.moment('beat')
+                await self.run_pending()
+                if g.winner:
+                    return
         self.probe('nominations')
+        self.moment('nominations')
         await self.nominations()
         if g.winner:
             return
         for p in g.players:  # end-of-day abilities (the Mayor's win)
-            rules(p.character).end_of_day(self, p)
+            for c in g.abilities(p):
+                rules(c).end_of_day(self, p)
             if g.winner:
                 return
+        self.moment('dusk')
+        await self.run_pending()
 
     # ---- the whole game ------------------------------------------------------------------------
     # ---- checkpoints -----------------------------------------------------------------------

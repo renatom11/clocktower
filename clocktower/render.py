@@ -55,6 +55,10 @@ def render(ev, viewer, dead=()):
     if k == 'slayer':
         head = f"{nm(d['shooter'])} claims the Slayer's power and shoots at {d['target']}."
         return head + (f" {d['target']} dies!" if d['died'] else ' Nothing happens.')
+    if k == 'ability':
+        head = f"{nm(d['player'])} claims the {d['character']}'s ability"
+        head += f" on {d['target']}" if d.get('target') else ''
+        return head + (f': "{d["text"]}"' if d.get('text') else '.')
     if k == 'nominations_open':
         return 'The Storyteller opens nominations.'
     if k == 'nomination':

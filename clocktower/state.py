@@ -10,7 +10,7 @@ registration, Mayor bounces) is a Choice: the full list of legal values plus the
 applies an illegal value.
 """
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import combinations, product
 import random
 from typing import Callable
@@ -27,6 +27,8 @@ class Player:
     ghost_vote: bool = True
     alignment: str = ''     # 'good' or 'evil': dealt with the character, and kept when the character changes
     seems_dead: bool = False  # alive, but registers and is shown as dead (the Zombuul after its first death)
+    extra: list = field(default_factory=list)  # abilities held beyond their own character's (the Philosopher's)
+    traveller: bool = False  # a Traveller doesn't count towards 'two alive' or the Scarlet Woman's five
 
     def __post_init__(self):
         self.alignment = self.alignment or ('evil' if is_evil_character(self.character) else 'good')
@@ -69,8 +71,18 @@ def team_sizes(n, outsiders=0):
 
 
 def setup_change(characters):
-    """Townsfolk the characters' setup modifiers turn into Outsiders (the Baron: 2)."""
+    """Townsfolk the characters' fixed setup modifiers turn into Outsiders (the Baron: 2)."""
     return sum(rules(c).outsiders for c in characters)
+
+
+def setup_changes(characters):
+    """Every total the characters' setup modifiers allow, including the Storyteller's choices (the Godfather's
+    -1 or +1)."""
+    totals = {setup_change(characters)}
+    for c in characters:
+        if rules(c).outsider_choices:
+            totals = {t + d for t in totals for d in rules(c).outsider_choices}
+    return totals
 
 
 def setup_error(characters, script=TB):
@@ -82,9 +94,10 @@ def setup_error(characters, script=TB):
     if bad: return f'not on the script: {bad}'
     counts = {k: sum(1 for c in characters if kind(c) == k) for k in ('Townsfolk', 'Outsider', 'Minion', 'Demon')}
     if counts['Demon'] != 1: return 'need exactly one ' + (script.demons[0] if len(script.demons) == 1 else 'Demon')
-    tf, os_, mn = team_sizes(n, setup_change(characters))
+    sizes = [team_sizes(n, d) for d in sorted(setup_changes(characters))]
+    tf, os_, mn = sizes[0]
     if counts['Minion'] != mn: return f'need exactly {mn} Minion(s)'
-    if (counts['Townsfolk'], counts['Outsider']) != (tf, os_):
+    if (counts['Townsfolk'], counts['Outsider']) not in {(t, o) for t, o, _ in sizes}:
         modifiers = [c for c in characters if rules(c).outsiders]
         return f'need {tf} Townsfolk and {os_} Outsiders' + (f' ({", ".join(modifiers)} in play)' if modifiers else '')
     return None
@@ -95,7 +108,14 @@ def random_setup(rng, minion=None, players=9, script=TB):
     mn = SETUPS[players][2]
     minions = ([minion] if minion else []) + rng.sample([m for m in script.minions if m != minion],
                                                         mn - (1 if minion else 0))
-    tf, os_, _ = team_sizes(players, setup_change(minions))
+    change = setup_change(minions)
+    for m in minions:  # the Storyteller's choice for a modifier that offers one (the Godfather), among those the
+        if rules(m).outsider_choices:  # script can deal (no -1 with no Outsiders to remove)
+            def dealable(d):
+                t, o, _ = team_sizes(players, change + d)
+                return 0 <= t <= len(script.townsfolk) and 0 <= o <= len(script.outsiders)
+            change += rng.choice([d for d in rules(m).outsider_choices if dealable(d)])
+    tf, os_, _ = team_sizes(players, change)
     demon = script.demons if len(script.demons) == 1 else [rng.choice(script.demons)]
     return rng.sample(script.townsfolk, tf) + rng.sample(script.outsiders, os_) + minions + demon
 
@@ -173,6 +193,7 @@ class Grimoire:
         self.spent = set()          # once-per-game abilities used (by character)
         self.death_log = []         # every death, real or apparent: {player, cause, source, day, phase}
         self.woke = {}              # night -> players woken to use their own ability (the Chambermaid)
+        self.nominations = []       # every nomination: {day, nominator, nominee, votes, voters, outcome}
         self.last_choices = {}      # player -> who they chose on their last night choice (the Exorcist)
         self.day = 0
         self.executed_death = None  # who died by execution today (Undertaker)
@@ -189,6 +210,7 @@ class Grimoire:
         self.__dict__.setdefault('script', TB)
         self.__dict__.setdefault('death_log', [])
         self.__dict__.setdefault('woke', {})
+        self.__dict__.setdefault('nominations', [])
         self.__dict__.setdefault('last_choices', {})
         if 'states' not in d:
             self.states, self.spent = [], set()
@@ -272,9 +294,13 @@ class Grimoire:
         """The player's own ability (as they understand it) is not working."""
         return self.is_drunk(p) or self.is_poisoned(p)
 
+    def abilities(self, p):
+        """The characters whose abilities p has: their own, and any gained (the Philosopher's)."""
+        return [p.character, *getattr(p, 'extra', [])]
+
     def works(self, p, character):
-        """p is alive, really is `character`, and is neither drunk nor poisoned."""
-        return p.alive and p.character == character and not self.impaired(p)
+        """p is alive, has `character`'s ability, and is neither drunk nor poisoned."""
+        return p.alive and character in self.abilities(p) and not self.impaired(p)
 
     def safe_from_demon(self, p):
         """The Demon's attack can't kill p: their own ability (the Soldier) or protection (the Monk's)."""
@@ -296,6 +322,10 @@ class Grimoire:
         even a spent once-per-game one."""
         p.alive, p.seems_dead, p.ghost_vote = True, False, True
         self.spent.discard(p.character)
+
+    def jinxed(self, a, b):
+        """The official jinx between two characters on this script, or None."""
+        return self.script.jinxes.get((a, b))
 
     def died_today(self, day=None):
         """Players who died (or seemed to) during day `day` (default: the current one), in order."""
@@ -328,16 +358,16 @@ class Grimoire:
         return out
 
     # ---- registration --------------------------------------------------------------
-    def registers_evil(self, p):
-        """Set of possible answers to 'is p evil?'"""
-        return rules(p.character).registers_evil(self, p)
+    def registers_evil(self, p, observer=None):
+        """Set of possible answers to 'is p evil?' (asked by `observer`'s ability, if given)"""
+        return rules(p.character).registers_evil(self, p, observer)
 
-    def registers_as(self, p):
+    def registers_as(self, p, observer=None):
         """Set of characters p might register as."""
-        return rules(p.character).registers_as(self, p)
+        return rules(p.character).registers_as(self, p, observer)
 
-    def registers_demon_to_ft(self, p):
-        return rules(p.character).registers_demon_to_ft(self, p)
+    def registers_demon_to_ft(self, p, observer=None):
+        return rules(p.character).registers_demon_to_ft(self, p, observer)
 
     def decoy(self, p, r):
         """The false world an impaired player's information comes from, fixed per player so it stays
@@ -429,10 +459,19 @@ class Grimoire:
 
     def check_victory(self):
         if self.winner: return self.winner
+        end = None
         if not self.demon():
-            self.winner, self.reason = 'good', 'The Demon is dead.'
+            end = 'good', 'The Demon is dead.'
         elif self.alive_count() <= 2:
-            self.winner, self.reason = 'evil', 'Only two players remain alive.'
+            end = 'evil', 'Only two players remain alive.'
+        for p in self.players if end else ():  # a character may keep the game going or change who wins
+            changed = rules(p.character).overrides_end(self, p, *end)
+            if changed is False:
+                return None
+            if changed:
+                end = changed
+        if end:
+            self.winner, self.reason = end
         return self.winner
 
     # ---- views ---------------------------------------------------------------------

@@ -77,7 +77,43 @@ class Henchman(ch.Minion):
     name = 'Test Henchman'
 
 
-TEST = [Guard, Jester, Ghoul, Plain, Henchman, Picker, Hunter]
+class Crier(ch.Townsfolk):
+    """A public day ability anyone can claim: a real one kills the named player."""
+    name = 'Test Crier'
+    public_action = 'ability'
+
+    def act_publicly(self, game, actor, target, text=None):
+        return game.g.works(game.g[actor], self.name)
+
+
+class Avenger(ch.Outsider):
+    """When they die, they choose a player (asked after the death resolves): that player dies too."""
+    name = 'Test Avenger'
+
+    def on_death(self, game, me, dead, cause, alive_before):
+        if dead is me:
+            async def choose(game):
+                req = game.request('avenger', 'Choose a player.', game.day, n_targets=1, options=game.names)
+                t = game.targets(me.name, await game.ask(me.name, req), req)[0]
+                game.attempt_kill(game.g[t], 'avenger', me)
+            game.later(choose)
+
+
+class Fixer(ch.Minion):
+    """The Storyteller deals one Outsider more or one fewer."""
+    name = 'Test Fixer'
+    outsider_choices = (-1, 1)
+
+
+class Keeper(ch.Minion):
+    """While alive, the Demon's death doesn't end the game."""
+    name = 'Test Keeper'
+
+    def overrides_end(self, g, me, winner, reason):
+        return False if me.alive and winner == 'good' else None
+
+
+TEST = [Guard, Jester, Ghoul, Plain, Henchman, Picker, Hunter, Crier, Avenger, Fixer, Keeper]
 
 
 class Silent:
@@ -93,7 +129,7 @@ class Answers:
 
     async def act(self, text, request):
         self.log.append(request)
-        return Reply({**BLANK, **(self.answer if request.kind == 'night' else {})})
+        return Reply({**BLANK, **(self.answer if request.kind in ('night', 'avenger') else {})})
 
 
 def run(coro):
@@ -247,6 +283,73 @@ class CoreTests(unittest.TestCase):
         other = player_schema(NAMES, self.script)
         self.assertIn('character', other['properties'])
         self.assertNotIn('slayer_shot', other['properties'])
+
+
+    def test_anyone_can_claim_a_public_ability_and_only_a_real_one_works(self):
+        script = ch.Script.of('test', ['Test Crier', 'Test Plain', 'Test Plain', 'Test Henchman', 'Test Ghoul'])
+        self.assertEqual(script.claimable, ['Test Crier'])
+        g = self.setup(['Test Crier', 'Test Plain', 'Test Plain', 'Test Henchman', 'Test Ghoul'])
+        g.g.script = g.script = script
+        g.public_abilities([B], {B: {'ability': {'character': 'Test Crier', 'target': C, 'text': 'hear me'}}})
+        self.assertTrue(g.g[C].alive)  # Blair isn't the Crier: the claim does nothing
+        ev = [e for e in g.events if e['kind'] == 'ability'][-1]
+        self.assertEqual(render(ev, D), f'{B} claims the Test Crier\'s ability on {C}: "hear me"')
+        g.public_abilities([A], {A: {'ability': {'character': 'Test Crier', 'target': C}}})
+        self.assertFalse(g.g[C].alive)
+        self.assertEqual(g.g.death_log[-1]['cause'], 'test crier')
+
+    def test_an_ability_that_triggers_on_death_asks_its_player_afterwards(self):
+        chars = ['Test Avenger', 'Test Plain', 'Test Plain', 'Test Henchman', 'Test Ghoul']
+        g = self.setup(chars)
+        log = []
+        g.seats[A] = Answers({'targets': [C]}, log)
+
+        async def go():
+            g.kill(g.g[A], 'demon')
+            self.assertEqual(len(g.pending), 1)  # asked only once the death has resolved
+            await g.run_pending()
+        run(go())
+        self.assertEqual(log[0].kind, 'avenger')
+        self.assertFalse(g.g[C].alive)
+
+    def test_a_setup_modifier_can_be_the_storytellers_choice(self):
+        from clocktower.state import random_setup, setup_error
+        script = ch.Script.of('test', ['Test Plain', 'Test Guard', 'Test Picker', 'Test Crier', 'Test Jester',
+                                       'Test Avenger', 'Test Fixer', 'Test Henchman', 'Test Ghoul'])
+        outsiders = set()
+        for seed in range(40):
+            chars = random_setup(random.Random(seed), 'Test Fixer', 7, script)  # 7 players: 5, 0, 1 normally
+            self.assertIsNone(setup_error(chars, script))
+            outsiders.add(sum(ch.kind(c) == 'Outsider' for c in chars))
+        self.assertEqual(outsiders, {1})  # -1 is impossible with no Outsiders, so only +1 deals
+        outsiders = set()
+        for seed in range(40):
+            chars = random_setup(random.Random(seed), 'Test Fixer', 6, script)  # 6 players: 3, 1, 1 normally
+            self.assertIsNone(setup_error(chars, script))
+            outsiders.add(sum(ch.kind(c) == 'Outsider' for c in chars))
+        self.assertEqual(outsiders, {0, 2})  # the Storyteller's -1 or +1
+
+    def test_a_character_can_keep_the_game_going(self):
+        g = self.setup(['Test Plain', 'Test Plain', 'Test Plain', 'Test Keeper', 'Test Ghoul'])
+        g.g.spend('Test Ghoul')  # no apparent death: the Ghoul dies for real
+        g.kill(g.g[E], 'execution')
+        self.assertIsNone(g.g.check_victory())
+        g.kill(g.g[D], 'demon')
+        self.assertEqual(g.g.check_victory(), 'good')
+
+    def test_an_ability_can_be_held_by_another_character_and_jinxes_come_from_the_official_data(self):
+        g = self.setup(['Test Plain', 'Test Plain', 'Test Plain', 'Test Henchman', 'Test Ghoul'])
+        g.g[B].extra.append('Test Crier')
+        self.assertTrue(g.g.works(g.g[B], 'Test Crier'))
+        self.assertFalse(g.g.works(g.g[C], 'Test Crier'))
+        self.assertEqual(ch.TB.jinxes, {})
+        import json
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'j.json'
+            path.write_text(json.dumps(['washerwoman', 'spy', 'poisoner', 'imp', 'scarletwoman', 'recluse']))
+            self.assertEqual(ch.Script(path).jinxes, {})
 
 
 if __name__ == '__main__':

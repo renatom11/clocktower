@@ -30,4 +30,7 @@ def player_schema(names, script=None):
         fields['character'] = _nullable({'type': 'string', 'enum': list(script.all)})
         if 'slayer_shot' not in script.public_actions:
             del fields['slayer_shot']
+        if script.claimable:  # a public day ability anyone can claim (the Gossip's statement)
+            fields['ability'] = _nullable(_obj({'character': {'type': 'string', 'enum': list(script.claimable)},
+                                                'target': _nullable(name), 'text': {'type': 'string'}}))
     return _obj(fields)
