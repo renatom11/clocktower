@@ -79,6 +79,44 @@ only the rules-of-thumb for misinformation; the weights.
 found for TB. It changes play, so it needs a proposal to the original author and a calibration batch on matched seeds
 (paid), per CONTRIBUTING.md.
 
+## 2b. An omniscient Storyteller judge (the owner's direction, 2026-11-06)
+
+**The direction.** A good Storyteller knows everything that is going on at every moment and how it relates, and
+makes each discretionary call in context: "the Spy nominated the Virgin: is it more balanced, and does it honour
+both abilities better, to let the Spy die to the Virgin or not?"; "the Slayer shot the Recluse: should they die?".
+The engine's Storyteller should do the same. Today those two calls are fixed coin flips that ignore the game
+(`POLICY['spy_virgin']` and `POLICY['recluse_slain']`, 20% each), like most of the scripted Storyteller.
+
+**What changes from section 2's design.**
+1. **The judge knows everything except players' minds:** the Grimoire, every night choice, everything said aloud,
+   *and every whisper*, every nomination and vote, the death log. (Section 2 had it hear only public speech, like a
+   human Storyteller; the owner prefers an omniscient one.) It never sees players' thinking or belief probes:
+   "maybe not inside the head of all the players, but using the Storyteller's interpretation of how the game is
+   going". Keep this a setting (`--judge-hears all|public`), because one place it changes the rules is madness
+   (Sects & Violets): a judge that reads whispers makes a private confession to one player fatal.
+2. **Every discretionary call can go to the judge,** not only misinformation: the Spy and the Virgin, the Slayer
+   and the Recluse, how the Spy and Recluse register to each ability, the Mayor's bounce, the starpass heir, the red
+   herring, the Drunk's character, the Demon's bluffs, and every Bad Moon Rising choice (the Sailor's and
+   Innkeeper's drunk player, the Pacifist, the Tinker, the Shabaloth, the Gossip's victim). With no judge each stays
+   the scripted weight, so Trouble Brewing v17 is unchanged.
+3. **The judge weighs balance as well as the rules of thumb:** honour both abilities where it can, support evil's
+   bluffs, make impairment harmful, and keep the game close (TPI's advice to help the weaker team). Its prompt gets a
+   short summary of the state of the game (alive counts, claims, executions so far, where the votes went) besides
+   the record.
+4. **The judge studies the script first:** each script gets Storyteller's notes (`clocktower/data/storyteller/<script>.md`),
+   compiled from the almanac's How to Run sections and the wiki's rulings and tips, listing the interactions to
+   watch and how a good Storyteller handles each (the Spy and the Virgin, the Recluse and the Slayer, the Pukka and
+   the Exorcist, ...). The judge reads the notes for the characters in play with every decision.
+
+**Still to decide.** Balancing and validity: a Storyteller that helps the weaker team compresses the difference
+between strong and weak models. Options for rated games: (a) the same balancing judge in every game of a protocol
+(comparable within it, with smaller gaps), or (b) a judge that honours abilities and bluffs but doesn't balance by
+state. Also cost: hearing whispers makes each judge prompt much longer (a summary instead of the full text, and a
+cheap model, keep it to cents a game).
+
+**When.** After Bad Moon Rising's characters (Phase 4), before its random-bot checks (Phase 5), so the checks run
+with every call judgeable. For Trouble Brewing it is part of the v18 proposal in section 2.
+
 ## 3. Other open decisions from the engine audit
 
 From the November 2026 audit of the engine against the rulebook, almanacs, wiki and TPI's design essays. Each
