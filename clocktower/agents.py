@@ -15,7 +15,7 @@ from .llm import Reply
 
 @dataclass
 class Request:
-    kind: str                   # night | ravenkeeper | beat | nominate | defense | comment | vote
+    kind: str                   # night | ravenkeeper | death_choice | beat | nominate | defense | comment | vote
     prompt: str
     day: int
     beat: int | None = None
@@ -25,6 +25,8 @@ class Request:
     min_targets: int | None = None  # night choices beyond Trouble Brewing's: the fewest players (0: may choose no one)
     characters: list = field(default_factory=list)  # a character to choose too (the Gambler) or instead (the Courtier)
     mode: str = ''              # 'private' (whispers only) or 'public' (speech only)
+    claimable: list = field(default_factory=list)  # public turns beyond Trouble Brewing: the characters whose day
+    #                                                ability anyone may claim through the `ability` field (the Gossip)
 
 
 class ModelSeat:
@@ -53,7 +55,7 @@ class RandomSeat:
         r, others = self.rng, [n for n in self.names if n != self.name]
         a = {'say': '', 'whispers': [], 'nominate': None, 'vote': None, 'targets': [],
              'slayer_shot': None}
-        if request.kind in ('night', 'ravenkeeper') and request.min_targets is None:
+        if request.kind in ('night', 'ravenkeeper', 'death_choice') and request.min_targets is None:
             a['targets'] = r.sample(request.options, min(request.n_targets, len(request.options)))
         elif request.kind in ('night', 'ravenkeeper'):
             k = r.randint(request.min_targets, min(request.n_targets, len(request.options)))
@@ -64,17 +66,30 @@ class RandomSeat:
             if r.random() < 0.5: a['say'] = r.choice(LINES)
             if r.random() < 0.3: a['whispers'] = [{'to': [r.choice(others)], 'text': 'psst, what are you?'}]
             if r.random() < 0.03: a['slayer_shot'] = r.choice(others)
+            if request.claimable and r.random() < 0.08: a['ability'] = self.claim(request.claimable)
         elif request.kind == 'nominate':
             if request.options and r.random() < 0.4:
                 a['nominate'] = r.choice(request.options)
                 a['say'] = 'You seem suspicious.'
         elif request.kind == 'comment':
             if r.random() < 0.3: a['say'] = r.choice(LINES)
+            if request.claimable and r.random() < 0.04: a['ability'] = self.claim(request.claimable)
         elif request.kind == 'defense':
             a['say'] = 'I am good, I promise.'
         elif request.kind == 'vote':
             a['vote'] = r.random() < 0.5
         return Reply(a)
+
+    def claim(self, claimable):
+        """A claimed public ability (scripts beyond Trouble Brewing): a character, a player and a statement of one
+        of the forms the Gossip's are checked in, or one only a judge can rule on."""
+        r = self.rng
+        x = r.choice(self.names)
+        statement = r.choice([f'{x} is evil.', f'{x} is good.', f'{x} is a Minion.', f'{x} is not the Demon.',
+                              f'{x} is an Outsider.', f'The {r.choice(claimable)} is in play.',
+                              f'I am the Gossip. My statement is: {x} is the {r.choice(claimable)}.',
+                              'The Demon is wearing a hat.', f'{x} will be executed today.'])
+        return {'character': r.choice(claimable), 'target': x, 'text': statement}
 
 
 class ScriptedStoryteller:

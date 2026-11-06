@@ -5,8 +5,9 @@ the entry takes, and why.
 """
 from __future__ import annotations
 from itertools import combinations
+import re
 
-from .characters import CHARACTERS, Choose, Demon, Minion, Townsfolk, kind, rules
+from .characters import CHARACTERS, Choose, Demon, Minion, Outsider, Townsfolk, kind, rules
 from .state import POLICY, Choice, State, setup_changes, team_sizes, yes_choice
 
 
@@ -101,6 +102,7 @@ class Assassin(Minion):
                                             'reason they could not. Or choose no one, and keep your ability.',
                           optional=True)
     kills_at_night = True
+    picks_in_turn = True  # the Goon it chooses makes it drunk, but the kill goes through ("even if ...")
 
     def night_spec(self, game, me, night):
         return None if night.first or game.g.spent_ability(self.name) else self.night_choice
@@ -110,7 +112,8 @@ class Assassin(Minion):
         a, t = night.choice_of(g, self.name)
         if not t:
             return
-        works = g.works(a, self.name)
+        works = g.works(a, self.name)  # as it chooses: a Goon chosen by a sober Assassin dies, and turns evil
+        game.pick(night, a, t)
         g.spend(self.name)  # spent even when drunk or poisoned: the Assassin won't wake again
         if works:
             # nothing stops it: protections, the Fool's survival, and (a reading: like the Fool's) the Zombuul's
@@ -231,6 +234,7 @@ class Shabaloth(Demon):
     ability = ability(name)
     night_choice = Choose(players=2, prompt='Choose two players: they die.')
     kills_at_night = True
+    picks_in_turn = True
 
     async def resolve_night(self, game, night):
         g = game.g
@@ -247,6 +251,7 @@ class Shabaloth(Demon):
                 g.revive(p, self.name)  # they wake later tonight if their step comes later
                 night.revived.append(p)
         for t in night.chosen.get(shab.name, []):  # in the order chosen
+            game.pick(night, shab, t)
             if not g.works(shab, self.name):
                 break  # the first pick made the Shabaloth drunk (the Goon)
             game.demon_attack(g[t], shab, night)
@@ -259,6 +264,7 @@ class Po(Demon):
                                             'choose three.', optional=True)
     charged = Choose(players=3, prompt='Last time you chose no one, so choose three players tonight: they die.')
     kills_at_night = True
+    picks_in_turn = True
 
     def night_spec(self, game, me, night):
         # "last choice": the first night and a night the Po was not woken (the Exorcist) are not choices, so a
@@ -269,6 +275,7 @@ class Po(Demon):
         g = game.g
         po = g.with_character(self.name)
         for t in night.chosen.get(po.name, []) if po else []:
+            game.pick(night, po, t)
             if not g.works(po, self.name):
                 break  # a pick made the Po drunk (the Goon): the later ones fail
             game.demon_attack(g[t], po, night)
@@ -512,6 +519,440 @@ class Professor(Townsfolk):
             await rules(p.character).resurrected(game, p, night)
 
 
+# ---- The information Townsfolk, the Gossip, and the Outsiders ---------------------------------------------------
+
+def grandchild_choice(g, gm):
+    """The Grandchild, marked before the first night: any good player (the Lunatic, a Goon), usually a Townsfolk."""
+    good = [q.name for q in g.players if not q.evil and q is not gm]
+    towns = [x for x in good if kind(g[x].character) == 'Townsfolk']
+    others = [x for x in good if x not in towns]
+
+    def style(r):
+        pool = towns if towns and (not others or r.random() < POLICY['grandchild_townsfolk']) else others
+        return {'players': [r.choice(pool)]}
+    return Choice(f'Grandchild:{gm.name}', [{'players': [x]} for x in good], style)
+
+
+def grandmother_choice(g, gm, child):
+    """What the Grandmother is shown: the Grandchild and their character. An impaired one may be shown any player
+    with any good character; when misinformed, a false pair (an evil player, usually, as a good character, or a good
+    player as a character they are not), never the Grandmother's own character."""
+    true = {'players': [child], 'character': g[child].character}
+    impaired = g.impaired(gm)
+    others = [q.name for q in g.players if q is not gm]
+    values = [{'players': [x], 'character': c} for x in others for c in g.script.good] if impaired else [true]
+
+    def style(r):
+        if impaired and g.misinformed(gm, r):
+            evil = [q.name for q in g.players if q.evil and q is not gm]
+            for _ in range(30):
+                x = r.choice(evil) if evil and r.random() < POLICY['false_vouch_evil'] else r.choice(others)
+                c = g.fake_good(r, (g.script.townsfolk, g.script.outsiders), bluffs=g[x].evil,
+                                avoid=(gm.shown, g[x].character, g[x].shown))
+                if c in g.script.good:
+                    return {'players': [x], 'character': c}
+        return true
+    choice = Choice(f'Grandmother:{gm.name}', values, style)
+    choice.truth = lambda v: v['players'] == [child] and v['character'] == true['character']
+    choice.context = {'about': child, 'recipient': gm.name, 'impaired': impaired,
+                      'question': f'Which player and character is {gm.name} (Grandmother) shown as their Grandchild?'}
+    return choice
+
+
+class Grandmother(Townsfolk):
+    name = 'Grandmother'
+    ability = ability(name)
+    info = True
+    setup_order = 4  # after the Lunatic's (a good player who may be the Grandchild)
+
+    def setup(self, game):
+        g = game.g
+        gm = g.with_character(self.name)
+        if gm:
+            g.notes['Grandchild'] = game.decide(grandchild_choice(g, gm))['players'][0]
+
+    async def show(self, game, gm, n):
+        g = game.g
+        child = g.notes.get('Grandchild')
+        if not child:
+            return
+        v = await game.decide_judged(grandmother_choice(g, gm, child))
+        game.woken(gm)
+        text = f'your Grandchild is {v["players"][0]}, the {v["character"]}.'
+        game.inform(gm, f'Night {n} — Grandmother: {text}')
+        g.reminders.append(f'{gm.name} (Grandmother) was shown: {text}')
+
+    async def resolve_night(self, game, night):
+        gm = game.g.with_character(self.name)
+        if gm and night.first:
+            await self.show(game, gm, night.n)
+
+    async def resurrected(self, game, me, night):
+        # the Professor's example: a resurrected Grandmother learns their Grandchild again (the same one, a reading:
+        # the GRANDCHILD reminder stays where it was put)
+        await self.show(game, me, night.n)
+
+    def on_death(self, game, me, dead, cause, alive_before):
+        g = game.g
+        # only the Demon's kill (its attack, the Pukka's poison too); her sobriety and life at that moment decide.
+        # Her death is her own ability's, so a protection on her stops it (a reading: as for the Tinker)
+        if dead.name == g.notes.get('Grandchild') and cause == 'demon' and g.works(me, self.name):
+            game.ability_kill(me, 'grandmother', me)
+
+
+def chambermaid_choice(g, cm, pair, n):
+    """How many of the Chambermaid's two woke tonight to use their ability (Grimoire.woke). An impaired one may be
+    shown any count; when misinformed, a false one."""
+    woke = set(g.woke.get(n, []))
+    true = sum(1 for x in pair if x in woke)
+    impaired = g.impaired(cm)
+    values = [0, 1, 2] if impaired else [true]
+
+    def style(r):
+        if impaired and g.misinformed(cm, r):
+            return {'number': r.choice([v for v in values if v != true])}
+        return {'number': true}
+    choice = Choice(f'Chambermaid:{cm.name}', [{'number': v} for v in values], style)
+    choice.truth = lambda v: v['number'] == true
+    choice.context = {'about': None, 'recipient': cm.name, 'impaired': impaired,
+                      'question': f'{cm.name} (Chambermaid) chose {" and ".join(pair)}: how many of them woke tonight '
+                                  'to use their own ability?'}
+    return choice
+
+
+class Chambermaid(Townsfolk):
+    name = 'Chambermaid'
+    ability = ability(name)
+    info = True
+    night_choice = Choose(players=2, alive_only=True, may_self=False,
+                          prompt='Choose two alive players (not yourself): you learn how many of them woke tonight to '
+                                 'use their ability.')
+
+    def night_spec(self, game, me, night):
+        alive = [p for p in game.g.players if p.appears_alive and p is not me]
+        return self.night_choice if len(alive) >= 2 else None  # not woken without two players to choose
+
+    async def resolve_night(self, game, night):
+        # last in the night order: everyone who wakes tonight has woken. Being told something (the Demon learning
+        # the Exorcist, the Goon its alignment) is not waking to use an ability; a drunk player who woke counts
+        g = game.g
+        cm = g.with_character(self.name)
+        pair = night.chosen.get(cm.name, []) if cm else []
+        if len(pair) == 2:
+            v = await game.decide_judged(chambermaid_choice(g, cm, pair, night.n))
+            game.inform(cm, f'Night {night.n} — Chambermaid: you chose {pair[0]} and {pair[1]}: {v["number"]} of '
+                            'them woke tonight to use their ability.')
+
+
+def gossip_truth(g, speaker, text):
+    """Whether a statement of one of the simple forms the code can check is true, against the Grimoire now: "X is
+    (not) the Y", "X is evil/good", "X is a Townsfolk/Outsider/Minion/Demon", "the Demon is X", "the Y is (not) in
+    play", "there is no Y in play" (X a player or "I", Y a character on the script; "I am the Gossip." and "My
+    statement is:" in front are ignored). None for anything else: a judge rules on it."""
+    s = ' '.join((text or '').lower().replace('’', "'").split())
+    s = re.sub(r"\bi'm\b", 'i am', s).replace("isn't", 'is not').replace("aren't", 'are not')
+    s = re.sub(r'^i am the gossip\s*[.!,;:-]*\s*', '', s)
+    s = re.sub(r'^(?:and\s+)?(?:my\s+)?(?:public\s+)?statement(?:\s+is)?\s*[:,-]?\s*', '', s)
+    s = s.strip(' "\'.!')
+    if not s:
+        return None
+    names = {n.lower(): n for n in g.by_name}
+    chars = {c.lower(): c for c in g.script.all}
+    alt = lambda xs: '|'.join(re.escape(x) for x in sorted(xs, key=len, reverse=True))
+    player, char = rf"(?P<p>{alt(names)}|i)", rf"(?P<c>{alt(chars)})"
+    art = r'(?:the |a |an )?'
+
+    def who(m):
+        return speaker if m.group('p') == 'i' else g[names[m.group('p')]]
+
+    def answer(possible, neg):
+        if len(possible) > 1:
+            return None  # registers either way (none can in Bad Moon Rising): a judge rules
+        return next(iter(possible)) != bool(neg)
+
+    m = re.fullmatch(rf'{player} (?:is|am) (?P<neg>not )?(?P<a>evil|good)', s)
+    if m:
+        return answer({e == (m.group('a') == 'evil') for e in g.registers_evil(who(m))}, m.group('neg'))
+    m = re.fullmatch(rf'{player} (?:is|am) (?P<neg>not )?{art}(?P<k>townsfolk|outsider|minion|demon)', s)
+    if m:
+        return answer({kind(c).lower() == m.group('k') for c in g.registers_as(who(m))}, m.group('neg'))
+    m = re.fullmatch(rf'the demon is (?P<neg>not )?{player}', s)
+    if m:
+        return answer({kind(c) == 'Demon' for c in g.registers_as(who(m))}, m.group('neg'))
+    m = re.fullmatch(rf'{player} (?:is|am) (?P<neg>not )?{art}{char}', s)
+    if m:
+        return answer({c == chars[m.group('c')] for c in g.registers_as(who(m))}, m.group('neg'))
+    in_play = lambda c: any(q.character == chars[c] for q in g.players)  # dead players' characters too
+    m = re.fullmatch(rf'{art}{char} is (?P<neg>not )?in play', s)
+    if m:
+        return in_play(m.group('c')) != bool(m.group('neg'))
+    m = re.fullmatch(rf'there is (?P<q>no|not an?|not the|an?|the) {char} in play', s)
+    if m:
+        return in_play(m.group('c')) != m.group('q').startswith('no')
+    return None
+
+
+def statement_choice(g, gossip, text):
+    """Whether a statement the code can't check is true, false, or doesn't count. The scripted Storyteller can't
+    read it: for it, the statement is not true."""
+    choice = Choice(f'Gossip:{gossip.name}', [{'yes': True}, {'yes': False}, {'yes': None}], lambda r: {'yes': False})
+    choice.context = {'about': None, 'recipient': gossip.name, 'impaired': False,
+                      'question': f'{gossip.name} (the Gossip) made this public statement: "{text}". Is it definitely '
+                                  'true (yes: True), definitely false (yes: False), or does it not count (nothing): '
+                                  'not definite, about the future or intentions, or not something you know?'}
+    return choice
+
+
+def will_die(g, p, cause):
+    """Whether `p` would really die from `cause` now: alive, unprotected, and not the Fool with their ability."""
+    if not p.appears_alive or g.safe(p, cause):
+        return False
+    return not (p.character == 'Fool' and g.works(p, 'Fool') and not g.spent_ability('Fool'))
+
+
+def gossip_victim_choice(g, gossip):
+    """Whom the Gossip's true statement kills: any player. The almanac recommends one who will actually die; the
+    scripted Storyteller never picks the Demon (the game would end by its choice), usually a good player, and with
+    three alive one who won't die if there is one (a death would end the game)."""
+    alive = [p.name for p in g.players if p.appears_alive]
+
+    def style(r):
+        dying = [x for x in alive if will_die(g, g[x], 'gossip') and not g[x].is_demon]
+        if g.alive_count() <= 3:
+            safe = [x for x in alive if x not in dying and not g[x].is_demon]
+            if safe:
+                return {'players': [r.choice(safe)]}
+        evil = [x for x in dying if g[x].evil]
+        good = [x for x in dying if not g[x].evil]
+        pool = evil if evil and (not good or r.random() < POLICY['gossip_victim_evil']) else (good or dying or alive)
+        return {'players': [r.choice(pool)]}
+    choice = Choice(f'Gossip kill:{gossip.name}', [{'players': [x]} for x in alive], style)
+    choice.context = {'about': None, 'recipient': gossip.name, 'impaired': False,
+                      'question': "The Gossip's statement yesterday was true: which player dies tonight? Usually one "
+                                  'who will actually die (not one protected, nor the Fool), so the Gossip learns from '
+                                  'it; never to end the game by your own choice.'}
+    return choice
+
+
+class Gossip(Townsfolk):
+    name = 'Gossip'
+    ability = ability(name)
+    public_action = 'ability'  # the statement, through the shared `ability` field
+
+    def act_publicly(self, game, actor, target, text=None):
+        g = game.g
+        p = g[actor]
+        if p.character != self.name or not p.alive or g.notes.get('Gossip statement') == game.day:
+            return False  # anyone may claim it; only the living Gossip's first statement of the day counts
+        g.notes['Gossip statement'] = day = game.day
+
+        async def rule(game):
+            # judged as made (true or not, whatever the Gossip's sobriety): a drunk Gossip's true statement kills if
+            # the Gossip is sober tonight (the almanac's example)
+            true = gossip_truth(g, p, text)
+            if true is None:
+                true = (await game.decide_judged(statement_choice(g, p, text)))['yes']
+            else:
+                game.emit('st_choice', {'id': f'Gossip:{p.name}', 'value': {'yes': true}, 'valid': True,
+                                        'checked': 'by the engine'}, 'audit')
+            if true:
+                g.notes['Gossip true'] = day
+        game.later(rule)
+        return False
+
+    async def resolve_night(self, game, night):
+        g = game.g
+        gossip = g.with_character(self.name)
+        if gossip and g.notes.get('Gossip true') == night.n - 1 and g.works(gossip, self.name):
+            victim = (await game.decide_judged(gossip_victim_choice(g, gossip)))['players'][0]
+            game.attempt_kill(g[victim], 'gossip', gossip, night)
+
+
+class Goon(Outsider):
+    name = 'Goon'
+    ability = ability(name)
+
+    def chosen(self, game, me, chooser, night):
+        g = game.g
+        key = f'Goon:{me.name}'
+        if chooser is me or g.notes.get(key) == night.n or not g.works(me, self.name):
+            return  # only the first chooser each night, and only while the Goon has a working ability
+        g.notes[key] = night.n
+        # drunk at once (even if already drunk or poisoned), until dusk; it ends if the Goon dies (a reading, as in
+        # batch 2: the Assassin's kill still lands, since its sobriety was settled as it chose)
+        g.add(State('drunk', chooser.name, source=me.name, until='night', ends_with_source=True))
+        if me.alignment != chooser.alignment:
+            me.alignment = chooser.alignment
+            game.emit('alignment', {'player': me.name, 'alignment': me.alignment}, 'audit')
+            game.inform(me, f'Night {night.n} — Goon: you are now {me.alignment}.')
+
+
+def lunatic_demon_choice(g, demon):
+    """The Demon the Lunatic believes they are: usually the one in play, sometimes another on the script."""
+    real = demon.character if demon else g.script.demons[0]
+    others = [d for d in g.script.demons if d != real]
+
+    def style(r):
+        return {'character': real if not others or r.random() < POLICY['lunatic_same_demon'] else r.choice(others)}
+    return Choice('Lunatic:demon', [{'character': d} for d in g.script.demons], style)
+
+
+def lunatic_minions_choice(g, lun, demon, k):
+    """The Lunatic's "Minions": any players, as many as there are Minions. Sometimes the real Demon is among them
+    (the almanac's Zombuul "pretending to be the Lunatic's Minion"), else any others."""
+    others = [q.name for q in g.players if q is not lun]
+
+    def style(r):
+        if demon and r.random() < POLICY['lunatic_shows_demon']:
+            rest = [x for x in others if x != demon.name]
+            return {'players': [demon.name] + r.sample(rest, k - 1)}
+        return {'players': r.sample([x for x in others if not demon or x != demon.name] or others, k)}
+    return Choice('Lunatic:minions', [{'players': list(c)} for c in combinations(others, k)], style)
+
+
+def lunatic_bluffs_choice(g):
+    """The Lunatic's three bluffs: any good characters, even ones in play (never the Lunatic itself, which would
+    tell them everything)."""
+    pool = [c for c in g.script.good if c != 'Lunatic']
+    in_play = {q.character for q in g.players}
+
+    def style(r):
+        picks = []
+        for _ in range(3):
+            want_in = r.random() < POLICY['lunatic_bluff_in_play']
+            options = [c for c in pool if c not in picks and (c in in_play) == want_in]
+            picks.append(r.choice(options or [c for c in pool if c not in picks]))
+        return {'characters': picks}
+    return Choice('Lunatic:bluffs', [{'characters': list(c)} for c in combinations(pool, 3)], style)
+
+
+class Lunatic(Outsider):
+    name = 'Lunatic'
+    ability = ability(name)
+    wakes_at_own_step = True  # as their Demon, before the real one, and only when that Demon would wake
+    setup_order = 3
+
+    def setup(self, game):
+        g = game.g
+        lun = g.with_character(self.name)
+        if not lun:
+            return
+        demon = g.demon()
+        lun.shown = game.decide(lunatic_demon_choice(g, demon))['character']
+        k = sum(1 for q in g.players if kind(q.character) == 'Minion')
+        minions = game.decide(lunatic_minions_choice(g, lun, demon, k))['players']
+        minions = sorted(minions, key=lambda x: g[x].seat)
+        bluffs = game.decide(lunatic_bluffs_choice(g))['characters']
+        g.notes['Lunatic'] = {'minions': minions, 'bluffs': bluffs}
+        g.reminders.append(f'{lun.name} (Lunatic) believes they are the {lun.shown}, and was shown Minions '
+                           f'{", ".join(minions)} and bluffs {", ".join(bluffs)}.')
+
+    def intro(self, game, me):
+        from .game import demon_info  # (game.py imports this module's registry)
+        shown = game.g.notes.get('Lunatic')
+        return [demon_info(shown['minions'], shown['bluffs'])] if shown else []
+
+    async def resolve_night(self, game, night):
+        # the real Demon learns the Lunatic on the first night, and each night whom they chose, before it acts.
+        # Being told is not waking for an ability; an Exorcist who chooses the Lunatic does nothing (not the Demon)
+        g = game.g
+        lun, demon = g.with_character(self.name), g.demon()
+        if not (lun and demon):
+            return
+        if night.first:
+            game.inform(demon, f'Night {night.n}: {lun.name} is the Lunatic (they believe they are the {lun.shown}).')
+        if lun.name in night.chosen:
+            picks = night.chosen[lun.name]
+            game.inform(demon, f'Night {night.n}: the Lunatic ({lun.name}) chose {", ".join(picks) or "no one"}.')
+
+
+def tinker_choice(g, tinker, when):
+    """Whether the Tinker dies now (asked only when the death would land and not end the game)."""
+    def style(r):
+        if g.notes.get('Tinker never'):
+            return {'yes': False}
+        return {'yes': r.random() < POLICY['tinker_night' if when == 'night' else 'tinker_day']}
+    choice = Choice(f'Tinker:{tinker.name}', [{'yes': True}, {'yes': False}], style)
+    choice.context = {'about': tinker.name, 'recipient': tinker.name, 'impaired': False,
+                      'question': f'Does the Tinker ({tinker.name}) die now ({when})? Most interesting at night; '
+                                  'never to end the game.'}
+    return choice
+
+
+class Tinker(Outsider):
+    name = 'Tinker'
+    ability = ability(name)
+    setup_order = 5
+
+    def setup(self, game):
+        # sometimes, the Storyteller never kills the Tinker (it makes them look suspicious): decided once per game
+        game.g.notes['Tinker never'] = game.decide(yes_choice('Tinker:never', POLICY['tinker_never']))['yes']
+
+    def can_die(self, g, me):
+        # sober and healthy, not protected (the Tea Lady's, the Innkeeper's), and never when it would end the game
+        return g.works(me, self.name) and will_die(g, me, 'tinker') and g.alive_count() > 3 and not g.winner
+
+    async def resolve_night(self, game, night):
+        g = game.g
+        t = g.with_character(self.name)
+        if t and self.can_die(g, t) and (await game.decide_judged(tinker_choice(g, t, 'night')))['yes']:
+            game.ability_kill(t, 'tinker', t)
+
+    def moment(self, game, me, when):
+        g = game.g
+        if self.can_die(g, me) and game.decide(tinker_choice(g, me, when))['yes']:
+            game.ability_kill(me, 'tinker', me)  # by day announced at once, not why
+
+
+class Moonchild(Outsider):
+    name = 'Moonchild'
+    ability = ability(name)
+    public_action = 'ability'  # anyone may claim to curse (a bluff); the real Moonchild is asked when they die
+
+    def act_publicly(self, game, actor, target, text=None):
+        return False
+
+    def on_death(self, game, me, dead, cause, alive_before):
+        if dead is not me or me.alive:
+            return
+        if game.tonight is not None:  # they learn it at dawn
+            game.g.notes.setdefault('Moonchild at dawn', []).append(me.name)
+        else:  # executed or killed by day: at once (a Moonchild who survives an execution never chooses)
+            game.later(lambda game: self.curse(game, me))
+
+    def moment(self, game, me, when):
+        due = game.g.notes.get('Moonchild at dawn', [])
+        if when == 'dawn' and me.name in due:
+            due.remove(me.name)
+            game.later(lambda game: self.curse(game, me))
+
+    async def curse(self, game, me):
+        """The public choice: asked of the player, completed at random if they name no alive player (the almanac:
+        not choosing is cheating). Whether it kills is decided by the target's alignment now."""
+        g = game.g
+        options = [p.name for p in g.players if p.appears_alive]
+        if not options:
+            return
+        req = game.request('death_choice', f'Day {game.day}: you have died. Moonchild: publicly choose an alive player '
+                                           '(`targets`): if they are good, they die tonight.', game.day, n_targets=1,
+                           options=options)
+        t = game.targets(me.name, await game.ask(me.name, req), req)[0]
+        game.emit('ability', {'player': me.name, 'character': self.name, 'target': t})
+        g.notes.setdefault('Moonchild curses', []).append({'moonchild': me.name, 'target': t, 'good': not g[t].evil,
+                                                           'day': game.day})
+
+    async def resolve_night(self, game, night):
+        g = game.g
+        curses = g.notes.get('Moonchild curses', [])
+        g.notes['Moonchild curses'] = [c for c in curses if c['day'] >= night.n]
+        for c in curses:
+            mc = g[c['moonchild']]
+            # tonight's sobriety decides (a dead Moonchild can be drunk or poisoned), not the day's
+            if c['day'] < night.n and c['good'] and self.name in g.abilities(mc) and not g.impaired(mc):
+                game.attempt_kill(g[c['target']], 'moonchild', mc, night)
+
+
 CHARACTERS.update({c.name: c() for c in [Godfather, DevilsAdvocate, Assassin, Mastermind, Zombuul, Pukka,
                                           Shabaloth, Po, Sailor, Innkeeper, Courtier, Minstrel, Exorcist, TeaLady,
-                                          Pacifist, Fool, Gambler, Professor]})
+                                          Pacifist, Fool, Gambler, Professor, Grandmother, Chambermaid, Gossip, Goon,
+                                          Lunatic, Tinker, Moonchild]})

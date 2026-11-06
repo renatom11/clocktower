@@ -59,6 +59,8 @@ def render(ev, viewer, dead=()):
         head = f"{nm(d['player'])} claims the {d['character']}'s ability"
         head += f" on {d['target']}" if d.get('target') else ''
         return head + (f': "{d["text"]}"' if d.get('text') else '.')
+    if k == 'died':  # a death by day through an ability (the Tinker's): the town sees it, never why
+        return f"{d['player']} dies."
     if k == 'nominations_open':
         return 'The Storyteller opens nominations.'
     if k == 'nomination':

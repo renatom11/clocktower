@@ -76,3 +76,64 @@ drunk one), `innkeeper_good_drunk` 0.9 (of a good and an evil player, the good o
 `pacifist_save` 0.2 (per good execution before the first save), `pacifist_late` 0.4 (the same, with five or fewer
 alive), `pacifist_again` 0.05 (after a save), `pacifist_never` 0.1 (per game, never saves). The Sailor's, the
 Innkeeper's and the Pacifist's decisions go through the Storyteller judge.
+
+## Batch 3: the information Townsfolk, the Gossip, and the Outsiders
+
+1. **The Grandchild** is chosen when the game is set up: any good player but the Grandmother (the Lunatic and the Goon
+   count), usually a Townsfolk. Her death is her own ability's kill, so a protection on her (the Innkeeper's, the Tea
+   Lady's) stops it; option: make it unstoppable. Only the Demon's kill counts (its attack, and the Pukka's poison
+   death), with the Grandmother sober and alive at that moment.
+2. **A resurrected Grandmother** (the Professor) is shown the same Grandchild again: the reminder stays where it was.
+   Option: the Storyteller picks a new one.
+3. **Misinformation for drunk players.** Before, only a poisoned player (or the Drunk) could be given false
+   information; now any drunk or poisoned player can, at the same rate (`poisoned_false`). Trouble Brewing is
+   unchanged (nothing there makes a player drunk); this also affects the Godfather's Outsider list.
+4. **What the Chambermaid counts:** every player woken to make a night choice (a drunk one, an Assassin who declines,
+   the Lunatic woken as their Demon) and every information role shown something (the Grandmother and the Godfather on
+   the first night). Being told something is not waking for an ability: a Demon the Exorcist chose, the Goon learning
+   its alignment, the Demon learning the Lunatic's choices. An impaired Chambermaid is shown a false count when
+   misinformed, any of the other two.
+5. **The Gossip's statement** goes through the shared `ability` move. Only the living Gossip's first statement each
+   day counts (later ones that day are just heard); option: the last. It is judged as it is made, whatever the
+   Gossip's sobriety then, and kills that night only if the Gossip is alive and sober at their step. The engine checks
+   simple forms ("X is (not) the Y", "X is evil/good", "X is a Townsfolk/Outsider/Minion/Demon", "the Demon is X", "the
+   Y is (not) in play", "there is no Y in play", with "I am the Gossip." and "My statement is:" ignored in front);
+   anything else goes to the judge (true, false, or doesn't count), and without a judge is not true.
+6. **Whom the Gossip kills.** The scripted Storyteller never picks the Demon (the game would end by its choice),
+   prefers a player who will actually die (not protected, not the Fool), usually a good one, and with three players
+   alive picks one who won't die if there is one.
+7. **The Goon.** The first player to choose the Goon each night is drunk before their ability acts on anyone (the
+   Shabaloth's, the Po's and the Assassin's picks land one at a time). A Courtier naming the Goon counts; the
+   Storyteller's choices (the Grandchild, the Gossip's victim) and the Moonchild's day choice don't. **The Lunatic
+   choosing the Goon counts** (the Lunatic is drunk, which changes nothing, and the Goon turns good); option: it
+   doesn't, since the Lunatic has no Demon ability. The Assassin's sobriety is settled as it chooses, so a sober
+   Assassin kills the Goon, who turns evil. The chooser's drunkenness ends if the Goon dies (batch 2, ruling 1); option:
+   it lasts until dusk. A drunk or poisoned Goon has no ability. The Goon is told only when its alignment changes;
+   its seat keeps the model of the team it was dealt.
+8. **The Lunatic's illusion.** They usually believe they are the Demon in play; their "Minions" are any players, as
+   many as there are Minions, half the time including the real Demon; their bluffs may include characters in play,
+   never the Lunatic. They are woken at the Lunatic's step as their Demon, and only when that Demon would wake (a
+   Lunatic-Zombuul after a day with no death, a Lunatic-Pukka on the first night, a Lunatic-Po charging after choosing
+   no one). The real Demon is told on the first night who the Lunatic is and which Demon they believe they are, and
+   each night whom they chose, before it acts (even on a night the Exorcist stops it). **An Exorcist who chooses the
+   Lunatic does nothing**: the Lunatic is not the Demon and is told nothing; option: treat them as exorcised to keep
+   the illusion (they would learn who the Exorcist is). The belief probe asks the Lunatic what it asks evil players.
+9. **The Tinker** may die at its night step (a judged decision) and at each point of the day (dawn, each beat,
+   nominations, dusk; the scripted style, since those hooks don't wait), never while protected, drunk or poisoned, or
+   with three or fewer players alive (it would end the game). A day death is announced at once ("X dies."), never why.
+10. **The Moonchild** chooses at dawn after dying at night, and at once after dying by day. They are asked directly;
+    option: give the town one round of comments first (the almanac: they "can take their time and get advice"). A
+    choice naming no alive player is completed at random with a notice. Whether it kills depends on the target's
+    alignment at the choice and the Moonchild's sobriety that night (a dead Moonchild can be drunk or poisoned). Anyone
+    can claim the Moonchild's ability through the `ability` move as a bluff; the real Moonchild's choice is announced
+    the same way.
+11. **Random seats** claim a public ability on about 8% of town-square turns and 4% of comment turns, with a
+    statement of a checkable form or one only a judge can rule on, only when the request offers claimable characters
+    (never in Trouble Brewing, whose random seats are unchanged).
+
+New weights: `grandchild_townsfolk` 0.75 (the Grandchild is a Townsfolk, when there are both), `gossip_victim_evil`
+0.2 (the Gossip's victim is an evil player, when one would die), `tinker_never` 0.1 (per game), `tinker_night` 0.15
+(per night), `tinker_day` 0.005 (per point of the day, about 12 a day), `lunatic_same_demon` 0.8, `lunatic_shows_demon`
+0.5 (the real Demon among the Lunatic's Minions), `lunatic_bluff_in_play` 0.25 (per bluff). The Grandmother's,
+the Chambermaid's, the Gossip's (statement and victim) and the Tinker's night decisions go through the Storyteller
+judge.

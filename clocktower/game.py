@@ -98,6 +98,12 @@ def fmt(value):
     return {k: v for k, v in norm(value).items() if v not in (None, [])}
 
 
+def demon_info(minions, bluffs):
+    """What the Demon is told before the first night (and the Lunatic, who believes they are one)."""
+    return (f'Your Minion{"" if len(minions) == 1 else "s"}: {", ".join(minions)} (you do not know which Minion '
+            f'characters). Three good characters not in play, for evil to bluff: {", ".join(bluffs)}.')
+
+
 class Game:
     def __init__(self, seats, storyteller=None, *, names=NAMES, seed=None, private_beats=6, public_beats=3, max_days=10,
                  waves=3, characters=None, minion=None, out=None, seat_factory=None, probes=True, script=TB,
@@ -130,6 +136,7 @@ class Game:
         self.start_teams = None     # {seat: 'good' or 'evil'} as dealt: which team's model plays the seat, all game
         self.probes, self.probe_tasks, self.probe_log = probes, [], []
         self.pending = []  # abilities waiting for a player's answer (Game.later)
+        self.tonight = None  # the Night being played, or None by day (where an ability's kill is announced at dawn)
 
     # ---- logging -----------------------------------------------------------------------
     def _write(self, filename, line):
@@ -164,7 +171,9 @@ class Game:
             if not hasattr(seat, 'probe'):
                 continue
             pending = '\n'.join(self.buf[p.name]).strip()
-            text = (pending + '\n\n' if pending else '') + '>>> ' + probe.prompt(p.evil)
+            # the team they believe they are on (the Lunatic believes they are the Demon)
+            believes_evil = rules(p.shown).evil if p.shown != p.character else p.evil
+            text = (pending + '\n\n' if pending else '') + '>>> ' + probe.prompt(believes_evil)
             meta = {'day': self.day, 'point': point}
             record = {**meta, 'player': p.name, 'character': p.character, 'shown': p.shown,
                       'team': 'evil' if p.evil else 'good', 'alive': p.alive,
@@ -274,14 +283,13 @@ class Game:
                      f'Your character: {card(p.shown)}']
             minions = [q.name for q in g.players if kind(q.character) == 'Minion']
             if p.is_demon:  # Demon info and Minion info
-                lines.append(f'Your Minion{"" if len(minions) == 1 else "s"}: {", ".join(minions)} (you do not know '
-                             f'which Minion characters). Three good characters not in play, for evil to bluff: '
-                             f'{", ".join(g.bluffs)}.')
+                lines.append(demon_info(minions, g.bluffs))
             elif kind(p.character) == 'Minion':
                 others = [m for m in minions if m != p.name]
                 lines.append(f'The Demon is {g.demon().name}.'
                              + (f' Your fellow Minion{"" if len(others) == 1 else "s"}: {", ".join(others)} (you do not '
                                 'know which Minion characters).' if others else ''))
+            lines += rules(p.character).intro(self, p)  # a character's own first information (the Lunatic's)
             self.emit('intro', {'text': '\n'.join(lines)}, [p.name])
 
     # ---- night -------------------------------------------------------------------------------
@@ -396,12 +404,19 @@ class Game:
     async def wake(self, night, characters):
         """Ask the living players whose (apparent) character chooses at night, among `characters`, for their
         choices, all at once. A Drunk who thinks they are the Monk is woken as the Monk; their choice does
-        nothing (each character's step acts only for the player who really is that character)."""
+        nothing (each character's step acts only for the player who really is that character). Returns the names
+        of the players woken."""
         g, names = self.g, self.names
         roles = {c for c in characters if rules(c).night_choice}
+        tonight = g.script.first_night if night.first else g.script.other_nights
         requests, specs = {}, {}
         for p in g.living():
-            if p.shown not in roles or p.name in night.asleep:
+            if rules(p.character).wakes_at_own_step:  # at their own step, as who they believe they are, if that
+                if p.character not in characters or not rules(p.shown).night_choice or p.shown not in tonight:
+                    continue  # character has a step tonight (a Lunatic who believes they are the Zombuul)
+            elif p.shown not in roles:
+                continue
+            if p.name in night.asleep:
                 continue
             nc = rules(p.shown).night_spec(self, p, night)  # tonight's shape, or None: not woken tonight
             if nc is None:
@@ -437,6 +452,40 @@ class Game:
                 night.characters[name] = data['character'] = (None if declined else
                                                                self.chosen_character(name, acts[name], req))
             self.emit('night_choice', data, 'audit')
+        return list(requests)
+
+    def pick(self, night, chooser, target):
+        """`chooser`, woken tonight, chose player `target` with their ability: the target's abilities react before
+        the choice acts (the Goon makes the first chooser drunk)."""
+        t = self.g[target]
+        for c in self.g.abilities(t):
+            rules(c).chosen(self, t, chooser, night)
+
+    def picks(self, night, woken):
+        """The choices just made by the players in `woken`, in order, each player chosen (or the player of a chosen
+        character, for a choice of a character only: the Courtier's). Characters whose step reports each choice as
+        it acts on it (picks_in_turn) are left to do so."""
+        g = self.g
+        for name in woken:
+            p = g[name]
+            if rules(p.character).picks_in_turn:
+                continue
+            for t in night.chosen.get(name, []):
+                self.pick(night, p, t)
+            chosen = night.characters.get(name)
+            spec = choice_spec(rules(p.shown), None)
+            if chosen and spec is not None and not spec.players:
+                holder = next((q for q in g.players if q.character == chosen), None)
+                if holder:
+                    self.pick(night, p, holder.name)
+
+    def ability_kill(self, target, cause, source=None):
+        """An ability's kill at any time (the Tinker's, the Grandmother's): at night announced at dawn, by day at
+        once (the town is not told why). Returns the player who died, or None."""
+        victim = self.attempt_kill(target, cause, source, self.tonight)
+        if victim and self.tonight is None:
+            self.emit('died', {'player': victim.name})
+        return victim
 
     async def night(self, n):
         """Tonight's steps in the official night order, one character at a time. Choices are asked a batch at
@@ -448,12 +497,16 @@ class Game:
         self.emit('header', {'text': f'Night {n}'})
         night = Night(n)
         night.before = dict(g.last_choices)
+        self.tonight = night
         for batch in Night.steps(night.first, g.script):
-            await self.wake(night, batch)
+            woken = await self.wake(night, batch)
+            if not g.script.batched_night:  # one character at a time: their picks land before their step acts
+                self.picks(night, woken)
             for c in batch:
                 await rules(c).resolve_night(self, night)
                 await self.run_pending()
         g.expire('dawn')  # protections that last only tonight end (the Innkeeper's)
+        self.tonight = None
 
         self.phase = 'day'
         self.emit('header', {'text': f'Day {n}'})
@@ -506,7 +559,8 @@ class Game:
                 if not g[name].appears_alive:
                     prompt += ' (You are dead, but you can still ' + ('whisper.)' if private else 'talk.)')
                 requests[name] = Request(kind, prompt, n, beat=beat, alive=g[name].appears_alive,
-                                         mode='private' if private else 'public')
+                                         mode='private' if private else 'public',
+                                         claimable=[] if private else list(g.script.claimable))
             acts = await self.ask_many(requests)
             if private:
                 for name in wave:

@@ -66,6 +66,10 @@ class Character:
     misregisters = None      # the POLICY key for how often a working one registers as evil
     follows_master = False   # may vote only while their master votes (the Butler)
     always_drunk = False     # has no ability and doesn't know it (the Drunk)
+    wakes_at_own_step = False  # woken at this character's own step, as the character they believe they are, and
+    #                            not at that character's (the Lunatic, as their Demon, before the real one wakes)
+    picks_in_turn = False    # its night step reports each player it chose (Game.pick) as it acts on them, since a
+    #                          pick can stop the later ones (the Shabaloth choosing the Goon first)
 
     @property
     def evil(self):
@@ -115,6 +119,14 @@ class Character:
 
     def setup(self, game):
         """A setup step, run once the characters are dealt (in `setup_order`)."""
+
+    def intro(self, game, me):
+        """Lines added to `me`'s introduction before the first night (the Lunatic's Demon information)."""
+        return []
+
+    def chosen(self, game, me, chooser, night):
+        """`me` was just chosen by `chooser`, woken tonight to use their ability (the Goon makes the first one
+        drunk). Called for each player chosen, in order, before the chooser's ability acts on them."""
 
     async def resolve_night(self, game, night):
         """This character's step in tonight's night order (the night's choices were asked already)."""

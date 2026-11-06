@@ -169,6 +169,21 @@ POLICY = {
     'pacifist_late': 0.4,           # the same, once five or fewer players are alive (the climax)
     'pacifist_again': 0.05,         # per execution after a save
     'pacifist_never': 0.1,          # per game: the Pacifist never saves anyone
+    # the Grandchild. The almanac: "choose a Grandchild by marking any good character". Default, for review.
+    'grandchild_townsfolk': 0.75,   # the Grandchild is a Townsfolk (else an Outsider), when there are both
+    # whom the Gossip's true statement kills. The almanac: "we recommend that you choose a character that will
+    # actually die, not one protected from death". Default, for review.
+    'gossip_victim_evil': 0.2,      # the victim is an evil player (never the Demon), when one would die
+    # when the Tinker dies. The almanac: "most interesting if the Tinker dies at night"; "You can choose to never kill
+    # the Tinker"; "never kill the Tinker when it would end the game". Default, for review.
+    'tinker_never': 0.1,            # per game: the Tinker never dies by their ability
+    'tinker_night': 0.15,           # per night, at the Tinker's step
+    'tinker_day': 0.005,            # per point of the day (dawn, each beat, nominations, dusk: about 12 a day)
+    # the Lunatic's illusion. The almanac: Minions "can be any players"; bluffs "can even be characters that are in
+    # play"; "You can make the Lunatic think they are a different Demon than the in-play Demon". Default, for review.
+    'lunatic_same_demon': 0.8,      # the Lunatic believes they are the Demon in play (else another on the script)
+    'lunatic_shows_demon': 0.5,     # the real Demon is among the Lunatic's "Minions" (else other players)
+    'lunatic_bluff_in_play': 0.25,  # each of the Lunatic's three bluffs is a good character in play (else not)
     # the Storyteller judge (judge.py; scripts other than TB, when one is chosen): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
@@ -467,7 +482,8 @@ class Grimoire:
             if p.name not in self.truthful:
                 self.truthful[p.name] = r.random() < POLICY['drunk_truthful']
             return not self.truthful[p.name]
-        return self.is_poisoned(p) and r.random() < POLICY['poisoned_false']
+        # drunk or poisoned (in Trouble Brewing only the Poisoner impairs a player who isn't the Drunk)
+        return self.impaired(p) and r.random() < POLICY['poisoned_false']
 
     def sample_evil(self, r):
         """Who registers as evil this time, under the scripted Storyteller's registration policy."""
