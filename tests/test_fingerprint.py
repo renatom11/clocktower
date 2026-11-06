@@ -15,6 +15,14 @@ class FingerprintTests(unittest.TestCase):
             sha, _ = fingerprint.play(g['players'], g['seed'], g['minion'])
             self.assertEqual(sha, g['sha'], f"{g['players']} players, seed {g['seed']} no longer replays identically")
 
+    def test_a_sample_of_bad_moon_risings_recorded_seeds_replays_identically(self):
+        from clocktower.characters import Script
+        bmr = Script('bmr')
+        recorded = json.loads(fingerprint.file_for(bmr).read_text())['games']
+        for g in recorded[::37]:
+            sha, _ = fingerprint.play(g['players'], g['seed'], g['minion'], script=bmr)
+            self.assertEqual(sha, g['sha'], f"BMR, {g['players']} players, seed {g['seed']}: no longer identical")
+
 
 if __name__ == '__main__':
     unittest.main()

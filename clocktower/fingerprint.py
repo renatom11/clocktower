@@ -8,6 +8,7 @@ does it for a fixed set of games across every table size and Minion (tests/data/
 
     python -m clocktower fingerprint --check            # compare every game with the recorded set
     python -m clocktower fingerprint --write            # re-record (only for a deliberate change of play)
+    python -m clocktower fingerprint --check --script bmr   # Bad Moon Rising's recorded set
 """
 from __future__ import annotations
 import argparse
@@ -19,10 +20,15 @@ import sys
 from pathlib import Path
 
 from .agents import RandomSeat
-from .characters import MINIONS
+from .characters import TB, Script
 from .game import ALL_NAMES, Game
 
-FILE = Path(__file__).resolve().parent.parent / 'tests' / 'data' / 'fingerprints.json'
+DATA = Path(__file__).resolve().parent.parent / 'tests' / 'data'
+FILE = DATA / 'fingerprints.json'  # Trouble Brewing's (protocol v17)
+
+
+def file_for(script):
+    return FILE if script.id == 'tb' else DATA / f'fingerprints-{script.id}.json'
 SIZES = range(5, 16)
 SEEDS_PER_SIZE = 100
 
@@ -30,29 +36,34 @@ SEEDS_PER_SIZE = 100
 class _Recorder:
     """A random bot that also records what it was shown and asked."""
 
-    def __init__(self, seat, log):
-        self.seat, self.log = seat, log
+    def __init__(self, seat, log, extra=False):
+        self.seat, self.log, self.extra = seat, log, extra
 
     async def act(self, text, request):
-        self.log.append([self.seat.name, text, request.kind, request.prompt, request.day, request.beat,
-                         request.n_targets, list(request.options), request.alive, request.mode])
+        entry = [self.seat.name, text, request.kind, request.prompt, request.day, request.beat,
+                 request.n_targets, list(request.options), request.alive, request.mode]
+        if self.extra:  # the request fields beyond Trouble Brewing's (TB's recorded set predates them)
+            entry += [request.min_targets, list(request.characters), list(getattr(request, 'claimable', []))]
+        self.log.append(entry)
         return await self.seat.act(text, request)
 
 
-def games():
+def games(script=TB):
     """The recorded set: every table size from 5 to 15, a hundred seeds each, the guaranteed Minion
     rotating with the seed as in a batch."""
-    return [{'players': n, 'seed': s, 'minion': MINIONS[s % len(MINIONS)]}
+    return [{'players': n, 'seed': s, 'minion': script.minions[s % len(script.minions)]}
             for n in SIZES for s in range(n * 1000, n * 1000 + SEEDS_PER_SIZE)]
 
 
-def play(players, seed, minion=None, characters=None):
+def play(players, seed, minion=None, characters=None, script=TB):
     """(fingerprint, summary) of one random-bot game."""
     names = ALL_NAMES[:len(characters) if characters else players]
     log = []
     rng = random.Random(seed + 1)  # the same bots as `run --model random` and `sim`
-    seats = {n: _Recorder(RandomSeat(n, random.Random(rng.random()), names), log) for n in names}
-    game = Game(seats, None, names=names, seed=seed, minion=minion, characters=characters, probes=False)
+    seats = {n: _Recorder(RandomSeat(n, random.Random(rng.random()), names), log, extra=script.id != 'tb')
+             for n in names}
+    game = Game(seats, None, names=names, seed=seed, minion=minion, characters=characters, probes=False,
+                script=script)
     try:
         result = asyncio.run(game.run())
         result = {k: v for k, v in result.items() if k != 'seconds'}
@@ -72,15 +83,17 @@ def main(argv=None):
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument('--check', action='store_true', help='compare with the recorded fingerprints')
     mode.add_argument('--write', action='store_true', help='record fingerprints for the current engine')
-    ap.add_argument('--file', default=str(FILE))
+    ap.add_argument('--script', default='tb', help='tb (the default) or bmr')
+    ap.add_argument('--file', help='the recorded set (default: tests/data/fingerprints[-SCRIPT].json)')
     ap.add_argument('--limit', type=int, help='only the first N games (a quick check)')
     args = ap.parse_args(argv)
-    todo = games()[:args.limit] if args.limit else games()
-    path = Path(args.file)
+    script = Script(args.script)
+    todo = games(script)[:args.limit] if args.limit else games(script)
+    path = Path(args.file) if args.file else file_for(script)
     if args.write:
         out = []
         for i, g in enumerate(todo, 1):
-            sha, summary = play(**g)
+            sha, summary = play(**g, script=script)
             out.append({**g, 'sha': sha, **summary})
             if i % 100 == 0:
                 print(f'{i}/{len(todo)}', file=sys.stderr)
@@ -91,7 +104,7 @@ def main(argv=None):
     recorded = {(g['players'], g['seed']): g for g in json.loads(path.read_text())['games']}
     bad = []
     for i, g in enumerate(todo, 1):
-        sha, _ = play(**g)
+        sha, _ = play(**g, script=script)
         if recorded[(g['players'], g['seed'])]['sha'] != sha:
             bad.append(g)
         if i % 100 == 0:
