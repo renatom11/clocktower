@@ -32,4 +32,4 @@ build-backend = "setuptools.build_meta"
 include = ["clocktower*"]
 
 [tool.setuptools.package-data]
-clocktower = ["viewer/*", "table/*", "table/fonts/*"]
+clocktower = ["viewer/*", "table/*", "table/fonts/*", "data/official/*"]
