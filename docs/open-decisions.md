@@ -57,7 +57,7 @@ is executed; the Scarlet Woman takes over; the Poisoner poisons the Undertaker t
 of nights), "Washerwoman" 20% (2% when Washerwoman is not among the Demon's three bluffs), and another Demon bluff,
 which contradicts the Imp's own claim, about 40%.
 
-**Decided design (for new scripts; built in Phase 3 of the BMR plan).** The model listens, the code decides:
+**Built** (`clocktower/judge.py`, `--judge`; tests in `tests/test_judge.py`). **The design:** The model listens, the code decides:
 1. Code lists every legal answer (the Choice), as now.
 2. A judge reads what a real Storyteller knows (the Grimoire, tonight's choices, everything said aloud; never
    private whispers) and ranks the legal answers against a rubric written from the rulebook, almanacs and wiki

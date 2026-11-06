@@ -37,7 +37,9 @@ Forked at `9fa9773` (2026-11-05). Last compared: 2026-11-06, upstream unchanged 
 | 1 | Unbreak CI: drop an unused import that fails pyflakes | `6e45305` | No | pyflakes clean | Local |
 | 2 | Replay fingerprints (`python -m clocktower fingerprint`) | `4db5cc5` | No | Deterministic over two runs; covers every TB character 420-520 times | Local |
 | 3 | Characters as data, on a script-independent core; TPI's official data pinned | `a4e2ee4`, `abbfdcc`, `08ca1d0`, `435f793` | No | All 1,100 fingerprints identical; prompt byte-identical; 34 old checkpoints resume identically | Local. Large: open an issue first |
-| - | Fork documents (`docs/open-decisions.md`, this file) | `cf4cba9` and later | No | - | Fork only, or part of a BMR proposal |
+| 4 | Scripts as a concept, and a script-independent core (deaths, protection, states with durations, night choices, public abilities, setup choices, victory overrides) | `6e9d30f`, `bc9cf13`, `7019ae2`, `278f4f9`, `a713a90` | No | All 1,100 fingerprints identical; TB prompt and schema byte-identical; `tests/test_core.py` | Local. Needed for any script beyond TB |
+| 5 | The Storyteller judge (`judge.py`, `--judge`) | `baab6d7` | No (TB never uses it) | `tests/test_judge.py`: four rulebook and wiki situations, a recorded model answer | Local |
+| - | Fork documents (`docs/open-decisions.md`, this file) | `cf4cba9`, `94c2c24` and later | No | - | Fork only, or part of a BMR proposal |
 
 Found on the way, not yet changed (each changes TB play, so each is a proposal): at 5-6 players with a Baron the
 Washerwoman can be the only Townsfolk, and the game stops with "illegal Storyteller value" (5 of the 1,100 recorded
@@ -51,14 +53,18 @@ Signed off 2026-11-06. Trouble Brewing play does not change at any step.
 - **Phase 0, housekeeping:** this ledger and the `upstream` remote; long lines; seats keep their dealt team's
   model on resume; the Storyteller judge design in `docs/open-decisions.md`. *Done.*
 - **Phase 1, scripts:** a game takes a script (official script JSON format), default TB; `--script tb|bmr`; BMR is
-  its own protocol and folder; a BMR player prompt drafted for review.
+  its own protocol and folder; a BMR player prompt drafted for review. *Done.*
 - **Phase 2, mechanics in the core:** several deaths a night and protection from several sources; dawn in seat
   order; apparent death and resurrection; executions that don't kill; drunkenness and poison from many sources with
   durations; new night-choice shapes; public, day and on-death abilities; setup modifiers and win conditions as
   checks; game records; messages to the Demon at night. Designed for later: registration per observer and check,
   abilities separate from character tokens, a jinx step, players who don't count, a Storyteller visit move.
+  *Done, except the Storyteller visit move: no BMR character uses it, so it waits for Sects & Violets (the Savant
+  and Artist) rather than adding code nothing exercises.*
 - **Phase 3, the Storyteller judge:** scripted, rules, dry-run and model modes; reads only what a Storyteller would;
-  code picks from its ranking; rulings logged; a test set with known rulings.
+  code picks from its ranking; rulings logged; a test set with known rulings. *Done. The default judge model is
+  claude-haiku-4-5, the cheapest the engine prices; Haiku 5.5 needs adding to llm.py first, by CONTRIBUTING's
+  process for a new model.*
 - **Phase 4, the 25 BMR characters:** one entry each, with rules tests from the almanac's examples and default
   Storyteller weights for review; the Gossip last.
 - **Phase 5, checking:** thousands of free random-bot BMR games, fingerprints, the Goon's conversion rate, a
