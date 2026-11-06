@@ -1,10 +1,13 @@
-"""Grimoire state and Trouble Brewing rules.
+"""Grimoire state, and the Storyteller's choices.
 
-The Grimoire holds the truth. Everything the Storyteller decides (setup details,
-information for impaired players, Spy/Recluse registration, Mayor bounces) is a
-Choice: the full list of legal values plus the scripted Storyteller's style (see
-POLICY). The Storyteller sometimes picks uniformly among all legal values, so no
-legal option is ever ruled out; the engine never applies an illegal value.
+The Grimoire holds the truth: who is which character, on which team, alive or dead, and the states the
+abilities leave on players (poisoned, safe, a Butler's master), each with its source and when it ends. What a
+character does is its entry in characters.py; the Grimoire answers questions about the game for those entries.
+
+Everything the Storyteller decides (setup details, information for impaired players, Spy/Recluse
+registration, Mayor bounces) is a Choice: the full list of legal values plus the scripted Storyteller's style
+(see POLICY). The style can produce every legal value, so no legal option is ever ruled out; the engine never
+applies an illegal value.
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -12,42 +15,71 @@ from itertools import combinations, product
 import random
 from typing import Callable
 from .characters import (ALL, DEMONS, INFO_ROLES, MINIONS, OUTSIDERS, SETUPS, TOWNSFOLK,
-                         is_evil_character, kind)
+                         is_evil_character, kind, rules)
 
 
 @dataclass
 class Player:
     name: str
     seat: int
-    character: str          # true character; changes only when a Minion becomes the Imp
-    shown: str              # the character this player believes they are (differs only for the Drunk)
+    character: str          # true character (changes when, say, a Minion becomes the Demon)
+    shown: str              # the character this player believes they are (differs for the Drunk)
     alive: bool = True
     ghost_vote: bool = True
+    alignment: str = ''     # 'good' or 'evil': dealt with the character, and kept when the character changes
+
+    def __post_init__(self):
+        self.alignment = self.alignment or ('evil' if is_evil_character(self.character) else 'good')
 
     @property
     def evil(self):
-        return is_evil_character(self.character)
+        # games checkpointed before alignment was stored hold players without it
+        return (self.alignment or ('evil' if is_evil_character(self.character) else 'good')) == 'evil'
+
+    @property
+    def is_demon(self):
+        return kind(self.character) == 'Demon'
 
 
-def team_sizes(n, baron=False):
-    """(Townsfolk, Outsiders, Minions) for n players, from the official table."""
+@dataclass
+class State:
+    """Something an ability put on a player: 'poisoned', 'drunk', 'safe' (from the Demon) or 'master' (a Butler's).
+    It ends at `until` (a dusk: 'night'), and, if `ends_with_source`, as soon as its source dies or stops being
+    the character that made it (a dead Poisoner's poison ends)."""
+    kind: str
+    target: str
+    source: str | None = None
+    until: str = 'night'
+    ends_with_source: bool = False
+
+
+def team_sizes(n, outsiders=0):
+    """(Townsfolk, Outsiders, Minions) for n players, from the official table, with `outsiders` Townsfolk turned
+    into Outsiders by setup modifiers (True means the Baron's 2)."""
     tf, os_, mn = SETUPS[n]
-    return (tf - 2, os_ + 2, mn) if baron else (tf, os_, mn)
+    d = 2 if outsiders is True else int(outsiders)
+    return tf - d, os_ + d, mn
+
+
+def setup_change(characters):
+    """Townsfolk the characters' setup modifiers turn into Outsiders (the Baron: 2)."""
+    return sum(rules(c).outsiders for c in characters)
 
 
 def setup_error(characters):
-    """Why a list of characters is not a legal Trouble Brewing setup, or None."""
+    """Why a list of characters is not a legal setup, or None."""
     n = len(characters)
     if n not in SETUPS: return f'Trouble Brewing is for {min(SETUPS)}-{max(SETUPS)} players'
     if len(set(characters)) != n: return 'characters must be distinct'
     bad = [c for c in characters if c not in ALL]
     if bad: return f'not on the script: {bad}'
     counts = {k: sum(1 for c in characters if kind(c) == k) for k in ('Townsfolk', 'Outsider', 'Minion', 'Demon')}
-    if counts['Demon'] != 1: return 'need exactly one Imp'
-    tf, os_, mn = team_sizes(n, 'Baron' in characters)
+    if counts['Demon'] != 1: return 'need exactly one ' + (DEMONS[0] if len(DEMONS) == 1 else 'Demon')
+    tf, os_, mn = team_sizes(n, setup_change(characters))
     if counts['Minion'] != mn: return f'need exactly {mn} Minion(s)'
     if (counts['Townsfolk'], counts['Outsider']) != (tf, os_):
-        return f'need {tf} Townsfolk and {os_} Outsiders' + (' (Baron in play)' if 'Baron' in characters else '')
+        modifiers = [c for c in characters if rules(c).outsiders]
+        return f'need {tf} Townsfolk and {os_} Outsiders' + (f' ({", ".join(modifiers)} in play)' if modifiers else '')
     return None
 
 
@@ -55,8 +87,9 @@ def random_setup(rng, minion=None, players=9):
     """A uniformly random legal setup; `minion` forces one of the Minions (batches rotate it)."""
     mn = SETUPS[players][2]
     minions = ([minion] if minion else []) + rng.sample([m for m in MINIONS if m != minion], mn - (1 if minion else 0))
-    tf, os_, _ = team_sizes(players, 'Baron' in minions)
-    return rng.sample(TOWNSFOLK, tf) + rng.sample(OUTSIDERS, os_) + minions + ['Imp']
+    tf, os_, _ = team_sizes(players, setup_change(minions))
+    demon = DEMONS if len(DEMONS) == 1 else [rng.choice(DEMONS)]
+    return rng.sample(TOWNSFOLK, tf) + rng.sample(OUTSIDERS, os_) + minions + demon
 
 
 # How the scripted Storyteller uses its discretion. Every number is a judgment call about what an
@@ -121,16 +154,14 @@ class Choice:
 
 class Grimoire:
     def __init__(self, names, characters, drunk_as=None):
-        self.players = [Player(n, i, c, drunk_as if c == 'Drunk' else c) for i, (n, c) in enumerate(zip(names, characters))]
+        self.players = [Player(n, i, c, drunk_as if rules(c).always_drunk else c)
+                        for i, (n, c) in enumerate(zip(names, characters))]
         self.by_name = {p.name: p for p in self.players}
         self.red_herring = None
         self.bluffs = []
         self.reminders = []         # what the pair abilities were shown, as on the real Grimoire
-        self.poisoned = None        # name of the poisoned player (tonight and tomorrow day)
-        self.protected = None       # Monk protection tonight
-        self.master = None          # Butler's master for today's votes
-        self.slayer_used = False
-        self.virgin_used = False
+        self.states = []            # State: what abilities have put on players (poison, protection, a master)
+        self.spent = set()          # once-per-game abilities used (by character)
         self.day = 0
         self.executed_death = None  # who died by execution today (Undertaker)
         self.alive_at_execution = 0  # players alive just before that execution
@@ -139,8 +170,58 @@ class Grimoire:
         self.winner = None
         self.reason = None
 
+    def __setstate__(self, d):
+        """Games checkpointed before states existed held one field per state: carry them over."""
+        old = {k: d.pop(k, None) for k in ('poisoned', 'protected', 'master', 'slayer_used', 'virgin_used')}
+        self.__dict__.update(d)
+        if 'states' not in d:
+            self.states, self.spent = [], set()
+            for kind_, name in (('poisoned', old['poisoned']), ('safe', old['protected']), ('master', old['master'])):
+                if name:
+                    p = next((q for q in self.players if q.character == {'poisoned': 'Poisoner', 'safe': 'Monk',
+                                                                         'master': 'Butler'}[kind_]), None)
+                    self.add(State(kind_, name, p.name if p else None, ends_with_source=kind_ == 'poisoned'))
+            self.spent = {c for c, used in (('Slayer', old['slayer_used']), ('Virgin', old['virgin_used'])) if used}
+
     def __getitem__(self, name):
         return self.by_name[name]
+
+    # ---- states ----------------------------------------------------------------------
+    def add(self, state):
+        self.states.append(state)
+
+    def expire(self, moment):
+        """Remove the states that end at `moment` ('night': each dusk)."""
+        self.states = [s for s in self.states if s.until != moment]
+
+    def holders(self, kind_):
+        """Names of the players with a state of this kind, in the order the states were made."""
+        return [s.target for s in self.states if s.kind == kind_]
+
+    def has(self, p, kind_):
+        return any(s.kind == kind_ and s.target == p.name for s in self.states)
+
+    def _single(self, kind_, value, source=None, ends_with_source=False):
+        self.states = [s for s in self.states if s.kind != kind_]
+        if value:
+            self.add(State(kind_, value, source, ends_with_source=ends_with_source))
+
+    # The three states Trouble Brewing has, as single names (one Poisoner, one Monk, one Butler)
+    poisoned = property(lambda self: next(iter(self.holders('poisoned')), None),
+                        lambda self, name: self._single('poisoned', name))
+    protected = property(lambda self: next(iter(self.holders('safe')), None),
+                         lambda self, name: self._single('safe', name))
+    master = property(lambda self: next(iter(self.holders('master')), None),
+                      lambda self, name: self._single('master', name))
+
+    def spend(self, character):
+        self.spent.add(character)
+
+    def spent_ability(self, character):
+        return character in self.spent
+
+    slayer_used = property(lambda self: 'Slayer' in self.spent)
+    virgin_used = property(lambda self: 'Virgin' in self.spent)
 
     # ---- basic queries -------------------------------------------------------------
     def living(self):
@@ -153,18 +234,35 @@ class Grimoire:
         return next((p for p in self.players if p.character == character and (p.alive or not alive)), None)
 
     def demon(self):
-        return self.with_character('Imp')
+        """The living Demon, if any."""
+        return next((p for p in self.players if p.alive and p.is_demon), None)
 
     def is_poisoned(self, p):
-        return self.poisoned == p.name
+        return self.has(p, 'poisoned')
+
+    def is_drunk(self, p):
+        return rules(p.character).always_drunk or self.has(p, 'drunk')
 
     def impaired(self, p):
         """The player's own ability (as they understand it) is not working."""
-        return p.character == 'Drunk' or self.is_poisoned(p)
+        return self.is_drunk(p) or self.is_poisoned(p)
 
     def works(self, p, character):
-        """p is alive, really is `character`, and is not poisoned."""
-        return p.alive and p.character == character and not self.is_poisoned(p)
+        """p is alive, really is `character`, and is neither drunk nor poisoned."""
+        return p.alive and p.character == character and not self.impaired(p)
+
+    def safe_from_demon(self, p):
+        """The Demon's attack can't kill p: their own ability (the Soldier) or protection (the Monk's)."""
+        return rules(p.character).safe_from_demon(self, p) or self.has(p, 'safe')
+
+    def change_character(self, p, character):
+        """p becomes `character` (and believes it), keeping their alignment. States that last only while their
+        source has its ability end (a Poisoner who becomes the Imp stops poisoning)."""
+        p.character = p.shown = character
+        self._source_lost(p)
+
+    def _source_lost(self, p):
+        self.states = [s for s in self.states if not (s.ends_with_source and s.source == p.name)]
 
     def neighbours(self, p):
         """Nearest living players clockwise and anticlockwise (excluding p)."""
@@ -185,24 +283,14 @@ class Grimoire:
     # ---- registration --------------------------------------------------------------
     def registers_evil(self, p):
         """Set of possible answers to 'is p evil?'"""
-        if p.character in ('Spy', 'Recluse') and not self.is_poisoned(p):
-            return {True, False}
-        return {p.evil}
+        return rules(p.character).registers_evil(self, p)
 
     def registers_as(self, p):
         """Set of characters p might register as."""
-        if p.character == 'Spy' and not self.is_poisoned(p):
-            return {'Spy', *TOWNSFOLK, *OUTSIDERS}
-        if p.character == 'Recluse' and not self.is_poisoned(p):
-            return {'Recluse', *MINIONS, *DEMONS}
-        return {p.character}
+        return rules(p.character).registers_as(self, p)
 
     def registers_demon_to_ft(self, p):
-        if p.character == 'Imp' or p.name == self.red_herring:
-            return {True}
-        if p.character == 'Recluse' and not self.is_poisoned(p):
-            return {True, False}
-        return {False}
+        return rules(p.character).registers_demon_to_ft(self, p)
 
     def decoy(self, p, r):
         """The false world an impaired player's information comes from, fixed per player so it stays
@@ -224,7 +312,8 @@ class Grimoire:
         by the usual registration chance (as it would for a working ability)."""
         evil = set(self.decoy(p, r)[1])
         for q in self.players:
-            if q.character == 'Recluse' and not self.is_poisoned(q) and r.random() < POLICY['recluse_evil']:
+            c = rules(q.character)
+            if not c.evil and c.misregisters and not self.is_poisoned(q) and r.random() < POLICY[c.misregisters]:
                 evil.add(q.name)
         return evil
 
@@ -241,9 +330,9 @@ class Grimoire:
         return v
 
     def minions_shown(self):
-        """Minion characters a false or misregistered result may name: the Baron only when in play
-        (the Outsider count would otherwise rule it out)."""
-        return [m for m in MINIONS if m != 'Baron' or 'Baron' in self.in_play()]
+        """Minion characters a false or misregistered result may name: a setup modifier (the Baron) only
+        when in play (the Outsider count would otherwise rule it out)."""
+        return [m for m in MINIONS if not rules(m).outsiders or m in self.in_play()]
 
     def misinformed(self, p, r):
         """Whether the scripted Storyteller gives this impaired player false information now. The
@@ -258,7 +347,8 @@ class Grimoire:
         """Who registers as evil this time, under the scripted Storyteller's registration policy."""
         out = set()
         for q in self.players:
-            chance = {'Spy': POLICY['spy_evil'], 'Recluse': POLICY['recluse_evil']}.get(q.character)
+            key = rules(q.character).misregisters
+            chance = POLICY[key] if key else None
             if chance is not None and not self.is_poisoned(q):
                 if r.random() < chance:
                     out.add(q.name)
@@ -287,14 +377,7 @@ class Grimoire:
     # ---- deaths and victory ----------------------------------------------------------
     def die(self, p):
         p.alive = False
-        if p.character == 'Poisoner':
-            self.poisoned = None
-
-    def scarlet_woman_heir(self, alive_before):
-        sw = self.with_character('Scarlet Woman')
-        if sw and self.works(sw, 'Scarlet Woman') and alive_before >= 5:
-            return sw
-        return None
+        self._source_lost(p)  # a dead Poisoner's poison ends
 
     def check_victory(self):
         if self.winner: return self.winner
@@ -309,16 +392,16 @@ class Grimoire:
         lines = []
         for p in self.players:
             tags = []
-            if p.character == 'Drunk': tags.append(f'thinks they are the {p.shown}')
+            if p.shown != p.character: tags.append(f'thinks they are the {p.shown}')
             if not p.alive: tags.append('DEAD' + ('' if p.ghost_vote else ', ghost vote used'))
             if self.is_poisoned(p): tags.append('POISONED')
-            if p.name == self.protected: tags.append('protected by the Monk tonight')
+            if self.has(p, 'safe'): tags.append('protected by the Monk tonight')
             if p.name == self.red_herring: tags.append("Fortune Teller's red herring")
-            if p.name == self.master: tags.append("Butler's master")
+            if self.has(p, 'master'): tags.append("Butler's master")
             team = 'evil' if p.evil else 'good'
             lines.append(f'{p.seat + 1}. {p.name}: {p.character} ({team})' + (f" [{'; '.join(tags)}]" if tags else ''))
         if self.bluffs: lines.append(f"Demon bluffs: {', '.join(self.bluffs)}")
-        used = [x for x, flag in (('Slayer', self.slayer_used), ('Virgin', self.virgin_used)) if flag]
+        used = sorted(self.spent)
         if used: lines.append(f"Spent once-per-game abilities: {', '.join(used)}")
         lines += list(self.reminders) + list(reminders)
         return '\n'.join(lines)
@@ -540,7 +623,7 @@ def yes_choice(cid, chance):
 
 def mayor_choice(g, mayor, imp):
     """Who dies when the Imp attacks a healthy Mayor: the Mayor, or someone else instead."""
-    victims = [q.name for q in g.living() if q is not imp and not g.works(q, 'Soldier') and q.name != g.protected]
+    victims = [q.name for q in g.living() if q is not imp and not g.safe_from_demon(q)]
     others = [n for n in victims if n != mayor.name]
     good = [n for n in others if not g[n].evil]
 

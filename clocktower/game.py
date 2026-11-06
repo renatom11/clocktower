@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 from .agents import Request, ScriptedStoryteller
-from .characters import FIRST_NIGHT, GOOD, MINIONS, OTHER_NIGHTS, TOWNSFOLK, card
+from .characters import ALL, FIRST_NIGHT, GOOD, MINIONS, OTHER_NIGHTS, PUBLIC_ACTIONS, SETUP_STEPS, card, rules
 from .llm import BudgetExceeded, SeatFailed
 
 
@@ -28,22 +28,41 @@ class Halted(RuntimeError):
 from . import probe
 from .prompts import dawn_narration
 from .render import render
-from .state import (POLICY, Grimoire, bluffs_choice, character_choice, chef_choice, drunk_as_choice, empath_choice,
-                    fortune_teller_choice, heir_choice, info_text, mayor_choice, norm, pair_choice, random_setup,
-                    red_herring_choice, setup_error, yes_choice)
+from .state import Grimoire, bluffs_choice, info_text, norm, random_setup, setup_error
 ALL_NAMES = ['Alex', 'Blair', 'Casey', 'Drew', 'Ellis', 'Frankie', 'Gray', 'Harper', 'Indigo', 'Jules', 'Kit',
              'Logan', 'Morgan', 'Noel', 'Oakley']
 NAMES = ALL_NAMES[:9]  # the default nine-player table
 WHISPERS = 1  # per private-time turn (v14; v7-v13 had 2): one conversation at a time
 WORDS = {'beat': 150, 'whisper': 150, 'nominate': 150, 'defense': 200, 'comment': 150, 'vote': 60}
+# role: (number of targets, prompt, may choose self), for the characters that choose at night
+NIGHT_ACTIONS = {c: rules(c).night_choice for c in ALL if rules(c).night_choice}
 
-NIGHT_ACTIONS = {  # role: (number of targets, prompt, may choose self)
-    'Poisoner': (1, 'Choose a player to poison tonight and tomorrow.', True),
-    'Monk': (1, 'Choose a player (not yourself) to protect from the Demon tonight.', False),
-    'Imp': (1, 'Choose a player to kill. (Choosing yourself kills you and makes one of your Minions the new Imp.)', True),
-    'Fortune Teller': (2, 'Choose two players: you learn whether either of them is the Demon.', True),
-    'Butler': (1, 'Choose your master (not yourself): tomorrow you may only vote if they vote too.', False),
-}
+
+class Night:
+    """One night: who chose what, and who died. Each character's step reads and adds to it."""
+
+    def __init__(self, n):
+        self.n, self.first = n, n == 1
+        self.chosen = {}  # player name -> the players they chose tonight
+        self.deaths = []
+
+    def choice_of(self, g, character):
+        """(The living player who really is `character`, their first choice tonight or None)."""
+        p = g.with_character(character)
+        return (p, self.chosen[p.name][0]) if p and p.name in self.chosen else (p, None)
+
+    @staticmethod
+    def steps(first):
+        """Tonight's night order in batches. Choices are asked a batch at a time, and a batch ends after each
+        step that can kill, so a player killed tonight is never woken to choose (the Fortune Teller and Butler
+        choose after the Demon's kill). Night 1 has no kill: one batch."""
+        batches, batch = [], []
+        for c in (FIRST_NIGHT if first else OTHER_NIGHTS):
+            batch.append(c)
+            if rules(c).kills_at_night:
+                batches.append(batch)
+                batch = []
+        return batches + [batch] if batch else batches
 
 
 # Every seat's text reaches the others in one typography, so a model's style (curly quotes, dash and
@@ -198,11 +217,11 @@ class Game:
         self.g = g = Grimoire(names, chars)
 
         in_play = set(chars)
-        drunk = g.with_character('Drunk')
-        if drunk:
-            drunk.shown = self.decide(drunk_as_choice([c for c in TOWNSFOLK if c not in in_play]))['character']
-        if any(p.shown == 'Fortune Teller' for p in g.players):  # the Drunk-as-Fortune-Teller too
-            g.red_herring = self.decide(red_herring_choice(g))['players'][0]
+        for c in SETUP_STEPS:  # the characters' own setup (the Drunk's apparent character, then the red herring),
+            # for a character someone has or believes they have (a Drunk-as-Fortune-Teller needs a red herring too)
+            if c.name in {p.character for p in g.players} | {p.shown for p in g.players}:
+                c.setup(self)
+        drunk = next((p for p in g.players if rules(p.character).always_drunk), None)
         g.bluffs = self.decide(bluffs_choice([c for c in GOOD if c not in in_play], drunk is not None,
                                              drunk.shown if drunk else None))['characters']
         self.starting = {p.name: p.character for p in g.players}
@@ -217,7 +236,7 @@ class Game:
                      f'You sit between {left} and {right}.',
                      f'Your character: {card(p.shown)}']
             minions = [q.name for q in g.players if q.character in MINIONS]
-            if p.character == 'Imp':
+            if p.is_demon:  # Demon info and Minion info
                 lines.append(f'Your Minion{"" if len(minions) == 1 else "s"}: {", ".join(minions)} (you do not know '
                              f'which Minion characters). Three good characters not in play, for evil to bluff: '
                              f'{", ".join(g.bluffs)}.')
@@ -238,123 +257,71 @@ class Game:
         return chosen
 
     def kill(self, p, cause):
+        """The one way anyone dies (Demon, execution, Slayer, starpass). Characters react through on_death (the
+        Scarlet Woman takes over a dead Demon); abilities that last only while their source lives end."""
         g = self.g
         before = g.alive_count()
         g.die(p)
         self.emit('death', {'player': p.name, 'cause': cause}, 'audit')
-        if p.character == 'Imp' and cause != 'starpass':
-            heir = g.scarlet_woman_heir(before)
-            if heir:
-                heir.character = heir.shown = 'Imp'
-                self.emit('becomes', {'player': heir.name, 'character': 'Imp'}, 'audit')
-                self.emit('notice', {'text': 'The Demon has died — and because you are the Scarlet Woman, you are '
-                                             'now the Imp! From the next night you choose who dies.'}, [heir.name])
+        for q in g.players:
+            rules(q.character).on_death(self, q, p, cause, before)
+
+    def demon_attack(self, target, demon, night):
+        """The Demon attacks `target`: nothing happens if they are dead or safe (the Soldier, the Monk's
+        protection); their ability may send the death elsewhere (the Mayor); otherwise they die."""
+        if not target.alive or self.g.safe_from_demon(target):
+            return
+        victim = rules(target.character).redirect_attack(self, target, demon) or target
+        self.kill(victim, 'demon')
+        night.deaths.append(victim)
+
+    def request(self, *args, **kw):
+        return Request(*args, **kw)
+
+    def tell(self, p, role, choice, target=None):
+        """The Storyteller decides an information role's result and tells the player."""
+        text = info_text(role, self.decide(choice), target)
+        self.emit('info', {'text': f'Night {self.day} — {role}: {text}'}, [p.name])
+        if rules(role).remembered:
+            self.g.reminders.append(f'{p.name} ({role}) was shown: {text}')
+
+    async def wake(self, night, characters):
+        """Ask the living players whose (apparent) character chooses at night, among `characters`, for their
+        choices, all at once. A Drunk who thinks they are the Monk is woken as the Monk; their choice does
+        nothing (each character's step acts only for the player who really is that character)."""
+        g, names = self.g, self.names
+        roles = {c for c in characters if rules(c).night_choice}
+        requests = {}
+        for p in g.living():
+            if p.shown not in roles:
+                continue
+            k, text, may_self = rules(p.shown).night_choice
+            options = [x for x in names if may_self or x != p.name]
+            requests[p.name] = Request('night', f'Night {night.n} — {p.shown}: {text} Put your choice in `targets`.',
+                                       night.n, n_targets=k, options=options)
+        acts = await self.ask_many(requests)
+        for name, req in requests.items():
+            night.chosen[name] = self.targets(name, acts[name], req)
+            self.emit('night_choice', {'player': name, 'role': g[name].shown, 'targets': night.chosen[name]}, 'audit')
 
     async def night(self, n):
-        g, names, first = self.g, self.names, n == 1
+        """Tonight's steps in the official night order, one character at a time. Choices are asked a batch at
+        a time (Night.steps), so they can be asked at once while the dead are never woken."""
+        g = self.g
         self.day, self.phase = n, 'night'
-        g.poisoned = g.protected = None
+        g.expire('night')  # last night's poison, protection and master end at dusk
         self.emit('header', {'text': f'Night {n}'})
-
-        chosen = {}
-
-        async def wake(roles):
-            """Ask the living players with these (apparent) night abilities for their choices, at once."""
-            requests = {}
-            for p in g.living():
-                if p.shown not in roles or (first and p.shown in ('Monk', 'Imp')):
-                    continue
-                k, text, may_self = NIGHT_ACTIONS[p.shown]
-                options = [x for x in names if may_self or x != p.name]
-                requests[p.name] = Request('night', f'Night {n} — {p.shown}: {text} Put your choice in `targets`.', n,
-                                           n_targets=k, options=options)
-            acts = await self.ask_many(requests)
-            for name, req in requests.items():
-                chosen[name] = self.targets(name, acts[name], req)
-                self.emit('night_choice', {'player': name, 'role': g[name].shown, 'targets': chosen[name]}, 'audit')
-
-        # Official night order: the Poisoner, Monk and Imp act before the Fortune Teller and Butler, so
-        # a player killed tonight is never woken to choose. (Night 1 has no kill: one round.)
-        await wake(('Poisoner', 'Monk', 'Imp') if not first else tuple(NIGHT_ACTIONS))
-
-        def choice_of(character):
-            p = g.with_character(character)
-            return (p, chosen[p.name][0]) if p and p.name in chosen else (p, None)
-
-        _, t = choice_of('Poisoner')
-        if t:
-            g.poisoned = t
-        monk, t = choice_of('Monk')
-        if t and g.works(monk, 'Monk'):
-            g.protected = t
-
-        deaths = []
-        imp, t = choice_of('Imp')
-        if imp and t and not g.is_poisoned(imp):
-            target = g[t]
-            if target is imp and imp.name != g.protected:  # a Monk-protected Imp cannot die, so no starpass
-                before = g.alive_count()
-                self.kill(imp, 'starpass')
-                deaths.append(imp)
-                # a Scarlet Woman who can take over does; otherwise the Storyteller picks a living Minion
-                living = [q.name for q in g.living() if q.character in MINIONS]
-                heir = g.scarlet_woman_heir(before) or (g[self.decide(heir_choice(living))['players'][0]] if living else None)
-                if heir:
-                    if heir.character == 'Poisoner':
-                        g.poisoned = None  # the Poisoner's poison ends when they stop being the Poisoner
-                    heir.character = heir.shown = 'Imp'
-                    self.emit('becomes', {'player': heir.name, 'character': 'Imp'}, 'audit')
-                    self.emit('notice', {'text': f'Night {n}: the Imp killed themselves, and you are now the Imp! '
-                                                 'From tomorrow night you choose who dies.'}, [heir.name])
-            elif target.alive and not g.works(target, 'Soldier') and target.name != g.protected:
-                victim = target
-                if g.works(target, 'Mayor'):
-                    victim = g[self.decide(mayor_choice(g, target, imp))['players'][0]]
-                self.kill(victim, 'demon')
-                deaths.append(victim)
-        if not first:
-            await wake(('Fortune Teller', 'Butler'))
-        butler, t = choice_of('Butler')
-        g.master = t if butler and butler.alive else None
-
-        info = []  # (recipient, ability, choice, target for the message)
-        for d in deaths:
-            if d.shown == 'Ravenkeeper':
-                req = Request('ravenkeeper', f'Night {n}: you were killed in the night. Ravenkeeper: choose a player '
-                                             'to learn their character (`targets`).', n, n_targets=1, options=names)
-                t = self.targets(d.name, await self.ask(d.name, req), req)[0]
-                info.append((d, 'Ravenkeeper', character_choice(g, d, 'Ravenkeeper', t), t))
-        for role in (FIRST_NIGHT if first else OTHER_NIGHTS):
-            for p in g.players:
-                if not p.alive or p.shown != role:
-                    continue
-                if role in ('Washerwoman', 'Librarian', 'Investigator'):
-                    info.append((p, role, pair_choice(g, p, role), None))
-                elif role == 'Chef':
-                    info.append((p, role, chef_choice(g, p), None))
-                elif role == 'Empath':
-                    info.append((p, role, empath_choice(g, p), None))
-                elif role == 'Fortune Teller' and p.name in chosen:
-                    info.append((p, role, fortune_teller_choice(g, p, chosen[p.name]), chosen[p.name]))
-                elif role == 'Undertaker' and g.executed_death:
-                    info.append((p, role, character_choice(g, p, 'Undertaker', g.executed_death),
-                                 g.executed_death))
-
-        for p, role, c, target in info:
-            text = info_text(role, self.decide(c), target)
-            self.emit('info', {'text': f'Night {n} — {role}: {text}'}, [p.name])
-            if role in ('Washerwoman', 'Librarian', 'Investigator'):
-                g.reminders.append(f'{p.name} ({role}) was shown: {text}')
-        spy = g.with_character('Spy')
-        if spy and spy.alive:
-            self.emit('info', {'text': f'Night {n} — Spy: you look at the Grimoire.\n'
-                                       + g.grimoire_text()}, [spy.name])
+        night = Night(n)
+        for batch in Night.steps(night.first):
+            await self.wake(night, batch)
+            for c in batch:
+                await rules(c).resolve_night(self, night)
 
         self.phase = 'day'
         self.emit('header', {'text': f'Day {n}'})
-        self.emit('dawn', {'day': n, 'deaths': [d.name for d in deaths],
-                           'narration': dawn_narration(self.rng, [d.name for d in deaths])})
-        if first:
+        self.emit('dawn', {'day': n, 'deaths': [d.name for d in night.deaths],
+                           'narration': dawn_narration(self.rng, [d.name for d in night.deaths])})
+        if night.first:
             self.probe('dawn')
 
     # ---- day ---------------------------------------------------------------------------------
@@ -433,7 +400,7 @@ class Game:
                          tail, WORDS['beat'], beat=k, private=private, note=note)
 
     def shots(self, names, acts):
-        """Slayer shots taken on these public turns, in order."""
+        """Public day actions taken on these public turns, in order (the Slayer's shot, which anyone can claim)."""
         for name in names:
             t = acts[name].get('slayer_shot')
             if t in self.names and t != name and not self.g.winner:
@@ -441,18 +408,10 @@ class Game:
 
     def slayer(self, shooter, target):
         g = self.g
-        s, t = g[shooter], g[target]
-        died = False
-        if s.alive and s.character == 'Slayer' and not g.slayer_used:
-            g.slayer_used = True
-            if not g.is_poisoned(s) and t.alive:
-                if t.character == 'Imp':
-                    died = True
-                elif t.character == 'Recluse' and not g.is_poisoned(t):
-                    died = self.decide(yes_choice(f'Slayer:{t.name}', POLICY['recluse_slain']))['yes']
+        died = PUBLIC_ACTIONS['slayer_shot'].act_publicly(self, shooter, target)
         self.emit('slayer', {'shooter': shooter, 'target': target, 'died': died})
         if died:
-            self.kill(t, 'slayer')
+            self.kill(g[target], 'slayer')
             g.check_victory()
 
     def execute(self, name):
@@ -462,30 +421,17 @@ class Game:
         self.emit('execution', {'player': name, 'died': died})
         if died:
             g.alive_at_execution = g.alive_count()
-            saint = g.works(p, 'Saint')
+            ends = rules(p.character).executed(self, p)  # the Saint's team loses
             self.kill(p, 'execution')
             g.executed_death = name
-            if saint:
-                g.winner, g.reason = 'evil', f'{name} was the Saint, and the Saint was executed.'
+            if ends:
+                g.winner, g.reason = ends
         g.check_victory()
 
     def virgin(self, nominator, nominee):
-        """Returns True if the Virgin's ability executed the nominator."""
-        g, v = self.g, self.g[nominee]
-        if v.character != 'Virgin' or g.virgin_used:
-            return False
-        g.virgin_used = True
-        if not g.works(v, 'Virgin'):
-            return False
-        nom = g[nominator]
-        townsfolk = nom.character in TOWNSFOLK
-        if nom.character == 'Spy' and not g.is_poisoned(nom):
-            townsfolk = self.decide(yes_choice(f'Virgin:{nominator}', POLICY['spy_virgin']))['yes']
-        if not townsfolk:
-            return False
-        self.emit('virgin', {'nominator': nominator, 'nominee': nominee})
-        self.execute(nominator)
-        return True
+        """The nominee's character reacts to the nomination: True if that ended the day (the Virgin's ability
+        executed the nominator)."""
+        return rules(self.g[nominee].character).nominated(self, self.g[nominee], nominator)
 
     def vote_order(self, nominee):
         i = self.names.index(nominee)
@@ -508,7 +454,7 @@ class Game:
             lines.append(f'Yes so far: {", ".join(yes) if yes else "none"} ({len(yes)}).')
             if not p.alive:
                 lines.append('You are dead: voting yes uses your one ghost vote.')
-            if p.character == 'Butler' and p.alive and g.master:  # poisoned or not: the Butler can't tell
+            if rules(p.character).follows_master and p.alive and g.master:  # poisoned or not: they can't tell
                 up = g.master in yes or early.get(g.master, (False,))[0]
                 lines.append(f'Your master is {g.master}: their hand is {"up, so you may vote" if up else "down, so you may not vote yes"}.')
             lines.append('Set `vote` to true or false; `say` may hold a very short remark (optional; don\'t just restate your vote).')
@@ -526,13 +472,14 @@ class Game:
             p = g[voter]
             if not can_vote(p):
                 continue
-            master = g[g.master] if p.character == 'Butler' and p.alive and g.master else None
+            master = g[g.master] if rules(p.character).follows_master and p.alive and g.master else None
             if master and master.name not in voted and master.name not in early and can_vote(master):
                 # hands go up together: a master who votes later is asked now, so the Butler can see whether
                 # their hand is up (the master's vote is still shown at their own seat)
                 early[master.name] = await ask_vote(master.name)
             v, remark = early.pop(voter) if voter in early else await ask_vote(voter)
-            if v and g.works(p, 'Butler') and g.master and not (g.master in yes or early.get(g.master, (False,))[0]):
+            if (v and rules(p.character).follows_master and g.works(p, p.character) and g.master
+                    and not (g.master in yes or early.get(g.master, (False,))[0])):
                 v, remark = False, ''  # a Butler may only raise their hand while their master's is up
                 self.emit('notice', {'text': f'(Your master {g.master} is not voting yes, so you cannot vote.)'}, [voter])
             ghost = v and not p.alive
@@ -621,9 +568,10 @@ class Game:
         await self.nominations()
         if g.winner:
             return
-        mayor = g.with_character('Mayor')
-        if not self.executed_today and g.alive_count() == 3 and mayor and g.works(mayor, 'Mayor'):
-            g.winner, g.reason = 'good', 'Three players remain, there was no execution, and the Mayor lives.'
+        for p in g.players:  # end-of-day abilities (the Mayor's win)
+            rules(p.character).end_of_day(self, p)
+            if g.winner:
+                return
 
     # ---- the whole game ------------------------------------------------------------------------
     # ---- checkpoints -----------------------------------------------------------------------
@@ -732,6 +680,6 @@ class Game:
                 'stopped': stopped, 'days': self.day, 'seed': self.seed, 'starting': self.starting,
                 'final': {p.name: p.character for p in g.players} if g else None,
                 'bluffs': g.bluffs if g else None, 'red_herring': g.red_herring if g else None,
-                'drunk_as': next((p.shown for p in g.players if p.character == 'Drunk'), None) if g else None,
+                'drunk_as': next((p.shown for p in g.players if rules(p.character).always_drunk), None) if g else None,
                 'cost': round(sum(c.get('cost', 0) for c in self.calls), 4), 'calls': len(self.calls),
                 'tokens': usage, 'seconds': round(seconds, 1), 'errors': self.errors, **self.meta}
