@@ -28,7 +28,7 @@ class Halted(RuntimeError):
 from . import probe
 from .prompts import dawn_narration
 from .render import render
-from .state import Grimoire, bluffs_choice, info_text, norm, random_setup, setup_error
+from .state import POLICY, Grimoire, bluffs_choice, info_text, norm, random_setup, setup_error
 ALL_NAMES = ['Alex', 'Blair', 'Casey', 'Drew', 'Ellis', 'Frankie', 'Gray', 'Harper', 'Indigo', 'Jules', 'Kit',
              'Logan', 'Morgan', 'Noel', 'Oakley']
 NAMES = ALL_NAMES[:9]  # the default nine-player table
@@ -97,7 +97,8 @@ def fmt(value):
 
 class Game:
     def __init__(self, seats, storyteller=None, *, names=NAMES, seed=None, private_beats=6, public_beats=3, max_days=10,
-                 waves=3, characters=None, minion=None, out=None, seat_factory=None, probes=True, script=TB):
+                 waves=3, characters=None, minion=None, out=None, seat_factory=None, probes=True, script=TB,
+                 judge=None):
         """`seats` maps names to seats; alternatively `seat_factory(name, team)` creates them once the
         characters are dealt (so, for example, the evil team can use a different model). `probes` asks
         seats that support it for their beliefs at dawn of day 1 and before each day's nominations,
@@ -107,6 +108,7 @@ class Game:
         defaults to the scripted one (state.POLICY). `script` is the characters.Script played (Trouble Brewing by
         default)."""
         self.seats, self.names, self.seat_factory, self.script = seats, list(names), seat_factory, script
+        self.judge = judge  # the Storyteller judge for judged decisions (judge.py); None: the scripted style
         self.meta = {}
         self.seed = seed if seed is not None else random.randrange(2 ** 32)
         self.rng = random.Random(self.seed)
@@ -209,6 +211,28 @@ class Game:
         if not choice.legal(value):
             raise ValueError(f'illegal Storyteller value for {choice.id}: {value}')
         self.emit('st_choice', {'id': choice.id, 'value': fmt(value), 'valid': True}, 'audit')
+        return value
+
+    async def decide_judged(self, choice):
+        """A decision that needs judgment (misinformation, misregistration, a statement's truth): the judge ranks
+        the legal values and the code picks from the ranking with fixed weights (POLICY 'judge_top' for the first,
+        'judge_second' for the second, otherwise the scripted style). With no judge, the same as decide()."""
+        if self.judge is None or choice.auto:
+            return self.decide(choice)
+        ranking, reason = await self.judge.rank(self, choice)
+        ranking = [norm(v) for v in ranking if choice.legal(v)]
+        r = self.st.rng.random() if hasattr(self.st, 'rng') else 1.0
+        if ranking and r < POLICY['judge_top']:
+            value, took = ranking[0], 1
+        elif len(ranking) > 1 and r < POLICY['judge_top'] + POLICY['judge_second']:
+            value, took = ranking[1], 2
+        else:
+            value, took = norm(self.st.choose(choice)), 0
+        if not choice.legal(value):
+            raise ValueError(f'illegal Storyteller value for {choice.id}: {value}')
+        self.emit('st_choice', {'id': choice.id, 'value': fmt(value), 'valid': True,
+                                'judge': {'mode': self.judge.mode, 'ranked': [fmt(v) for v in ranking[:3]],
+                                          'took': took, 'reason': reason}}, 'audit')
         return value
 
     # ---- setup -------------------------------------------------------------------------------

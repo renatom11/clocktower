@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .agents import ModelSeat, RandomSeat
+from . import judge
 from .characters import Script
 from .game import ALL_NAMES, Game
 from .llm import MODEL, Ledger, conversation, limiter, make_client, spec
@@ -132,9 +133,14 @@ def build(args, seed, out, env: Shared | None = None, humans=None, minion=None):
     characters = args.characters.split(',') if args.characters else None
     names = ALL_NAMES[:len(characters) if characters else table_size(args.players, seed)]
     script = script_of(args)
+    mode = getattr(args, 'judge', None) or 'scripted'
+    if mode == 'model' and env is None:
+        raise SystemExit('--judge model needs API calls; use rules or dry-run for free games')
+    st_judge = judge.make(mode, model=getattr(args, 'judge_model', None), client=env and env.client,
+                          ledger=env and env.ledger) if mode == 'model' else judge.make(mode)
     game = Game({}, None, names=names, seed=seed, private_beats=args.private_beats,
                 public_beats=args.public_beats, max_days=args.days, waves=args.waves, characters=characters,
-                minion=minion, out=out, probes=getattr(args, 'probes', False), script=script)
+                minion=minion, out=out, probes=getattr(args, 'probes', False), script=script, judge=st_judge)
     if env is None:  # sim: random players, no API
         rng = random.Random(seed + 1)
         game.seats = {n: RandomSeat(n, random.Random(rng.random()), names) for n in names}
@@ -171,7 +177,8 @@ def build(args, seed, out, env: Shared | None = None, humans=None, minion=None):
               'seat_models': getattr(args, 'seat_model', None) or [],
               'good_memory': spec(_model((args.good_model or args.model).split(',')[0], '')[0])['memory'],
               'evil_memory': spec(_model((args.evil_model or args.model).split(',')[0], '')[0])['memory'],
-              'storyteller': 'scripted',
+              'storyteller': 'scripted' if mode == 'scripted' else f'judge:{mode}' + (
+                  f':{args.judge_model}' if mode == 'model' else ''),
               'seed': seed,
               'private_beats': args.private_beats, 'public_beats': args.public_beats,
               'whispers': 'private', 'waves': args.waves, 'minion': minion,
@@ -341,6 +348,11 @@ def main(argv=None):
                        help='table size, 5-15 (official Trouble Brewing setup for that count); a range such as '
                             '10-12 picks each game\'s size from its seed')
         p.add_argument('--characters', help='comma-separated forced setup, in seating order (tests)')
+        p.add_argument('--judge', default='scripted', choices=['scripted', 'rules', 'dry-run', 'model'],
+                       help='the Storyteller judge for decisions that need judgment, in scripts other than TB: '
+                            'scripted (none), rules (free), dry-run (free; writes the model prompts) or model')
+        p.add_argument('--judge-model', default='claude-haiku-4-5',
+                       help='the model for --judge model (any model in llm.PRICES; Haiku 5.5 needs adding first)')
         p.add_argument('--script', default='tb', help='tb (Trouble Brewing, protocol v17), bmr (Bad Moon Rising, in '
                                                       'development) or a script JSON in the official format')
         p.add_argument('--out')

@@ -146,6 +146,10 @@ POLICY = {
     'pair_partner_good': 0.9, # an Investigator's second player is a good player (else anyone)
     'mayor_bounce': 0.5,      # an attack on the Mayor kills someone else
     'bounce_evil': 0.05,      # a Mayor bounce may land on the Minion (else a good player)
+    # the Storyteller judge (judge.py; scripts other than TB, when one is chosen): how often the judge's first and
+    # second choices are taken; otherwise the scripted style decides, so no habit takes over
+    'judge_top': 0.85,
+    'judge_second': 0.10,
 }
 
 
@@ -163,7 +167,10 @@ def _key(v):
 
 
 class Choice:
-    """A decision the Storyteller makes: every legal value, and the scripted style."""
+    """A decision the Storyteller makes: every legal value, and the scripted style. `context` and `truth` (what a
+    working ability could show) are for the Storyteller judge (judge.py)."""
+    context = None
+    truth = None
 
     def __init__(self, id, values, style: Callable[[random.Random], dict]):
         self.id, self.values, self.style = id, [norm(v) for v in values], style
@@ -697,7 +704,12 @@ def character_choice(g, p, ability, target):
         if t.character == 'Recluse' and len(values) > 1 and r.random() < POLICY['recluse_evil']:
             return {'character': g.evil_character(r, imp_ok)}
         return {'character': t.character}
-    return Choice(f'{ability}:{p.name}', [{'character': c} for c in values], style)
+    choice = Choice(f'{ability}:{p.name}', [{'character': c} for c in values], style)
+    shows = set(g.registers_as(t))
+    choice.truth = lambda v: v['character'] in shows
+    choice.context = {'about': target, 'recipient': p.name, 'impaired': impaired,
+                      'question': f'Which character does {p.name} ({ability}) learn {target} is?'}
+    return choice
 
 
 def heir_choice(minions):
