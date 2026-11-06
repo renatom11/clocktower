@@ -104,8 +104,9 @@ def _teams_bmr(n):
             f"Pukka, Shabaloth or Po); if the Godfather is in play there is one Outsider more or one fewer, as the "
             f"Storyteller chose. Each character is in play at most once. You know your own character, not anyone "
             f"else's, with one exception: the Lunatic believes they are the Demon, and is not told otherwise.\n"
-            f"Evil knows itself. The Demon and {'its Minion know each other' if mn == 1 else 'its Minions all know one another'} "
-            f"from the start, and the Demon learns three good characters that are not in play (bluffs). The real Demon "
+            f"Evil knows itself. The Demon and "
+            f"{'its Minion know each other' if mn == 1 else 'its Minions all know one another'} from the start, and "
+            f"the Demon learns three good characters that are not in play (bluffs). The real Demon "
             f"also learns who the Lunatic is, if one is in play; the Lunatic is shown Minions and bluffs like a Demon, "
             f"but they are not. Evil players can only talk the way everyone else does: in town or by whisper.")
 

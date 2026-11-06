@@ -313,7 +313,8 @@ class Drunk(Outsider):
         drunk = g.with_character(self.name)
         if drunk:
             in_play = {p.character for p in g.players}
-            drunk.shown = game.decide(state.drunk_as_choice([c for c in g.script.townsfolk if c not in in_play]))['character']
+            options = [c for c in g.script.townsfolk if c not in in_play]
+            drunk.shown = game.decide(state.drunk_as_choice(options))['character']
 
 
 class Recluse(Outsider):

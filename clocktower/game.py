@@ -219,8 +219,9 @@ class Game:
         self.g = g = Grimoire(names, chars, script=self.script)
 
         in_play = set(chars)
-        for c in self.script.setup_steps:  # the characters' own setup (the Drunk's apparent character, then the red herring),
-            # for a character someone has or believes they have (a Drunk-as-Fortune-Teller needs a red herring too)
+        # the characters' own setup (the Drunk's apparent character, then the red herring), for a character someone
+        # has or believes they have (a Drunk-as-Fortune-Teller needs a red herring too)
+        for c in self.script.setup_steps:
             if c.name in {p.character for p in g.players} | {p.shown for p in g.players}:
                 c.setup(self)
         drunk = next((p for p in g.players if rules(p.character).always_drunk), None)

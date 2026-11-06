@@ -164,7 +164,8 @@ def build(args, seed, out, env: Shared | None = None, humans=None, minion=None):
         return ModelSeat(c)
 
     game.seat_factory = seat
-    config = {'protocol': protocol(script), 'script': script.id, 'model': args.model, 'good_model': args.good_model, 'evil_model': args.evil_model,
+    config = {'protocol': protocol(script), 'script': script.id, 'model': args.model, 'good_model': args.good_model,
+              'evil_model': args.evil_model,
               'player_effort': args.effort, 'good_effort': args.good_effort or args.effort,
               'evil_effort': args.evil_effort or args.effort, 'max_output_tokens': args.max_output,
               'seat_models': getattr(args, 'seat_model', None) or [],

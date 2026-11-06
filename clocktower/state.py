@@ -469,12 +469,13 @@ def _pair(r, first, others, avoid=()):
 
 def pair_choice(g, p, ability):
     """Washerwoman / Librarian / Investigator starting information."""
-    group = {'Washerwoman': g.script.townsfolk, 'Librarian': g.script.outsiders, 'Investigator': g.script.minions}[ability]
+    s = g.script
+    group = {'Washerwoman': s.townsfolk, 'Librarian': s.outsiders, 'Investigator': s.minions}[ability]
     others = [q.name for q in g.players if q is not p]
     impaired = g.impaired(p)
     values = [{'players': [a, b], 'character': c} for a, b in combinations(others, 2) for c in group
               if impaired or any(c in g.registers_as(g[x]) for x in (a, b))]
-    if ability == 'Librarian' and (impaired or not any(g.registers_as(q) <= set(g.script.outsiders) for q in g.players)):
+    if ability == 'Librarian' and (impaired or not any(g.registers_as(q) <= set(s.outsiders) for q in g.players)):
         values.append({'players': [], 'character': None})  # "zero Outsiders in play"
 
     def false_pair(r, first, pool):
@@ -498,7 +499,7 @@ def pair_choice(g, p, ability):
                 if not any(kind(q.character) == 'Outsider' for q in g.players):
                     return {'players': [], 'character': None}  # the false world has no Outsiders either
                 shown = r.choice(evil + [framed])
-                return false_pair(r, shown, [g.fake_good(r, (g.script.outsiders,), bluffs=g[shown].evil) for _ in range(6)])
+                return false_pair(r, shown, [g.fake_good(r, (s.outsiders,), bluffs=g[shown].evil) for _ in range(6)])
             return false_pair(r, framed, g.minions_shown())  # frame a good player
         real = [(q.name, q.character) for q in g.players if q is not p and q.character in group]
         mis = []  # a misregistering Spy (as a Townsfolk or Outsider) or Recluse (as a Minion)

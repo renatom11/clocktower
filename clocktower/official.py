@@ -64,7 +64,7 @@ def script(source):
     path = Path(source) if str(source).endswith('.json') else SCRIPTS / f'{source}.json'
     entries = json.loads(path.read_text())
     meta = next((e for e in entries if isinstance(e, dict) and e.get('id') == '_meta'), {})
-    found = [e if isinstance(e, str) else e['id'] for e in entries if not (isinstance(e, dict) and e.get('id') == '_meta')]
+    found = [e if isinstance(e, str) else e['id'] for e in entries if e is not meta]
     unknown = [i for i in found if i.replace('_', '').replace('-', '').lower() not in roles()]
     if unknown:
         raise ValueError(f'{path.name}: characters not in the official data: {unknown}')
