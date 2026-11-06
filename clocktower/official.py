@@ -55,6 +55,22 @@ def night_order(names, first):
     return [roles()[i]['name'] for i in steps if i in wanted]
 
 
+SCRIPTS = Path(__file__).resolve().parent / 'data' / 'scripts'
+
+
+def script(source):
+    """(name, [character names]) of a script in the official script tool's JSON format: a built-in script by id
+    ('tb', 'bmr') or a path to a JSON file. Characters keep the file's order."""
+    path = Path(source) if str(source).endswith('.json') else SCRIPTS / f'{source}.json'
+    entries = json.loads(path.read_text())
+    meta = next((e for e in entries if isinstance(e, dict) and e.get('id') == '_meta'), {})
+    found = [e if isinstance(e, str) else e['id'] for e in entries if not (isinstance(e, dict) and e.get('id') == '_meta')]
+    unknown = [i for i in found if i.replace('_', '').replace('-', '').lower() not in roles()]
+    if unknown:
+        raise ValueError(f'{path.name}: characters not in the official data: {unknown}')
+    return meta.get('name', path.stem), [roles()[i.replace('_', '').replace('-', '').lower()]['name'] for i in found]
+
+
 @lru_cache(maxsize=None)
 def jinxes():
     """{(name, name): ruling} for every official jinx, both orders."""

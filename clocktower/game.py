@@ -19,8 +19,7 @@ import time
 from pathlib import Path
 
 from .agents import Request, ScriptedStoryteller
-from .characters import (ALL, FIRST_NIGHT, GOOD, MINIONS, OTHER_NIGHTS, PUBLIC_ACTIONS, SETUP_STEPS, card,
-                         is_evil_character, rules)
+from .characters import ALL, TB, card, is_evil_character, kind, rules
 from .llm import BudgetExceeded, SeatFailed
 
 
@@ -53,12 +52,12 @@ class Night:
         return (p, self.chosen[p.name][0]) if p and p.name in self.chosen else (p, None)
 
     @staticmethod
-    def steps(first):
+    def steps(first, script=TB):
         """Tonight's night order in batches. Choices are asked a batch at a time, and a batch ends after each
         step that can kill, so a player killed tonight is never woken to choose (the Fortune Teller and Butler
         choose after the Demon's kill). Night 1 has no kill: one batch."""
         batches, batch = [], []
-        for c in (FIRST_NIGHT if first else OTHER_NIGHTS):
+        for c in (script.first_night if first else script.other_nights):
             batch.append(c)
             if rules(c).kills_at_night:
                 batches.append(batch)
@@ -93,15 +92,16 @@ def fmt(value):
 
 class Game:
     def __init__(self, seats, storyteller=None, *, names=NAMES, seed=None, private_beats=6, public_beats=3, max_days=10,
-                 waves=3, characters=None, minion=None, out=None, seat_factory=None, probes=True):
+                 waves=3, characters=None, minion=None, out=None, seat_factory=None, probes=True, script=TB):
         """`seats` maps names to seats; alternatively `seat_factory(name, team)` creates them once the
         characters are dealt (so, for example, the evil team can use a different model). `probes` asks
         seats that support it for their beliefs at dawn of day 1 and before each day's nominations,
         outside the game (probe.py). Every day has
         `private_beats` of private time and `public_beats` of town square. `minion` forces the Minion
         character of a random setup (batches rotate it so every Minion is covered). The Storyteller
-        defaults to the scripted one (state.POLICY)."""
-        self.seats, self.names, self.seat_factory = seats, list(names), seat_factory
+        defaults to the scripted one (state.POLICY). `script` is the characters.Script played (Trouble Brewing by
+        default)."""
+        self.seats, self.names, self.seat_factory, self.script = seats, list(names), seat_factory, script
         self.meta = {}
         self.seed = seed if seed is not None else random.randrange(2 ** 32)
         self.rng = random.Random(self.seed)
@@ -211,20 +211,20 @@ class Game:
         if self.forced:
             chars = list(self.forced)  # a forced setup (tests, --characters) keeps its seating order
         else:
-            chars = random_setup(self.rng, self.minion, len(names))
+            chars = random_setup(self.rng, self.minion, len(names), self.script)
             self.rng.shuffle(chars)
-        err = setup_error(chars)
+        err = setup_error(chars, self.script)
         if err:
             raise ValueError(err)
-        self.g = g = Grimoire(names, chars)
+        self.g = g = Grimoire(names, chars, script=self.script)
 
         in_play = set(chars)
-        for c in SETUP_STEPS:  # the characters' own setup (the Drunk's apparent character, then the red herring),
+        for c in self.script.setup_steps:  # the characters' own setup (the Drunk's apparent character, then the red herring),
             # for a character someone has or believes they have (a Drunk-as-Fortune-Teller needs a red herring too)
             if c.name in {p.character for p in g.players} | {p.shown for p in g.players}:
                 c.setup(self)
         drunk = next((p for p in g.players if rules(p.character).always_drunk), None)
-        g.bluffs = self.decide(bluffs_choice([c for c in GOOD if c not in in_play], drunk is not None,
+        g.bluffs = self.decide(bluffs_choice([c for c in self.script.good if c not in in_play], drunk is not None,
                                              drunk.shown if drunk else None))['characters']
         self.starting = {p.name: p.character for p in g.players}
         self.start_teams = {p.name: p.alignment for p in g.players}
@@ -238,12 +238,12 @@ class Game:
             lines = [f'You are {p.name}. The players, clockwise: {seating} (and back to {names[0]}). '
                      f'You sit between {left} and {right}.',
                      f'Your character: {card(p.shown)}']
-            minions = [q.name for q in g.players if q.character in MINIONS]
+            minions = [q.name for q in g.players if kind(q.character) == 'Minion']
             if p.is_demon:  # Demon info and Minion info
                 lines.append(f'Your Minion{"" if len(minions) == 1 else "s"}: {", ".join(minions)} (you do not know '
                              f'which Minion characters). Three good characters not in play, for evil to bluff: '
                              f'{", ".join(g.bluffs)}.')
-            elif p.character in MINIONS:
+            elif kind(p.character) == 'Minion':
                 others = [m for m in minions if m != p.name]
                 lines.append(f'The Demon is {g.demon().name}.'
                              + (f' Your fellow Minion{"" if len(others) == 1 else "s"}: {", ".join(others)} (you do not '
@@ -315,7 +315,7 @@ class Game:
         g.expire('night')  # last night's poison, protection and master end at dusk
         self.emit('header', {'text': f'Night {n}'})
         night = Night(n)
-        for batch in Night.steps(night.first):
+        for batch in Night.steps(night.first, g.script):
             await self.wake(night, batch)
             for c in batch:
                 await rules(c).resolve_night(self, night)
@@ -411,7 +411,8 @@ class Game:
 
     def slayer(self, shooter, target):
         g = self.g
-        died = PUBLIC_ACTIONS['slayer_shot'].act_publicly(self, shooter, target)
+        action = g.script.public_actions.get('slayer_shot')  # a script without a Slayer: nobody's shot does anything
+        died = action.act_publicly(self, shooter, target) if action else False
         self.emit('slayer', {'shooter': shooter, 'target': target, 'died': died})
         if died:
             self.kill(g[target], 'slayer')

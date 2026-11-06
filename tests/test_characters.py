@@ -54,6 +54,49 @@ class OfficialDataTests(unittest.TestCase):
             self.assertEqual(j[(b, a)], ruling)
 
 
+class ScriptTests(unittest.TestCase):
+    def test_trouble_brewing_is_the_default_script_and_its_order_is_v17s(self):
+        tb = characters.TB
+        self.assertEqual(tb.all, characters.ALL)
+        self.assertEqual(tb.townsfolk[:3], ['Washerwoman', 'Librarian', 'Investigator'])
+        self.assertEqual(tb.minions, ['Poisoner', 'Spy', 'Scarlet Woman', 'Baron'])
+        self.assertEqual(characters.Script('tb'), tb)
+
+    def test_a_script_file_in_the_official_format_loads_by_path(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'mine.json'
+            path.write_text(json.dumps([{'id': '_meta', 'name': 'Mine'}, 'washerwoman', {'id': 'imp'}, 'poisoner']))
+            s = characters.Script(path)
+            self.assertEqual((s.id, s.name, s.townsfolk, s.minions, s.demons),
+                             ('mine', 'Mine', ['Washerwoman'], ['Poisoner'], ['Imp']))
+            self.assertEqual(s.other_nights, ['Poisoner', 'Imp'])
+            path.write_text(json.dumps(['washerwoman', 'notacharacter']))
+            with self.assertRaises(ValueError):
+                characters.Script(path)
+
+    def test_a_script_with_characters_not_implemented_says_which(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'carousel.json'
+            path.write_text(json.dumps(['washerwoman', 'steward', 'imp']))  # an official character not built yet
+            with self.assertRaises(ValueError) as e:
+                characters.Script(path)
+            self.assertIn('Steward', str(e.exception))
+
+    def test_each_script_is_its_own_protocol(self):
+        from clocktower.cli import PROTOCOL, protocol
+        self.assertEqual(protocol(characters.TB), PROTOCOL)
+        self.assertNotEqual(characters.Script('tb').id, 'bmr')
+
+    def test_the_bmr_prompt_changes_only_sentences_that_still_exist_in_the_tb_prompt(self):
+        from clocktower import prompts
+        for old, _ in prompts.SCRIPT_TEXT['bmr']:
+            self.assertIn(old, prompts._PLAYER_SYSTEM)
+
+
 class NoNameTestsTests(unittest.TestCase):
     def test_the_game_loop_never_tests_a_character_name(self):
         src = (Path(characters.__file__).parent / 'game.py').read_text()

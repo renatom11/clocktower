@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .agents import ModelSeat, RandomSeat
-from .characters import MINIONS
+from .characters import Script
 from .game import ALL_NAMES, Game
 from .llm import MODEL, Ledger, conversation, limiter, make_client, spec
 from .prompts import player_system
@@ -44,6 +44,17 @@ ROOT = Path(__file__).resolve().parent.parent
 GAMES = ROOT / 'games'
 PROTOCOL = 'v17'  # frozen (docs/PROTOCOL.md); a change that affects play bumps it and adds to docs/protocol-history.md
 RUNS = GAMES / PROTOCOL  # new games go here by default
+# Each script is its own protocol, rated separately: Trouble Brewing is PROTOCOL; the others are in development.
+PROTOCOLS = {'tb': PROTOCOL, 'bmr': 'bmr-v1'}
+
+
+def protocol(script):
+    """The protocol a script's games are played under (and the folder under games/ they go to)."""
+    return PROTOCOLS.get(script.id, f'custom-{script.id}')
+
+
+def script_of(args):
+    return Script(getattr(args, 'script', None) or 'tb')
 
 
 @dataclass
@@ -120,9 +131,10 @@ def build(args, seed, out, env: Shared | None = None, humans=None, minion=None):
     for the seats people play (web.py); the model 'random' is a free practice bot (RandomSeat)."""
     characters = args.characters.split(',') if args.characters else None
     names = ALL_NAMES[:len(characters) if characters else table_size(args.players, seed)]
+    script = script_of(args)
     game = Game({}, None, names=names, seed=seed, private_beats=args.private_beats,
                 public_beats=args.public_beats, max_days=args.days, waves=args.waves, characters=characters,
-                minion=minion, out=out, probes=getattr(args, 'probes', False))
+                minion=minion, out=out, probes=getattr(args, 'probes', False), script=script)
     if env is None:  # sim: random players, no API
         rng = random.Random(seed + 1)
         game.seats = {n: RandomSeat(n, random.Random(rng.random()), names) for n in names}
@@ -144,7 +156,7 @@ def build(args, seed, out, env: Shared | None = None, humans=None, minion=None):
         game.meta['models'][name] = model if effort == args.effort else f'{model}@{effort}'
         if model == 'random':
             return RandomSeat(name, random.Random(bots.random()), names)
-        system = player_system(len(names), spec(model)['memory'], args.private_beats)
+        system = player_system(len(names), spec(model)['memory'], args.private_beats, script)
         c = conversation(env.client, system, player_schema(names), label=name, ledger=env.ledger,
                          semaphore=env.semaphore, on_call=game.record_call, model=model, effort=effort,
                          max_tokens=args.max_output, ttl=ttl, flex=args.flex)
@@ -152,7 +164,7 @@ def build(args, seed, out, env: Shared | None = None, humans=None, minion=None):
         return ModelSeat(c)
 
     game.seat_factory = seat
-    config = {'protocol': PROTOCOL, 'model': args.model, 'good_model': args.good_model, 'evil_model': args.evil_model,
+    config = {'protocol': protocol(script), 'script': script.id, 'model': args.model, 'good_model': args.good_model, 'evil_model': args.evil_model,
               'player_effort': args.effort, 'good_effort': args.good_effort or args.effort,
               'evil_effort': args.evil_effort or args.effort, 'max_output_tokens': args.max_output,
               'seat_models': getattr(args, 'seat_model', None) or [],
@@ -165,7 +177,8 @@ def build(args, seed, out, env: Shared | None = None, humans=None, minion=None):
               'max_days': args.days, 'human': bool(humans), 'characters': characters, 'probes': args.probes,
               'openai_tier': 'flex' if args.flex else 'default',
               'players': len(names), 'players_arg': str(args.players),
-              'player_prompt_sha': hashlib.sha256(player_system(len(names), private_beats=args.private_beats).encode()).hexdigest()[:12]}
+              'player_prompt_sha': hashlib.sha256(player_system(len(names), private_beats=args.private_beats,
+                                                                script=script).encode()).hexdigest()[:12]}
     (out / 'config.json').write_text(json.dumps(config, indent=2))
     return game, convs
 
@@ -204,11 +217,13 @@ async def run_batch(args):
     env = shared(args)
     base = args.seed if args.seed is not None else random.randrange(2 ** 32)
     stamp = time.strftime('%Y%m%d-%H%M%S')
+    script = script_of(args)
+    runs, version = GAMES / protocol(script), protocol(script)
     if args.games == 1 and not args.swap:
-        out = Path(args.out) if args.out else RUNS / f'{stamp}-{base}'
+        out = Path(args.out) if args.out else runs / f'{stamp}-{base}'
         minion = args.minions.split(',')[0].strip() if getattr(args, 'minions', None) else None
         return [await play_one(args, base, out, env, minion=minion)]
-    root = Path(args.out) if args.out else RUNS / f'batch-{stamp}'
+    root = Path(args.out) if args.out else runs / f'batch-{stamp}'
     limit = asyncio.Semaphore(args.parallel or 10 ** 6)  # 0 = every game of the batch at once (swaps included)
     numbers = parse_only(args.only) if args.only else range(1, args.games + 1)
 
@@ -217,18 +232,19 @@ async def run_batch(args):
                                     'good_effort': args.evil_effort, 'evil_effort': args.good_effort})
 
     forced = [m.strip() for m in args.minions.split(',')] if getattr(args, 'minions', None) else None
-    assert not forced or all(m in MINIONS for m in forced), f'--minions must name Minions: {MINIONS}'
+    minions = script.minions
+    assert not forced or all(m in minions for m in forced), f'--minions must name Minions: {minions}'
 
     async def one(k, a=args, suffix=''):  # game k gets seed base + k - 1, and a guaranteed Minion: the plan's
         # choice (--minions, one per game, so a batch can balance them) or else picked by the seed
         minion = None if args.characters else (forced[(k - 1) % len(forced)] if forced
-                                               else MINIONS[(base + k - 1) % len(MINIONS)])
+                                               else minions[(base + k - 1) % len(minions)])
         out = root / f'game-{k:02d}{suffix}'
         done = out / 'result.json'
         cfg = out / 'config.json'
-        if cfg.exists() and json.loads(cfg.read_text()).get('protocol') != PROTOCOL:
-            raise SystemExit(f'{out} holds {json.loads(cfg.read_text()).get("protocol")} games; write {PROTOCOL} games '
-                             f'to a new folder (games/{PROTOCOL}/...)')
+        if cfg.exists() and json.loads(cfg.read_text()).get('protocol') != version:
+            raise SystemExit(f'{out} holds {json.loads(cfg.read_text()).get("protocol")} games; write {version} games '
+                             f'to a new folder (games/{version}/...)')
         if done.exists() and json.loads(done.read_text()).get('winner'):
             return json.loads(done.read_text())  # finished earlier: keep it (so a batch can be resumed)
         if out.exists() and not (out / 'checkpoint.pkl').exists():
@@ -324,6 +340,8 @@ def main(argv=None):
                        help='table size, 5-15 (official Trouble Brewing setup for that count); a range such as '
                             '10-12 picks each game\'s size from its seed')
         p.add_argument('--characters', help='comma-separated forced setup, in seating order (tests)')
+        p.add_argument('--script', default='tb', help='tb (Trouble Brewing, protocol v17), bmr (Bad Moon Rising, in '
+                                                      'development) or a script JSON in the official format')
         p.add_argument('--out')
         if name in ('run', 'sim'):
             p.add_argument('--games', type=int, default=1)
@@ -403,6 +421,8 @@ def main(argv=None):
     elif args.command == 'run':
         asyncio.run(run_batch(args))
     elif args.command == 'play':
+        if (args.script or 'tb') != 'tb':
+            raise SystemExit('The browser table plays Trouble Brewing only, for now.')
         from .web import main as play  # spend and caps: PLAY_* environment variables (docs/hosting.md)
         play(args)
     else:

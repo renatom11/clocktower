@@ -14,8 +14,7 @@ from dataclasses import dataclass
 from itertools import combinations, product
 import random
 from typing import Callable
-from .characters import (ALL, DEMONS, INFO_ROLES, MINIONS, OUTSIDERS, SETUPS, TOWNSFOLK,
-                         is_evil_character, kind, rules)
+from .characters import INFO_ROLES, SETUPS, TB, is_evil_character, kind, rules
 
 
 @dataclass
@@ -66,15 +65,15 @@ def setup_change(characters):
     return sum(rules(c).outsiders for c in characters)
 
 
-def setup_error(characters):
-    """Why a list of characters is not a legal setup, or None."""
+def setup_error(characters, script=TB):
+    """Why a list of characters is not a legal setup of `script`, or None."""
     n = len(characters)
-    if n not in SETUPS: return f'Trouble Brewing is for {min(SETUPS)}-{max(SETUPS)} players'
+    if n not in SETUPS: return f'{script.name} is for {min(SETUPS)}-{max(SETUPS)} players'
     if len(set(characters)) != n: return 'characters must be distinct'
-    bad = [c for c in characters if c not in ALL]
+    bad = [c for c in characters if c not in script.all]
     if bad: return f'not on the script: {bad}'
     counts = {k: sum(1 for c in characters if kind(c) == k) for k in ('Townsfolk', 'Outsider', 'Minion', 'Demon')}
-    if counts['Demon'] != 1: return 'need exactly one ' + (DEMONS[0] if len(DEMONS) == 1 else 'Demon')
+    if counts['Demon'] != 1: return 'need exactly one ' + (script.demons[0] if len(script.demons) == 1 else 'Demon')
     tf, os_, mn = team_sizes(n, setup_change(characters))
     if counts['Minion'] != mn: return f'need exactly {mn} Minion(s)'
     if (counts['Townsfolk'], counts['Outsider']) != (tf, os_):
@@ -83,13 +82,14 @@ def setup_error(characters):
     return None
 
 
-def random_setup(rng, minion=None, players=9):
-    """A uniformly random legal setup; `minion` forces one of the Minions (batches rotate it)."""
+def random_setup(rng, minion=None, players=9, script=TB):
+    """A uniformly random legal setup of `script`; `minion` forces one of the Minions (batches rotate it)."""
     mn = SETUPS[players][2]
-    minions = ([minion] if minion else []) + rng.sample([m for m in MINIONS if m != minion], mn - (1 if minion else 0))
+    minions = ([minion] if minion else []) + rng.sample([m for m in script.minions if m != minion],
+                                                        mn - (1 if minion else 0))
     tf, os_, _ = team_sizes(players, setup_change(minions))
-    demon = DEMONS if len(DEMONS) == 1 else [rng.choice(DEMONS)]
-    return rng.sample(TOWNSFOLK, tf) + rng.sample(OUTSIDERS, os_) + minions + demon
+    demon = script.demons if len(script.demons) == 1 else [rng.choice(script.demons)]
+    return rng.sample(script.townsfolk, tf) + rng.sample(script.outsiders, os_) + minions + demon
 
 
 # How the scripted Storyteller uses its discretion. Every number is a judgment call about what an
@@ -153,7 +153,8 @@ class Choice:
 
 
 class Grimoire:
-    def __init__(self, names, characters, drunk_as=None):
+    def __init__(self, names, characters, drunk_as=None, script=TB):
+        self.script = script
         self.players = [Player(n, i, c, drunk_as if rules(c).always_drunk else c)
                         for i, (n, c) in enumerate(zip(names, characters))]
         self.by_name = {p.name: p for p in self.players}
@@ -174,6 +175,7 @@ class Grimoire:
         """Games checkpointed before states existed held one field per state: carry them over."""
         old = {k: d.pop(k, None) for k in ('poisoned', 'protected', 'master', 'slayer_used', 'virgin_used')}
         self.__dict__.update(d)
+        self.__dict__.setdefault('script', TB)
         if 'states' not in d:
             self.states, self.spent = [], set()
             for kind_, name in (('poisoned', old['poisoned']), ('safe', old['protected']), ('master', old['master'])):
@@ -302,7 +304,7 @@ class Grimoire:
         if p.name not in self.decoys:
             others = [q for q in self.players if q is not p]
             framed = r.choice([q for q in others if not q.evil])
-            minions = sum(1 for q in self.players if q.character in MINIONS) or 1
+            minions = sum(1 for q in self.players if kind(q.character) == 'Minion') or 1
             partners = r.sample([q for q in others if q is not framed and q.character != 'Imp'], minions)
             self.decoys[p.name] = (framed.name, {framed.name, *(q.name for q in partners)})
         return self.decoys[p.name]
@@ -332,7 +334,7 @@ class Grimoire:
     def minions_shown(self):
         """Minion characters a false or misregistered result may name: a setup modifier (the Baron) only
         when in play (the Outsider count would otherwise rule it out)."""
-        return [m for m in MINIONS if not rules(m).outsiders or m in self.in_play()]
+        return [m for m in self.script.minions if not rules(m).outsiders or m in self.in_play()]
 
     def misinformed(self, p, r):
         """Whether the scripted Storyteller gives this impaired player false information now. The
@@ -356,9 +358,10 @@ class Grimoire:
                 out.add(q.name)
         return out
 
-    def fake_good(self, r, kinds=(TOWNSFOLK,), avoid=(), bluffs=True):
+    def fake_good(self, r, kinds=None, avoid=(), bluffs=True):
         """A good character to show for an evil player: a Demon bluff, one in play, or another. With
         bluffs=False (for a good player) never a Demon bluff: no good player can be one in any world."""
+        kinds = kinds or (self.script.townsfolk,)
         pool = [c for k in kinds for c in k if c not in avoid and (bluffs or c not in self.bluffs)]
         bluffs = [c for c in pool if c in self.bluffs]
         in_play = [c for c in pool if c in self.in_play() and c not in bluffs]
@@ -419,7 +422,7 @@ def red_herring_choice(g):
     """A good player who registers as the Demon to the Fortune Teller: usually a Townsfolk other than
     the Fortune Teller (so a good player is framed), else any good player."""
     good = [p.name for p in g.players if not p.evil]
-    townsfolk = [p.name for p in g.players if p.character in TOWNSFOLK and p.character != 'Fortune Teller']
+    townsfolk = [p.name for p in g.players if kind(p.character) == 'Townsfolk' and p.character != 'Fortune Teller']
 
     def style(r):
         pool = townsfolk if townsfolk and r.random() < POLICY['herring_townsfolk'] else good
@@ -436,8 +439,8 @@ def pick_bluffs(r, options, drunk, drunk_shown=None):
              if c and r.random() >= keep}
     if len([c for c in options if c not in avoid]) >= 3:
         options = [c for c in options if c not in avoid]
-    townsfolk = [c for c in options if c not in OUTSIDERS]
-    outsiders = [c for c in options if c in OUTSIDERS]
+    townsfolk = [c for c in options if kind(c) != 'Outsider']
+    outsiders = [c for c in options if kind(c) == 'Outsider']
     picks = []
     info = [c for c in townsfolk if c in INFO_ROLES]
     if info:
@@ -466,12 +469,12 @@ def _pair(r, first, others, avoid=()):
 
 def pair_choice(g, p, ability):
     """Washerwoman / Librarian / Investigator starting information."""
-    group = {'Washerwoman': TOWNSFOLK, 'Librarian': OUTSIDERS, 'Investigator': MINIONS}[ability]
+    group = {'Washerwoman': g.script.townsfolk, 'Librarian': g.script.outsiders, 'Investigator': g.script.minions}[ability]
     others = [q.name for q in g.players if q is not p]
     impaired = g.impaired(p)
     values = [{'players': [a, b], 'character': c} for a, b in combinations(others, 2) for c in group
               if impaired or any(c in g.registers_as(g[x]) for x in (a, b))]
-    if ability == 'Librarian' and (impaired or not any(g.registers_as(q) <= set(OUTSIDERS) for q in g.players)):
+    if ability == 'Librarian' and (impaired or not any(g.registers_as(q) <= set(g.script.outsiders) for q in g.players)):
         values.append({'players': [], 'character': None})  # "zero Outsiders in play"
 
     def false_pair(r, first, pool):
@@ -492,10 +495,10 @@ def pair_choice(g, p, ability):
                 shown = r.choice(evil) if evil and r.random() < POLICY['false_vouch_evil'] else r.choice(others)
                 return false_pair(r, shown, [g.fake_good(r, bluffs=g[shown].evil) for _ in range(6)])
             if ability == 'Librarian':
-                if not any(q.character in OUTSIDERS for q in g.players):
+                if not any(kind(q.character) == 'Outsider' for q in g.players):
                     return {'players': [], 'character': None}  # the false world has no Outsiders either
                 shown = r.choice(evil + [framed])
-                return false_pair(r, shown, [g.fake_good(r, (OUTSIDERS,), bluffs=g[shown].evil) for _ in range(6)])
+                return false_pair(r, shown, [g.fake_good(r, (g.script.outsiders,), bluffs=g[shown].evil) for _ in range(6)])
             return false_pair(r, framed, g.minions_shown())  # frame a good player
         real = [(q.name, q.character) for q in g.players if q is not p and q.character in group]
         mis = []  # a misregistering Spy (as a Townsfolk or Outsider) or Recluse (as a Minion)
@@ -576,11 +579,11 @@ def character_choice(g, p, ability, target):
     """Undertaker (executed player) and Ravenkeeper (chosen player)."""
     t = g[target]
     impaired = g.impaired(p)
-    values = ALL if impaired else sorted(g.registers_as(t))
+    values = g.script.all if impaired else sorted(g.registers_as(t))
 
     def as_good(r):  # an evil player shown as a good character (usually a Demon bluff), never the recipient's
         for _ in range(30):
-            c = g.fake_good(r, (TOWNSFOLK, OUTSIDERS))
+            c = g.fake_good(r, (g.script.townsfolk, g.script.outsiders))
             if c != p.shown:
                 return c
         return c

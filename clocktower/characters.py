@@ -15,6 +15,7 @@ in state.py, as `Choice`s with the scripted style in `state.POLICY`; the hooks h
 apply the results.
 """
 from __future__ import annotations
+from pathlib import Path
 
 from . import official
 
@@ -312,7 +313,7 @@ class Drunk(Outsider):
         drunk = g.with_character(self.name)
         if drunk:
             in_play = {p.character for p in g.players}
-            drunk.shown = game.decide(state.drunk_as_choice([c for c in TOWNSFOLK if c not in in_play]))['character']
+            drunk.shown = game.decide(state.drunk_as_choice([c for c in g.script.townsfolk if c not in in_play]))['character']
 
 
 class Recluse(Outsider):
@@ -324,7 +325,7 @@ class Recluse(Outsider):
         return {me.evil} if g.is_poisoned(me) else {True, False}
 
     def registers_as(self, g, me):
-        return {me.character} if g.is_poisoned(me) else {self.name, *MINIONS, *DEMONS}
+        return {me.character} if g.is_poisoned(me) else {self.name, *g.script.minions, *g.script.demons}
 
     def registers_demon_to_ft(self, g, me):
         if me.name == g.red_herring:
@@ -362,7 +363,7 @@ class Spy(Minion):
         return {me.evil} if g.is_poisoned(me) else {True, False}
 
     def registers_as(self, g, me):
-        return {me.character} if g.is_poisoned(me) else {self.name, *TOWNSFOLK, *OUTSIDERS}
+        return {me.character} if g.is_poisoned(me) else {self.name, *g.script.townsfolk, *g.script.outsiders}
 
     async def resolve_night(self, game, night):
         spy = game.g.with_character(self.name)
@@ -416,7 +417,7 @@ class Imp(Demon):
         game.kill(imp, 'starpass')
         night.deaths.append(imp)
         # a Minion who takes over the Demon (the Scarlet Woman) does; otherwise the Storyteller picks a living Minion
-        living = [q for q in g.living() if q.character in MINIONS]
+        living = [q for q in g.living() if kind(q.character) == 'Minion']
         heir = next((q for q in living if getattr(rules(q.character), 'takes_over', None)
                      and rules(q.character).takes_over(g, q, before)), None)
         if heir is None and living:
@@ -428,23 +429,10 @@ class Imp(Demon):
                                          'From tomorrow night you choose who dies.'}, [heir.name])
 
 
-SCRIPT = [Washerwoman, Librarian, Investigator, Chef, Empath, FortuneTeller, Undertaker, Monk, Ravenkeeper, Virgin,
-          Slayer, Soldier, Mayor, Butler, Drunk, Recluse, Saint, Poisoner, Spy, ScarletWoman, Baron, Imp]
-CHARACTERS = {c.name: c() for c in SCRIPT}
-
-TOWNSFOLK = [n for n, c in CHARACTERS.items() if c.kind == 'Townsfolk']
-OUTSIDERS = [n for n, c in CHARACTERS.items() if c.kind == 'Outsider']
-MINIONS = [n for n, c in CHARACTERS.items() if c.kind == 'Minion']
-DEMONS = [n for n, c in CHARACTERS.items() if c.kind == 'Demon']
-ALL = TOWNSFOLK + OUTSIDERS + MINIONS + DEMONS
-GOOD = TOWNSFOLK + OUTSIDERS
-INFO_ROLES = {n for n, c in CHARACTERS.items() if c.info}
-ABILITY = {n: c.ability for n, c in CHARACTERS.items()}
-# Night order (official): "*" abilities (Monk, Imp, Undertaker) have no first-night step.
-FIRST_NIGHT = official.night_order(ALL, True)
-OTHER_NIGHTS = official.night_order(ALL, False)
-SETUP_STEPS = sorted((c for c in CHARACTERS.values() if c.setup_order is not None), key=lambda c: c.setup_order)
-PUBLIC_ACTIONS = {c.public_action: c for c in CHARACTERS.values() if c.public_action}
+# Every character the engine implements, by name (any script draws from these).
+CHARACTERS = {c.name: c() for c in [Washerwoman, Librarian, Investigator, Chef, Empath, FortuneTeller, Undertaker, Monk,
+                                     Ravenkeeper, Virgin, Slayer, Soldier, Mayor, Butler, Drunk, Recluse, Saint,
+                                     Poisoner, Spy, ScarletWoman, Baron, Imp]}
 
 
 def rules(character):
@@ -464,15 +452,61 @@ def card(character):
     return CHARACTERS[character].card()
 
 
+class Script:
+    """A script: its characters by type (in the script's order, which random setups draw from), its night order
+    (the official universal order filtered to its characters) and its characters' setup steps and public actions.
+    `source` is a built-in script id ('tb', 'bmr') or a path to a script JSON in the official format."""
+
+    def __init__(self, source='tb'):
+        self.id = Path(str(source)).stem
+        self.name, names = official.script(source)
+        missing = [n for n in names if n not in CHARACTERS]
+        if missing:
+            raise ValueError(f'{self.name}: characters not implemented yet: {", ".join(missing)}')
+        by = {k: [n for n in names if kind(n) == k] for k in ('Townsfolk', 'Outsider', 'Minion', 'Demon')}
+        self.townsfolk, self.outsiders, self.minions, self.demons = (by[k] for k in by)
+        self.all = self.townsfolk + self.outsiders + self.minions + self.demons
+        self.good = self.townsfolk + self.outsiders
+        self.first_night = official.night_order(self.all, True)
+        self.other_nights = official.night_order(self.all, False)
+        steps = [rules(n) for n in self.all if rules(n).setup_order is not None]
+        self.setup_steps = sorted(steps, key=lambda c: c.setup_order)
+        self.public_actions = {rules(n).public_action: rules(n) for n in self.all if rules(n).public_action}
+
+    def __repr__(self):
+        return f'Script({self.id!r})'
+
+    def __eq__(self, other):
+        return isinstance(other, Script) and other.all == self.all
+
+    def __hash__(self):
+        return hash(tuple(self.all))
+
+    def sheet(self):
+        """The character sheet every player and the Storyteller sees."""
+        lines = []
+        for title, group in [('Townsfolk (good)', self.townsfolk), ('Outsiders (good)', self.outsiders),
+                             ('Minions (evil)', self.minions), ('Demon (evil)', self.demons)]:
+            lines.append(f'{title}:')
+            lines += [f'- {c}: {rules(c).ability}' for c in group]
+        lines.append('(* = not on the first night)')
+        return '\n'.join(lines)
+
+
+# Trouble Brewing, the default script (protocol v17). The lists below are its; code written for TB uses them.
+TB = Script('tb')
+TOWNSFOLK, OUTSIDERS, MINIONS, DEMONS = TB.townsfolk, TB.outsiders, TB.minions, TB.demons
+ALL, GOOD = TB.all, TB.good
+INFO_ROLES = {n for n in TB.all if rules(n).info}
+ABILITY = {n: c.ability for n, c in CHARACTERS.items()}
+# Night order (official): "*" abilities (Monk, Imp, Undertaker) have no first-night step.
+FIRST_NIGHT, OTHER_NIGHTS = TB.first_night, TB.other_nights
+SETUP_STEPS, PUBLIC_ACTIONS = TB.setup_steps, TB.public_actions
+
+
 def script_text():
-    """The character sheet every player and the Storyteller sees."""
-    lines = []
-    for title, group in [('Townsfolk (good)', TOWNSFOLK), ('Outsiders (good)', OUTSIDERS),
-                         ('Minions (evil)', MINIONS), ('Demon (evil)', DEMONS)]:
-        lines.append(f'{title}:')
-        lines += [f'- {c}: {ABILITY[c]}' for c in group]
-    lines.append('(* = not on the first night)')
-    return '\n'.join(lines)
+    """Trouble Brewing's character sheet."""
+    return TB.sheet()
 
 
 # The hooks build the Storyteller's choices in state.py, which itself imports the lists above: import it last.

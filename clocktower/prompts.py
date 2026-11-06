@@ -27,12 +27,26 @@ MEMORY = {
 }
 
 
-def player_system(n=9, memory='reasoning', private_beats=6):
+def player_system(n=9, memory='reasoning', private_beats=6, script=None):
     """The player system prompt for an n-player game with `private_beats` beats of private time. `memory`
     says truthfully whether the model's own earlier thinking carries over ('reasoning') or only its replies
-    do ('replies', older models)."""
-    return (_PLAYER_SYSTEM.replace('{N}', WORDS[n]).replace('{TEAMS}', _teams(n)).replace('{MEMORY}', MEMORY[memory])
+    do ('replies', older models). `script` (a characters.Script) defaults to Trouble Brewing, whose prompt is part
+    of protocol v17; another script's prompt is the same text with its own rules sentences (SCRIPT_TEXT)."""
+    text, teams = _PLAYER_SYSTEM, _teams(n)
+    if script is not None and script.id != 'tb':
+        text, teams = _script_system(script), SCRIPT_TEAMS[script.id](n)
+    return (text.replace('{N}', WORDS[n]).replace('{TEAMS}', teams).replace('{MEMORY}', MEMORY[memory])
             .replace('{PW}', WORDS[private_beats]).replace('{P}', str(private_beats)))
+
+
+def _script_system(script):
+    """The Trouble Brewing prompt with that script's sentences swapped in and its character sheet."""
+    text = _PLAYER_SYSTEM
+    for old, new in SCRIPT_TEXT[script.id]:
+        if old not in text:
+            raise ValueError(f'{script.id} prompt: no longer finds {old[:60]!r}')
+        text = text.replace(old, new)
+    return text.replace(script_text(), script.sheet())
 
 
 _PLAYER_SYSTEM = f"""You are one of {{N}} players in a game of Blood on the Clocktower, using the Trouble Brewing script. The game is played over text: a town square that everyone reads, plus private whispers. A Storyteller runs the game, gives out information at night and resolves abilities. Every other seat is a different player; you control only your own.
@@ -80,6 +94,69 @@ Always respond with the JSON object:
 - targets: the player(s) you choose for a night ability, otherwise [].
 - slayer_shot: a player's name to publicly use the Slayer's ability, otherwise null. You can shoot on any public turn: the town square, the call for nominations, or the comments on a nomination.
 Fill in only what the prompt asks for and leave the rest empty."""
+
+
+def _teams_bmr(n):
+    tf, os_, mn = SETUPS[n]
+    minions = 'one Minion' if mn == 1 else f'{mn} Minions'
+    return (f"Teams. Good: Townsfolk and Outsiders. Evil: the Demon and {minions}. With {WORDS[n]} players there are "
+            f"normally {tf} Townsfolk, {os_} Outsider{'' if os_ == 1 else 's'}, {minions} and one Demon (the Zombuul, "
+            f"Pukka, Shabaloth or Po); if the Godfather is in play there is one Outsider more or one fewer, as the "
+            f"Storyteller chose. Each character is in play at most once. You know your own character, not anyone "
+            f"else's, with one exception: the Lunatic believes they are the Demon, and is not told otherwise.\n"
+            f"Evil knows itself. The Demon and {'its Minion know each other' if mn == 1 else 'its Minions all know one another'} "
+            f"from the start, and the Demon learns three good characters that are not in play (bluffs). The real Demon "
+            f"also learns who the Lunatic is, if one is in play; the Lunatic is shown Minions and bluffs like a Demon, "
+            f"but they are not. Evil players can only talk the way everyone else does: in town or by whisper.")
+
+
+# Each script's prompt is the Trouble Brewing prompt with these sentences replaced (Bad Moon Rising: a draft for
+# review). Everything else is shared, so the two never drift apart.
+SCRIPT_TEAMS = {'bmr': _teams_bmr}
+SCRIPT_TEXT = {'bmr': [
+    ('using the Trouble Brewing script', 'using the Bad Moon Rising script'),
+    ('The Saint and Mayor add other ways to win or lose.',
+     'Several characters change this: the Zombuul survives its first death, the Mastermind can keep the game going '
+     'for a day after the Demon is executed, and some characters can change a player\'s team.'),
+    ("At night, characters with night abilities act and the Storyteller gives out information; the Imp kills. At "
+     "dawn the night's deaths are announced, but not how or why. Night order: the Poisoner acts first, then the Monk, "
+     "then the Imp; the information roles (Empath, Fortune Teller, Undertaker and the rest) wake after the Imp, so a "
+     "player killed in the night does not wake again that night (except the Ravenkeeper, whose ability is triggered by "
+     "that death). On the first night the Monk and the Imp do not act.",
+     "At night, characters with night abilities act and the Storyteller gives out information; the Demon attacks. At "
+     "dawn the night's deaths are announced, in seat order, but not how or why. Night order: those who make others "
+     "drunk or safe act first (the Sailor, the Courtier, the Innkeeper, the Gambler, the Exorcist), then the Demon, "
+     "then the other killers (the Assassin, the Godfather, the Gossip), then the Professor, the Tinker and the "
+     "Moonchild, and the information roles (the Grandmother, the Chambermaid) last. Several players can die in one "
+     "night, some die during the day, and a death can come a night late (the Pukka's poison). On the first night no "
+     "Demon kills, though the Pukka poisons."),
+    ("their character stays secret unless an ability (such as the Undertaker's or the Ravenkeeper's) shows it to "
+     "someone. During the day the town talks and whispers, then nominates and votes. There is at most one execution "
+     "per day.",
+     "their character stays secret. During the day the town talks and whispers, then nominates and votes. There is "
+     "at most one execution per day. An execution can fail to kill (the Tea Lady, the Pacifist, the Fool, the "
+     "Devil's Advocate), and a dead player can be nominated and executed: a player who appears dead may be the "
+     "Zombuul, who survives its first death."),
+    ("Information from a working ability is true, except that the Spy and Recluse can register as something they are "
+     "not, and the Fortune Teller's red herring registers as a Demon to the Fortune Teller.",
+     "Many abilities here make players drunk or poisoned, often without their knowing when: the Sailor, the "
+     "Innkeeper, the Courtier (one character, for three nights and three days), the Minstrel (everyone, after a Minion "
+     "dies by execution), the Goon and the Pukka. Information from a working ability is true."),
+    ("The Slayer's shot is public, and anyone can claim to take one: a fake or failed shot simply does nothing.\n", ""),
+    ("- Information can be wrong: players may be drunk or poisoned, the Spy and Recluse can misregister, and the "
+     "Fortune Teller has a red herring.",
+     "- Information can be wrong: in this script many players become drunk or poisoned, and they are not told."),
+    ("- The Demon's three bluffs are characters not in play (though the Drunk may believe they are one of them). The "
+     "Minion only learns them if the Demon shares them.",
+     "- The Demon's three bluffs are characters not in play. The Minions only learn them if the Demon shares them."),
+    ("- Night deaths are evidence too: the Demon chooses who dies, and who survives.",
+     "- Night deaths are evidence, but the Demon is not the only killer (the Assassin, the Godfather, the Gossip, "
+     "the Moonchild, the Tinker), and a death can come a night after the choice that caused it (the Pukka).\n"
+     "- Count the endgame: a Demon that kills two or three a night (the Shabaloth, the Po) means that not executing "
+     "when few players remain can lose the game."),
+    ("- slayer_shot: a player's name to publicly use the Slayer's ability, otherwise null. You can shoot on any "
+     "public turn: the town square, the call for nominations, or the comments on a nomination.\n", ""),
+]}
 
 
 DAWN_DEATHS = [
