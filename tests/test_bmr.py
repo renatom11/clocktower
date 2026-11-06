@@ -17,6 +17,8 @@ from clocktower.state import POLICY, Grimoire, State
 A, B, C, D, E, F, G, H, I = NAMES
 BLANK = {'say': '', 'whispers': [], 'nominate': None, 'vote': None, 'targets': []}
 BMR = ['Godfather', "Devil's Advocate", 'Assassin', 'Mastermind', 'Zombuul', 'Pukka', 'Shabaloth', 'Po']
+BMR += ['Sailor', 'Innkeeper', 'Courtier', 'Minstrel', 'Exorcist', 'Tea Lady', 'Pacifist', 'Fool', 'Gambler',
+        'Professor']
 
 
 class Town(ch.Townsfolk):
@@ -74,7 +76,15 @@ class Neighbourly(ch.Townsfolk):
         return g.works(me, self.name) and other in g.neighbours(me)
 
 
-FILLERS = [Town, Town2, Town3, Town4, Town5, Town6, Town7, Out, Out2, Fool, Neighbourly]
+class StartKnowing(ch.Townsfolk):
+    """A "you start knowing" Townsfolk (the Grandmother): told something again when the Professor revives them."""
+    name = 'Test Grandmother'
+
+    async def resurrected(self, game, me, night):
+        game.inform(me, 'You learn your Grandchild again.')
+
+
+FILLERS = [Town, Town2, Town3, Town4, Town5, Town6, Town7, Out, Out2, Fool, Neighbourly, StartKnowing]
 TOWN = 'Test Town'
 
 
@@ -134,6 +144,10 @@ class BMRTest(unittest.TestCase):
     def answer(self, night, **answers):
         for name, targets in answers.items():
             self.seats[name].answers[night] = {'targets': targets}
+
+    def choose(self, night, name, targets=(), character=None):
+        """`name`'s answer on `night`: players and a character (the Gambler, the Courtier)."""
+        self.seats[name].answers[night] = {'targets': list(targets), 'character': character}
 
     def asked(self, name, night):
         return [r for r in self.seats[name].log if r.kind == 'night' and r.day == night]
@@ -465,7 +479,8 @@ class GodfatherTests(BMRTest):
         g = self.game(self.CHARS)
         run(g.night(1))
         info = [e for e in g.events if e['kind'] == 'info' and e['to'] == [G]]
-        self.assertEqual(info[-1]['data']['text'], 'Night 1 — Godfather: the Outsiders in play are: Test Out, Test Out 2.')
+        self.assertEqual(info[-1]['data']['text'],
+                         'Night 1 — Godfather: the Outsiders in play are: Test Out, Test Out 2.')
         self.assertEqual(self.asked(G, 1), [])  # nothing to choose
         self.assertIn(G, g.g.woke[1])
 
@@ -798,3 +813,748 @@ class SmokeTests(BMRTest):
             ended.append(result['winner'])
             self.assertTrue(result['winner'] or result['stopped'].startswith('stopped after'), result['reason'])
         self.assertGreater(sum(w is not None for w in ended), 12, ended)
+
+
+# ---- Batch 2: the Townsfolk that protect, make players drunk, or bring players back ----------------------------
+
+def drunk(g, name):
+    return g.g.is_drunk(g.g[name])
+
+
+def choices(g, prefix):
+    return [e['data'] for e in g.events if e['kind'] == 'st_choice' and e['data']['id'].startswith(prefix)]
+
+
+class SailorTests(BMRTest):
+    # Alex Sailor, Blair Exorcist, Casey Town, Drew Out, Ellis Town 2, Frankie Mastermind, Gray Shabaloth
+    CHARS = ['Sailor', 'Exorcist', TOWN, 'Test Out', 'Test Town 2', 'Mastermind', 'Shabaloth']
+
+    def test_a_target_made_drunk_and_a_sober_sailor_survives_the_demon_and_execution(self):
+        """Example: the Sailor chooses the Exorcist, who is drunk; the Shabaloth attacks the Sailor, who remains
+        alive; the next day the Sailor is executed but remains alive. (The drunk Exorcist's choice of the Demon
+        does nothing.)"""
+        g = self.game(self.CHARS, forced={'Sailor': {'players': [B]}, 'Shabaloth': {'players': []}})
+        self.answer(2, **{A: [B], B: [G], G: [A, C]})
+        run(g.night(2))
+        self.assertEqual(len(self.asked(G, 2)), 1)  # the drunk Exorcist did not stop the Demon
+        self.assertEqual(self.deaths(g, 2), [C])
+        self.assertTrue(drunk(g, B) and not drunk(g, A))
+        self.assertIn('DRUNK', g.g.grimoire_text().splitlines()[1])
+        self.assertEqual(choices(g, 'Sailor:')[0]['value'], {'players': [B]})
+        self.day(g, 2)
+        g.execute(A)
+        self.assertTrue(g.g[A].alive)
+        self.assertEqual(g.g.executions[-1], {'player': A, 'day': 2, 'died': False})
+        g.g.expire('night', 3)
+        self.assertFalse(drunk(g, B))  # until dusk
+
+    def test_a_sailor_who_chose_themself_is_drunk_and_can_die(self):
+        """Example: the Sailor has made themself drunk, and the Gossip's ability kills them."""
+        g = self.game(self.CHARS)
+        self.answer(2, **{A: [A], G: [C, E]})
+        run(g.night(2))
+        self.assertTrue(drunk(g, A))
+        self.assertEqual(choices(g, 'Sailor:'), [])  # nothing to decide
+        g.phase = 'night'
+        self.assertEqual(g.attempt_kill(g.g[A], 'gossip'), g.g[A])
+
+    def test_a_sailor_made_drunk_after_choosing_an_evil_player_dies_when_executed(self):
+        """Example: the Sailor chooses the Mastermind, the Storyteller makes the Sailor drunk; the next day, executed
+        to prove they are the Sailor, they die."""
+        g = self.game(self.CHARS, forced={'Sailor': {'players': [A]}})
+        self.answer(1, **{A: [F]})
+        run(g.night(1))
+        self.assertTrue(drunk(g, A))
+        g.execute(A)
+        self.assertFalse(g.g[A].alive)
+
+    def test_the_scripted_storyteller_usually_drinks_a_townsfolk_and_otherwise_the_sailor(self):
+        from clocktower.bmr import sailor_choice
+        g = self.game(self.CHARS)
+        r = random.Random(4)
+        for target, usual in ((C, C), (D, A), (F, A), (G, A)):
+            picks = [sailor_choice(g.g, g.g[A], target).options(r)['players'][0] for _ in range(1000)]
+            self.assertAlmostEqual(picks.count(usual) / 1000, 0.8, delta=0.05)
+            self.assertEqual(set(picks), {A, target})  # either can happen
+
+    def test_it_chooses_a_living_player_and_cannot_die_before_choosing_but_the_assassin_kills_it(self):
+        """A dead player is not an option; a sober Sailor can't die, even before waking; the Assassin kills anyone."""
+        g = self.game(self.CHARS)
+        g.g[C].alive = False
+        self.answer(1, **{A: [B]})
+        run(g.night(1))
+        self.assertNotIn(C, self.asked(A, 1)[0].options)
+        self.assertIn(A, self.asked(A, 1)[0].options)
+        g = self.game(self.CHARS)
+        self.assertTrue(g.g.safe(g.g[A], 'demon') and g.g.safe(g.g[A], 'execution'))
+        g.g.add(State('poisoned', A))
+        self.assertFalse(g.g.safe(g.g[A], 'demon'))
+        g = self.game(['Sailor', TOWN, 'Test Out', 'Test Town 2', 'Test Town 3', 'Assassin', 'Po'])
+        self.answer(2, **{A: [B], F: [A], G: [C]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [A, C])
+
+    def test_a_drunk_or_poisoned_sailor_makes_nobody_drunk(self):
+        g = self.game(self.CHARS)
+        g.g.add(State('poisoned', A, until=None))
+        self.answer(1, **{A: [C]})
+        run(g.night(1))
+        self.assertFalse(any(s.kind == 'drunk' for s in g.g.states))
+
+
+class InnkeeperTests(BMRTest):
+    # Alex Innkeeper, Blair Fool, Casey Pacifist, Drew Town, Ellis Town 2, Frankie Assassin, Gray Po
+    CHARS = ['Innkeeper', 'Fool', 'Pacifist', TOWN, 'Test Town 2', 'Assassin', 'Po']
+
+    def test_a_drunk_fool_is_protected_tonight_but_dies_when_executed(self):
+        """Example: the Innkeeper protects the Fool and the Chambermaid; the Fool is drunk; executed tomorrow, they
+        die, though they hadn't used their ability."""
+        g = self.game(self.CHARS, forced={'Innkeeper': {'players': [B]}, 'Pacifist': {'yes': False}})
+        self.answer(2, **{A: [B, D], F: [], G: [B]})
+        run(g.night(2))
+        req = self.asked(A, 2)[0]
+        self.assertEqual((req.n_targets, req.min_targets), (2, 2))
+        self.assertEqual(self.deaths(g, 2), [])  # the Po's attack on the protected Fool fails
+        self.assertFalse(g.g.spent_ability('Fool'))  # the protection, not the Fool's ability, saved them
+        self.assertTrue(drunk(g, B) and not drunk(g, D))
+        self.assertFalse(any(s.kind == 'safe' for s in g.g.states))  # SAFE goes at dawn
+        run(g.execution(B))
+        self.assertFalse(g.g[B].alive)
+
+    def test_a_drunk_assassins_kill_does_nothing(self):
+        """Example: the Innkeeper protects the Assassin and the Po; the Assassin is drunk and its kill fails."""
+        g = self.game(self.CHARS, forced={'Innkeeper': {'players': [F]}})
+        self.answer(2, **{A: [F, G], F: [D], G: [E]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [E])
+        self.assertTrue(g.g.spent_ability('Assassin'))
+
+    def test_an_innkeeper_made_drunk_by_choosing_themself_protects_nobody(self):
+        """Example: the Innkeeper protects themself and the Pacifist, is drunk, and the Demon kills the Pacifist."""
+        g = self.game(self.CHARS, forced={'Innkeeper': {'players': [A]}})
+        self.answer(2, **{A: [A, C], F: [], G: [C]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [C])
+
+    def test_it_stops_every_death_tonight_but_the_assassins_and_not_by_day(self):
+        g = self.game(self.CHARS, forced={'Innkeeper': {'players': [E]}})
+        self.answer(2, **{A: [D, E], F: [D], G: [E]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [D])  # the Assassin kills through; the Po's attack fails
+        g = self.game(self.CHARS, forced={'Innkeeper': {'players': [E]}})
+        night = Night(2)
+        g.day, g.g.day, g.phase = 2, 2, 'night'
+        night.chosen[A] = [D, E]
+        run(ch.rules('Innkeeper').resolve_night(g, night))
+        self.assertIsNone(g.attempt_kill(g.g[D], 'godfather', g.g[F], night))  # a Minion's kill
+        self.assertIsNone(g.attempt_kill(g.g[D], 'gambler', g.g[D], night))  # a Townsfolk's own ability
+        self.assertIn('cannot die', g.g.grimoire_text())
+        g.g.expire('dawn')
+        self.day(g, 2)
+        g.execute(D)
+        self.assertFalse(g.g[D].alive)
+
+    def test_protection_ends_if_the_innkeeper_dies_tonight(self):
+        """Example: the Tinker, protected by the Innkeeper, survives the Demon; later that night the Innkeeper dies,
+        so the Storyteller kills the Tinker too."""
+        g = self.game(self.CHARS, forced={'Innkeeper': {'players': [E]}})
+        night = Night(2)
+        g.day, g.g.day, g.phase = 2, 2, 'night'
+        night.chosen[A] = [D, E]
+        run(ch.rules('Innkeeper').resolve_night(g, night))
+        self.assertIsNone(g.demon_attack(g.g[D], g.g[G], night))
+        g.kill(g.g[A], 'demon')
+        self.assertFalse(drunk(g, E))
+        self.assertEqual(g.attempt_kill(g.g[D], 'tinker', None, night), g.g[D])
+
+    def test_the_scripted_storyteller_drinks_a_self_choosing_innkeeper_and_usually_a_good_player(self):
+        from clocktower.bmr import innkeeper_choice
+        g = self.game(self.CHARS)
+        r = random.Random(6)
+        picks = [innkeeper_choice(g.g, g.g[A], [A, F]).options(r)['players'][0] for _ in range(1000)]
+        self.assertAlmostEqual(picks.count(A) / 1000, 0.8, delta=0.05)
+        picks = [innkeeper_choice(g.g, g.g[A], [D, F]).options(r)['players'][0] for _ in range(1000)]
+        self.assertAlmostEqual(picks.count(D) / 1000, 0.9, delta=0.04)
+        self.assertIn(F, picks)  # an evil player, sometimes
+        picks = [innkeeper_choice(g.g, g.g[A], [D, E]).options(r)['players'][0] for _ in range(1000)]
+        self.assertAlmostEqual(picks.count(D) / 1000, 0.5, delta=0.06)
+
+    def test_not_on_the_first_night_and_a_drunk_innkeeper_does_nothing(self):
+        g = self.game(self.CHARS)
+        run(g.night(1))
+        self.assertEqual(self.asked(A, 1), [])
+        g.g.add(State('poisoned', A, until=None))
+        self.answer(2, **{A: [D, E], F: [], G: [D]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [D])
+        self.assertFalse(any(s.kind == 'drunk' for s in g.g.states))
+
+
+class CourtierTests(BMRTest):
+    # Alex Courtier, Blair Town, Casey Town 2, Drew Out, Ellis Town 3, Frankie Mastermind, Gray Shabaloth
+    CHARS = ['Courtier', TOWN, 'Test Town 2', 'Test Out', 'Test Town 3', 'Mastermind', 'Shabaloth']
+
+    def test_it_waits_then_makes_the_demon_drunk_for_three_nights_and_three_days(self):
+        """Example: for four nights the Courtier wakes but does not use their ability; on the fifth they make the
+        Shabaloth drunk, which for the next three nights acts but cannot kill anybody."""
+        g = self.game(self.CHARS, forced={'Shabaloth': {'players': []}})
+        g.g[B].alive = g.g[C].alive = False
+        for n in range(1, 5):
+            self.choose(n, A)  # no character: declined
+            self.answer(n, **{G: [B, C]})
+            run(g.night(n))
+            req = self.asked(A, n)[0]
+            self.assertEqual((req.n_targets, req.min_targets), (0, 0))
+            self.assertIn('Shabaloth', req.characters)
+            self.assertIn('(null for none)', req.prompt)
+        self.assertFalse(g.g.spent_ability('Courtier'))
+        self.choose(5, A, character='Shabaloth')
+        for n in (5, 6, 7, 8):
+            self.answer(n, **{G: [D, E]})
+            run(g.night(n))
+            self.day(g, n)
+            self.assertEqual(drunk(g, G), n < 8)
+            if n > 5:
+                self.assertEqual(self.asked(A, n), [])  # never woken again
+        self.assertEqual([self.deaths(g, n) for n in (5, 6, 7, 8)], [[], [], [], [D, E]])
+
+    def test_a_drunk_courtier_wastes_the_ability(self):
+        """Example: the Courtier uses their ability while drunk: nothing happens, and they are not woken again."""
+        g = self.game(self.CHARS)
+        g.g.add(State('poisoned', A, until=None))
+        self.choose(1, A, character='Shabaloth')
+        run(g.night(1))
+        self.assertFalse(drunk(g, G))
+        self.assertTrue(g.g.spent_ability('Courtier'))
+        g.g.states = []
+        run(g.night(2))
+        self.assertEqual(self.asked(A, 2), [])
+        self.assertFalse(drunk(g, G))  # nor later, now the Courtier is sober
+
+    def test_a_drunk_mastermind_lets_the_executed_demon_end_the_game(self):
+        """Example: the Courtier makes the Mastermind drunk; the Po is executed while the Mastermind lives: good
+        wins."""
+        g = self.game(self.CHARS)
+        self.choose(1, A, character='Mastermind')
+        run(g.night(1))
+        self.day(g, 1)
+        g.execute(G)
+        self.assertEqual(g.g.winner, 'good')
+
+    def test_the_drunkenness_pauses_while_the_courtier_is_impaired_and_resumes(self):
+        g = self.game(self.CHARS, forced={'Shabaloth': {'players': []}})
+        self.choose(2, A, character='Shabaloth')
+        self.answer(2, **{G: [B, C]})
+        run(g.night(2))
+        self.assertTrue(drunk(g, G))
+        poison = State('poisoned', A, until=None)
+        g.g.add(poison)
+        self.assertFalse(drunk(g, G))  # the Courtier is poisoned: the Shabaloth sobers
+        g.g.states.remove(poison)
+        self.assertTrue(drunk(g, G))  # and is drunk again
+        self.answer(4, **{G: [D, E]})
+        run(g.night(4))
+        self.day(g, 4)
+        self.assertTrue(drunk(g, G))  # nights 2, 3 and 4 and their days
+        run(g.night(5))
+        self.assertFalse(drunk(g, G))
+        g = self.game(self.CHARS)
+        self.choose(1, A, character='Shabaloth')
+        run(g.night(1))
+        g.kill(g.g[A], 'demon')
+        self.assertFalse(drunk(g, G))  # a dead Courtier's drunkenness ends
+
+    def test_a_character_not_in_play_spends_it_and_a_dead_player_can_be_made_drunk(self):
+        g = self.game(self.CHARS)
+        self.choose(1, A, character='Po')
+        run(g.night(1))
+        self.assertTrue(g.g.spent_ability('Courtier'))
+        self.assertFalse(any(s.kind == 'drunk' for s in g.g.states))
+        g = self.game(self.CHARS)
+        g.g[D].alive = False
+        self.choose(1, A, character='Test Out')
+        run(g.night(1))
+        self.assertTrue(drunk(g, D))
+
+    def test_a_courtier_who_chooses_themself_is_drunk(self):
+        """A reading: the plain text (they are drunk), not a paradox that cancels itself."""
+        g = self.game(self.CHARS)
+        self.choose(1, A, character='Courtier')
+        run(g.night(1))
+        self.assertTrue(drunk(g, A))
+
+
+class MinstrelTests(BMRTest):
+    # Alex Minstrel, Blair Pacifist, Casey Town, Drew Town 2, Ellis Out, Frankie Godfather, Gray Devil's Advocate,
+    # Harper Assassin, Indigo Po
+    CHARS = ['Minstrel', 'Pacifist', TOWN, 'Test Town 2', 'Test Out', 'Godfather', "Devil's Advocate", 'Assassin',
+             'Po']
+
+    def test_a_minion_executed_makes_everyone_else_drunk_until_dusk_tomorrow(self):
+        """Example: day 1 the Pacifist dies: that night players act as normal. Day 2 the Godfather is executed: that
+        night everyone, the Demon too, is drunk, so nobody dies. Day 3 a Minion the drunk Devil's Advocate
+        protected is executed and dies, and everyone is drunk again."""
+        g = self.game(self.CHARS)
+        g.execute(B)
+        self.assertFalse(any(s.kind == 'drunk' for s in g.g.states))
+        self.answer(2, **{G: [H], H: [], I: [C]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [C])
+        self.day(g, 2)
+        g.execute(F)
+        self.assertEqual([p.name for p in g.g.players if g.g.is_drunk(p)], [B, C, D, E, F, G, H, I])  # the dead too
+        self.answer(3, **{G: [H], H: [D], I: [D]})
+        run(g.night(3))
+        self.assertEqual(self.deaths(g, 3), [])  # the Demon and the Assassin are drunk
+        self.day(g, 3)
+        self.assertTrue(drunk(g, G))
+        g.execute(H)  # the drunk Devil's Advocate's protection fails
+        self.assertFalse(g.g[H].alive)
+        run(g.night(4))
+        self.day(g, 4)
+        self.assertTrue(drunk(g, I))  # the second execution's drunkenness: through day 4
+        run(g.night(5))
+        self.assertFalse(drunk(g, I))
+        self.assertFalse(drunk(g, A))
+
+    def test_no_trigger_without_a_minion_dying_by_execution_by_a_working_minstrel(self):
+        """Not on a night death, a Minion executed who survives, a dead Minion executed, or a drunk Minstrel."""
+        g = self.game(self.CHARS)
+        g.phase = 'night'
+        g.kill(g.g[F], 'demon')
+        g.phase = 'day'
+        self.assertFalse(drunk(g, I))
+        g.execute(F)  # already dead
+        self.assertFalse(drunk(g, I))
+        g.g.add(State('safe', G, against='execution'))
+        g.execute(G)
+        self.assertTrue(g.g[G].alive)
+        self.assertFalse(drunk(g, I))
+        g.g.add(State('poisoned', A))
+        g.execute(H)
+        self.assertFalse(drunk(g, I))
+
+    def test_travellers_are_not_made_drunk_and_the_drunkenness_ends_with_the_minstrel(self):
+        g = self.game(self.CHARS)
+        g.g[E].traveller = True
+        g.execute(F)
+        self.assertFalse(drunk(g, E))
+        self.assertTrue(drunk(g, I))
+        g.kill(g.g[A], 'assassin')
+        self.assertFalse(drunk(g, I))
+
+    def test_a_drunk_zombuul_executed_dies_for_real(self):
+        """Example: the Assassin dies by execution; the next day the Zombuul is executed and dies for the first time:
+        good wins, because the Zombuul is drunk."""
+        g = self.game(['Minstrel', TOWN, 'Test Town 2', 'Test Out', 'Test Town 3', 'Assassin', 'Zombuul'])
+        g.execute(F)
+        run(g.night(2))
+        self.day(g, 2)
+        g.execute(G)
+        self.assertEqual(g.g.winner, 'good')
+
+    def test_the_mastermind_executed_makes_the_assassin_drunk(self):
+        """Example: the Mastermind dies by execution; that night the Assassin's kill fails."""
+        g = self.game(['Minstrel', TOWN, 'Test Town 2', 'Test Out', 'Test Town 3', 'Test Town 4', 'Mastermind',
+                       'Assassin', 'Po'])
+        g.execute(G)
+        self.answer(2, **{H: [B], I: [C]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [])
+
+
+class ExorcistTests(BMRTest):
+    # Alex Exorcist, Blair Town, Casey Town 2, Drew Out, Ellis Town 3, Frankie Assassin, Gray the Demon
+    def chars(self, demon):
+        return ['Exorcist', TOWN, 'Test Town 2', 'Test Out', 'Test Town 3', 'Assassin', demon]
+
+    def test_a_chosen_shabaloth_learns_who_the_exorcist_is_and_does_not_wake(self):
+        """Example: the Exorcist chooses the Shabaloth, which does not kill tonight: nobody died."""
+        g = self.game(self.chars('Shabaloth'))
+        run(g.night(1))
+        self.assertEqual(self.asked(A, 1), [])  # not on the first night
+        self.answer(2, **{A: [G], F: [], G: [B, C]})
+        run(g.night(2))
+        self.assertEqual(self.asked(G, 2), [])
+        self.assertNotIn(G, g.g.woke[2])  # being told is not waking for an ability (the Chambermaid)
+        self.assertEqual(self.deaths(g, 2), [])
+        told = [e['data']['text'] for e in g.events if e['kind'] == 'info' and e['to'] == [G]]
+        self.assertEqual(told, [f'Night 2: the Exorcist chose you. {A} is the Exorcist, and you do not wake tonight.'])
+        self.answer(3, **{A: [B], F: [], G: [B, C]})
+        run(g.night(3))
+        self.assertNotIn(G, self.asked(A, 3)[0].options)  # not the same player two nights running
+        self.assertEqual(self.deaths(g, 3), [B, C])
+
+    def test_a_chosen_pukkas_earlier_victim_still_dies(self):
+        """Example: the Exorcist chooses the Pukka, which does not wake, but its previous victim dies."""
+        g = self.game(self.chars('Pukka'))
+        self.answer(1, **{G: [B]})
+        run(g.night(1))
+        self.answer(2, **{A: [G], F: [], G: [C]})
+        run(g.night(2))
+        self.assertEqual(self.asked(G, 2), [])
+        self.assertEqual(self.deaths(g, 2), [B])
+        self.assertFalse(g.g.is_poisoned(g.g[C]))
+
+    def test_a_po_that_chose_no_one_keeps_its_charge_through_the_night_it_is_exorcised(self):
+        """Example: the Po chooses no one; the next night the Exorcist chooses it; the next, the Exorcist chooses
+        the Assassin, who can still attack, and the Po chooses three."""
+        g = self.game(self.chars('Po'))
+        self.answer(2, **{A: [B], F: [], G: []})
+        run(g.night(2))
+        self.answer(3, **{A: [G], F: []})
+        run(g.night(3))
+        self.assertEqual(self.asked(G, 3), [])
+        self.answer(4, **{A: [F], F: [B], G: [C, D, E]})
+        run(g.night(4))
+        self.assertEqual(self.asked(G, 4)[0].n_targets, 3)
+        self.assertEqual(self.deaths(g, 4), [B, C, D, E])
+
+    def test_a_zombuul_that_seems_dead_can_be_exorcised(self):
+        """Tip: against a Zombuul, choose dead players: no death after a day without one means a Zombuul."""
+        g = self.game(self.chars('Zombuul'))
+        g.g[G].seems_dead = True
+        g.g.spend('Zombuul')
+        self.answer(2, **{A: [G], F: [], G: [B]})
+        run(g.night(2))
+        self.assertIn(G, self.asked(A, 2)[0].options)
+        self.assertEqual(self.asked(G, 2), [])
+        self.assertEqual(self.deaths(g, 2), [])
+
+    def test_choosing_another_player_or_a_drunk_exorcist_lets_the_demon_attack(self):
+        g = self.game(self.chars('Po'))
+        self.answer(2, **{A: [F], F: [], G: [B]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [B])
+        g = self.game(self.chars('Po'))
+        g.g.add(State('drunk', A, until=None))
+        self.answer(2, **{A: [G], F: [], G: [B]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [B])
+        self.assertFalse([e for e in g.events if e['kind'] == 'info' and e['to'] == [G]])
+
+
+class TeaLadyTests(BMRTest):
+    # Alex Out (the Goon), Blair Tea Lady, Casey Mastermind, Drew Town (the Courtier), Ellis Town 2, Frankie Town 3,
+    # Gray Po
+    CHARS = ['Test Out', 'Tea Lady', 'Mastermind', TOWN, 'Test Town 2', 'Test Town 3', 'Po']
+
+    def test_the_protection_follows_her_alive_neighbours_and_their_alignment(self):
+        """Example: the Tea Lady neighbours the Mastermind and the good Goon. The Mastermind is executed; now her
+        neighbours are the Goon and the Courtier, and the Courtier survives the Demon. The Goon turns evil, and the
+        Demon kills the Courtier."""
+        g = self.game(self.CHARS)
+        self.assertFalse(g.g.safe(g.g[A], 'demon'))  # an evil neighbour: no protection
+        g.execute(C)
+        self.assertEqual([q.name for q in g.g.neighbours(g.g[B])], [A, D])
+        self.answer(2, **{G: [D]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [])
+        g.g[A].alignment = 'evil'
+        self.answer(3, **{G: [D]})
+        run(g.night(3))
+        self.assertEqual(self.deaths(g, 3), [D])
+
+    def test_protected_neighbours_survive_execution_and_any_kill_but_the_assassins(self):
+        g = self.game([TOWN, 'Tea Lady', 'Test Town 2', 'Test Out', 'Test Town 3', 'Assassin', 'Po'])
+        g.execute(A)
+        self.assertTrue(g.g[A].alive)
+        g.phase = 'night'
+        self.assertIsNone(g.attempt_kill(g.g[C], 'godfather'))
+        self.assertIsNone(g.attempt_kill(g.g[C], 'gossip'))
+        self.assertEqual(g.attempt_kill(g.g[B], 'demon', g.g[G]), g.g[B])  # the Tea Lady herself is not protected
+        g = self.game([TOWN, 'Tea Lady', 'Test Town 2', 'Test Out', 'Test Town 3', 'Assassin', 'Po'])
+        self.answer(2, **{F: [C], G: [A]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [C])  # the Assassin kills through; the Po does not
+
+    def test_dead_neighbours_are_skipped_and_a_drunk_tea_lady_protects_nobody(self):
+        g = self.game([TOWN, 'Tea Lady', 'Test Out', 'Test Town 2', 'Test Town 3', 'Assassin', 'Po'])
+        g.g[C].alive = False
+        self.assertTrue(g.g.safe(g.g[D], 'execution'))
+        g.g.add(State('drunk', B))
+        self.assertFalse(g.g.safe(g.g[D], 'execution'))
+
+
+class PacifistTests(BMRTest):
+    # Alex Pacifist, Blair Innkeeper, Casey Professor, Drew Town, Ellis Out (the Lunatic), Frankie Devil's Advocate,
+    # Gray Po
+    CHARS = ['Pacifist', 'Innkeeper', 'Professor', TOWN, 'Test Out', "Devil's Advocate", 'Po']
+
+    def test_an_executed_good_player_may_survive_and_the_execution_still_counts(self):
+        """Example: the Innkeeper is executed but remains alive because of the Pacifist."""
+        g = self.game(self.CHARS, forced={'Pacifist': {'yes': True}})
+        run(g.execution(B))
+        self.assertTrue(g.g[B].alive)
+        self.assertEqual(g.g.executions, [{'player': B, 'day': 1, 'died': False}])
+        ev = [e for e in g.events if e['kind'] == 'execution'][-1]
+        self.assertEqual(render(ev, D), f'{B} is executed, but does not die.')
+        self.assertEqual(g.g.notes['Pacifist saves'], 1)
+        self.assertEqual(choices(g, 'Pacifist:')[0]['id'], 'Pacifist:' + B)
+
+    def test_it_saves_a_good_outsider_and_itself_but_not_while_drunk_or_an_evil_player(self):
+        """Example: evil is winning; the Lunatic is executed but remains alive. The next day the Professor is
+        executed and dies, because the Pacifist is drunk. Later the Pacifist is executed but remains alive."""
+        g = self.game(self.CHARS, forced={'Pacifist': {'yes': True}})
+        run(g.execution(E))
+        self.assertTrue(g.g[E].alive)
+        self.day(g, 2)
+        g.g.add(State('drunk', A))
+        run(g.execution(C))
+        self.assertFalse(g.g[C].alive)
+        self.assertEqual(len(choices(g, 'Pacifist:')), 1)  # nothing to decide while drunk
+        g.g.states = []
+        self.day(g, 3)
+        run(g.execution(A))
+        self.assertTrue(g.g[A].alive)
+        self.day(g, 4)
+        run(g.execution(F))
+        self.assertFalse(g.g[F].alive)
+        self.assertEqual(len(choices(g, 'Pacifist:')), 2)
+
+    def test_the_save_needs_the_storytellers_yes_and_is_not_asked_when_another_ability_saves(self):
+        g = self.game(self.CHARS, forced={'Pacifist': {'yes': False}})
+        run(g.execution(D))
+        self.assertFalse(g.g[D].alive)
+        g = self.game(['Pacifist', 'Fool', 'Tea Lady', TOWN, 'Test Out', "Devil's Advocate", 'Po'],
+                      forced={'Pacifist': {'yes': True}})
+        run(g.execution(B))
+        self.assertTrue(g.g[B].alive)
+        self.assertEqual(choices(g, 'Pacifist:'), [])  # the Tea Lady saved them: nothing to decide
+        g.g[C].alive = False
+        run(g.execution(B))
+        self.assertTrue(g.g[B].alive)
+        self.assertFalse(g.g.spent_ability('Fool'))  # the Pacifist saved the Fool, who keeps their ability
+
+    def test_the_scripted_storyteller_saves_about_once_a_game_more_at_the_climax_and_sometimes_never(self):
+        """How to Run: once per game is usually about right; on rare occasions never (the example: good is winning,
+        and after seven days and five good executions the Pacifist has saved nobody)."""
+        from clocktower.bmr import pacifist_choice
+        g = self.game(self.CHARS)
+        r = random.Random(8)
+
+        def rate():
+            return sum(pacifist_choice(g.g, g.g[A], g.g[D]).options(r)['yes'] for _ in range(2000)) / 2000
+        self.assertAlmostEqual(rate(), POLICY['pacifist_save'], delta=0.03)
+        g.g[E].alive = g.g[F].alive = False
+        self.assertAlmostEqual(rate(), POLICY['pacifist_late'], delta=0.04)
+        g.g.notes['Pacifist saves'] = 1
+        self.assertAlmostEqual(rate(), POLICY['pacifist_again'], delta=0.02)
+        g.g.notes['Pacifist never'] = True
+        self.assertEqual(rate(), 0)
+        never = []
+        for seed in range(60):
+            names = NAMES[:7]
+            game = Game({n: Seat() for n in names}, ScriptedStoryteller(random.Random(seed)), names=names, seed=seed,
+                        characters=['Pacifist', TOWN, 'Test Town 2', 'Test Town 3', 'Test Town 4', 'Assassin', 'Po'],
+                        script=self.script, probes=False)
+            run(game.setup())
+            never.append(game.g.notes['Pacifist never'])
+        self.assertTrue(0 < sum(never) < 20)  # decided once per game, rarely
+
+
+class FoolTests(BMRTest):
+    CHARS = ['Fool', TOWN, 'Test Town 2', 'Test Out', 'Test Town 3', 'Assassin', 'Po']
+
+    def test_the_first_death_by_execution_is_survived_and_the_second_is_not(self):
+        """Example: on the first day the Fool is executed but remains alive; on the fourth day, again: they die."""
+        g = self.game(self.CHARS)
+        g.execute(A)
+        self.assertTrue(g.g[A].alive)
+        self.assertTrue(g.g.spent_ability('Fool'))
+        ev = [e for e in g.events if e['kind'] == 'execution'][-1]
+        self.assertEqual(render(ev, B), f'{A} is executed, but does not die.')
+        self.day(g, 4)
+        g.execute(A)
+        self.assertFalse(g.g[A].alive)
+
+    def test_a_demon_attack_is_survived_then_an_execution_kills(self):
+        """Example: the Demon attacks the Fool, who remains alive; nobody dies; the next day they are executed and
+        die."""
+        g = self.game(self.CHARS)
+        self.answer(2, **{F: [], G: [A]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [])
+        g.execute(A)
+        self.assertFalse(g.g[A].alive)
+
+    def test_other_protection_comes_first_so_the_fool_keeps_the_ability(self):
+        """Example: the Demon attacks the Fool, protected by the Tea Lady: alive, ability kept. After she dies, the
+        Innkeeper protects them: the same. After the Innkeeper dies, the Fool survives by their own ability; next
+        time they die."""
+        g = self.game(['Fool', 'Tea Lady', TOWN, 'Innkeeper', 'Test Town 2', 'Test Town 3', 'Assassin', 'Po'],
+                      forced={'Innkeeper': {'players': [E]}})
+        self.answer(2, **{D: [C, E], G: [], H: [A]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [])
+        self.assertFalse(g.g.spent_ability('Fool'))
+        g.kill(g.g[B], 'demon')
+        self.answer(3, **{D: [A, E], G: [], H: [A]})
+        run(g.night(3))
+        self.assertEqual(self.deaths(g, 3), [])
+        self.assertFalse(g.g.spent_ability('Fool'))
+        g.kill(g.g[D], 'demon')
+        self.answer(4, **{G: [], H: [A]})
+        run(g.night(4))
+        self.assertEqual(self.deaths(g, 4), [])
+        self.assertTrue(g.g.spent_ability('Fool'))
+        self.answer(5, **{G: [], H: [A]})
+        run(g.night(5))
+        self.assertEqual(self.deaths(g, 5), [A])
+
+    def test_the_assassin_kills_the_fool_and_the_zombuul_does_not(self):
+        """Example: the Assassin kills the Fool, who dies and stays dead though they still have their ability. A
+        Zombuul's attack is survived."""
+        g = self.game(self.CHARS)
+        self.answer(2, **{F: [A], G: [B]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [A, B])
+        self.assertFalse(g.g.spent_ability('Fool'))
+        g = self.game(['Fool', TOWN, 'Test Town 2', 'Test Out', 'Test Town 3', 'Assassin', 'Zombuul'])
+        self.answer(2, **{F: [], G: [A]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [])
+        self.assertTrue(g.g[A].alive and g.g.spent_ability('Fool'))
+
+    def test_a_drunk_or_poisoned_fool_dies(self):
+        g = self.game(self.CHARS)
+        g.g.add(State('poisoned', A))
+        g.execute(A)
+        self.assertFalse(g.g[A].alive)
+
+
+class GamblerTests(BMRTest):
+    # Alex Gambler, Blair Minstrel, Casey Pacifist, Drew Town, Ellis Out, Frankie Devil's Advocate, Gray Po
+    CHARS = ['Gambler', 'Minstrel', 'Pacifist', TOWN, 'Test Out', "Devil's Advocate", 'Po']
+
+    def test_a_right_guess_keeps_the_gambler_alive_but_the_demon_may_still_kill_them(self):
+        """Example: the Gambler guesses the Minstrel correctly and lives, but the Demon kills them anyway."""
+        g = self.game(self.CHARS)
+        run(g.night(1))
+        self.assertEqual(self.asked(A, 1), [])  # not on the first night
+        self.choose(2, A, [B], 'Minstrel')
+        self.answer(2, **{F: [D], G: [A]})
+        run(g.night(2))
+        req = self.asked(A, 2)[0]
+        self.assertIn('Minstrel', req.characters)
+        self.assertEqual(self.deaths(g, 2), [A])
+        self.assertEqual([d['cause'] for d in g.g.death_log], ['demon'])
+        self.assertFalse([e for e in g.events if e['kind'] == 'info' and e['to'] == [A]])  # no feedback
+
+    def test_a_wrong_guess_kills_the_gambler(self):
+        """Example: the Devil's Advocate bluffs as the Pacifist; the Gambler guesses them as the Pacifist and dies."""
+        g = self.game(self.CHARS)
+        self.choose(2, A, [F], 'Pacifist')
+        self.answer(2, **{F: [D], G: [C]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [A, C])
+        self.assertEqual(g.g.death_log[0]['cause'], 'gambler')
+
+    def test_any_player_even_dead_or_themself_and_a_drunk_or_protected_gambler_lives(self):
+        g = self.game(self.CHARS)
+        g.g[D].alive = False
+        self.choose(2, A, [A], 'Gambler')
+        self.answer(2, **{F: [B], G: [B]})
+        run(g.night(2))
+        self.assertEqual(set(self.asked(A, 2)[0].options), set(NAMES[:7]))
+        self.assertTrue(g.g[A].alive)
+        g = self.game(self.CHARS)
+        g.g.add(State('drunk', A, until=None))
+        self.choose(2, A, [B], 'Po')
+        run(g.night(2))
+        self.assertTrue(g.g[A].alive)
+        g = self.game(self.CHARS)
+        g.g.add(State('safe', A, against='any', until=None))  # the Innkeeper's: a Townsfolk's ability can't kill
+        self.choose(2, A, [B], 'Po')
+        run(g.night(2))
+        self.assertTrue(g.g[A].alive)
+
+
+class ProfessorTests(BMRTest):
+    # Alex Professor, Blair Courtier, Casey Minstrel, Drew Fool, Ellis Out, Frankie Grandmother, Gray Town,
+    # Harper Shabaloth
+    CHARS = ['Professor', 'Courtier', 'Minstrel', 'Fool', 'Test Out', 'Test Grandmother', TOWN, 'Shabaloth']
+
+    def test_choosing_a_dead_player_who_is_not_a_townsfolk_does_nothing_and_spends_it(self):
+        """Example: the Professor chooses a dead player claiming to be the Tea Lady, actually the Lunatic: nobody is
+        resurrected."""
+        g = self.game(self.CHARS, forced={'Shabaloth': {'players': []}})
+        g.g[E].alive = False
+        self.answer(2, **{A: [E], H: [G, C]})
+        run(g.night(2))
+        req = self.asked(A, 2)[0]
+        self.assertEqual((req.options, req.min_targets), ([C, E, G], 0))  # the dead only, tonight's too
+        self.assertFalse(g.g[E].alive)
+        self.assertTrue(g.g.spent_ability('Professor'))
+        run(g.night(3))
+        self.assertEqual(self.asked(A, 3), [])
+
+    def test_a_dead_townsfolk_comes_back_with_their_ability_and_a_start_knowing_one_wakes_now(self):
+        """Example: the Professor resurrects the Grandmother, who learns a good player's character again; at dawn all
+        learn she is alive, not why. A revived player regains a spent once-per-game ability."""
+        g = self.game(self.CHARS, forced={'Shabaloth': {'players': []}})
+        g.g[F].alive = g.g[B].alive = False
+        g.g.spend('Courtier')
+        self.answer(2, **{A: [F], H: [D, E]})
+        run(g.night(2))
+        self.assertTrue(g.g[F].alive)
+        dawn = [e for e in g.events if e['kind'] == 'dawn'][-1]
+        self.assertEqual(dawn['data']['revived'], [F])
+        self.assertEqual(render(dawn, G).count('Alive again: Frankie.'), 1)
+        told = [e['data']['text'] for e in g.events if e['kind'] == 'info' and e['to'] == [F]]
+        self.assertEqual(told, ['You learn your Grandchild again.'])
+        g = self.game(self.CHARS, forced={'Shabaloth': {'players': []}})
+        g.g[B].alive = False
+        g.g.spend('Courtier')
+        self.answer(2, **{A: [B], H: [D, E]})
+        run(g.night(2))
+        self.assertEqual(self.asked(B, 2), [])  # the Courtier's step came before the Professor's
+        self.assertFalse(g.g.spent_ability('Courtier'))
+        self.choose(3, B)
+        run(g.night(3))
+        self.assertEqual(len(self.asked(B, 3)), 1)
+
+    def test_a_drunk_professor_wastes_it_and_a_regurgitated_player_is_not_an_option(self):
+        """Example: the drunk Professor tries the Minstrel, regurgitated by the Shabaloth and alive: the Storyteller
+        shakes their head; the Professor chooses the dead Fool, and nothing happens."""
+        g = self.game(self.CHARS, forced={'Shabaloth': {'players': [C]}})
+        self.answer(2, **{A: [], H: [C, D]})
+        run(g.night(2))
+        self.assertEqual(self.deaths(g, 2), [C])  # the Fool survives the attack: their ability
+        g.kill(g.g[D], 'execution')  # and dies for real at execution
+        g.g.add(State('drunk', A, until=None))
+        self.answer(3, **{A: [D], H: [E, G]})
+        run(g.night(3))
+        self.assertTrue(g.g[C].alive)
+        self.assertNotIn(C, self.asked(A, 3)[0].options)
+        self.assertFalse(g.g[D].alive)
+        self.assertTrue(g.g.spent_ability('Professor'))
+
+    def test_choosing_no_one_keeps_the_ability(self):
+        g = self.game(self.CHARS)
+        g.g[G].alive = False
+        self.answer(2, **{A: [], H: [D, E]})
+        run(g.night(2))
+        self.assertFalse(g.g.spent_ability('Professor'))
+        self.assertFalse(g.g[G].alive)
+
+
+class Batch2SmokeTests(BMRTest):
+    def test_whole_games_with_these_townsfolk_run_to_the_end(self):
+        from clocktower.agents import RandomSeat
+        towns = ['Sailor', 'Innkeeper', 'Courtier', 'Minstrel', 'Exorcist', 'Tea Lady', 'Pacifist', 'Fool', 'Gambler',
+                 'Professor']
+        ended = []
+        for seed in range(16):
+            r = random.Random(100 + seed)
+            chars = r.sample(towns, 7) + r.sample(["Devil's Advocate", 'Assassin', 'Mastermind'], 2)
+            chars.append(['Zombuul', 'Pukka', 'Shabaloth', 'Po'][seed % 4])
+            r.shuffle(chars)
+            names = ALL_NAMES[:len(chars)]
+            seats = {n: RandomSeat(n, random.Random(seed * 17 + i), names) for i, n in enumerate(names)}
+            g = Game(seats, Forced(), names=names, seed=seed, characters=chars, script=self.script, probes=False,
+                     private_beats=1, public_beats=1, max_days=12)
+            result = run(g.run())
+            ended.append(result['winner'])
+            self.assertTrue(result['winner'] or result['stopped'].startswith('stopped after'), result['reason'])
+        self.assertGreater(sum(w is not None for w in ended), 10, ended)

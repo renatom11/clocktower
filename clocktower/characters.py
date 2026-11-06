@@ -34,6 +34,7 @@ class Choose:
     may_self: bool = True
     optional: bool = False    # may choose no one (the Po, the Assassin)
     alive_only: bool = False  # only players who are alive (as the town sees it)
+    dead_only: bool = False   # only players who are dead (as the town sees it: the Professor)
     not_last: bool = False    # not the player chosen last night (the Exorcist)
     character: bool = False   # a character too (the Gambler) or instead (the Courtier)
 
@@ -128,6 +129,13 @@ class Character:
 
     def on_death(self, game, me, dead, cause, alive_before):
         """Any player, `dead`, has just died; `me` is a player with this character."""
+
+    async def before_execution(self, game, me, executed):
+        """Player `executed` is about to be executed: a decision the execution needs, made now (the Pacifist's)."""
+
+    async def resurrected(self, game, me, night):
+        """`me` came back to life tonight through an ability that wakes a "you start knowing" ability again (the
+        Professor's): use it now."""
 
     def executed(self, game, me):
         """`me` is about to die by execution: (winner, reason) if that ends the game."""
@@ -396,6 +404,13 @@ class Recluse(Outsider):
 class Saint(Outsider):
     name = 'Saint'
     ability = 'If you die by execution, your team loses.'
+
+    async def before_execution(self, game, me, executed):
+        """Player `executed` is about to be executed: a decision the execution needs, made now (the Pacifist's)."""
+
+    async def resurrected(self, game, me, night):
+        """`me` came back to life tonight through an ability that wakes a "you start knowing" ability again (the
+        Professor's): use it now."""
 
     def executed(self, game, me):
         if game.g.works(me, self.name):

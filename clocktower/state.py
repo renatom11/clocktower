@@ -56,7 +56,8 @@ class State:
     kind: str
     target: str
     source: str | None = None
-    until: str | int = 'night'  # 'night': the next dusk; a number n: the dusk before night n; None: no end
+    until: str | int = 'night'  # 'night': the next dusk; 'dawn': the end of tonight; a number n: the dusk before
+    #                             night n; None: no end
     ends_with_source: bool = False
     against: str = 'demon'      # for 'safe': the deaths it stops ('demon', 'execution' or 'any')
     while_source_works: bool = False  # in force only while its source is alive, sober and healthy (the Courtier)
@@ -152,6 +153,22 @@ POLICY = {
     'shabaloth_regurgitate': 0.25,  # per night with a candidate, while under the budget
     'regurgitations': 2,            # the budget per game; beyond it the chance is a tenth
     'regurgitate_evil': 0.1,        # the regurgitated player may be evil (else a good one, when there is one)
+    # the Sailor's choice of another player: who is drunk. The almanac: "If they choose a Townsfolk, the Storyteller
+    # will usually make the Townsfolk drunk, but if an Outsider, a Minion, or the Demon is chosen ... usually make the
+    # Sailor the drunk one". Default, for review.
+    'sailor_townsfolk_drunk': 0.8,  # a chosen Townsfolk is the drunk one (else the Sailor)
+    'sailor_self_drunk': 0.8,       # with an Outsider, Minion or Demon chosen, the Sailor is the drunk one
+    # which of the Innkeeper's two is drunk. The almanac: the drunk "may be good or evil, but will almost always be
+    # good"; the wiki: an Innkeeper who picks themself is likely to be made drunk. Default, for review.
+    'innkeeper_self_drunk': 0.8,    # an Innkeeper who chose themself is the drunk one
+    'innkeeper_good_drunk': 0.9,    # of a good and an evil player, the good one is drunk (two alike: either)
+    # whether the Pacifist saves an executed good player. The almanac: "once per game is usually about right ...
+    # On rare occasions, to make the Pacifist look suspicious, you can never trigger it"; the wiki: more likely "at a
+    # critical juncture as the game comes to a climax". Default, for review.
+    'pacifist_save': 0.2,           # per good player's execution, before the first save
+    'pacifist_late': 0.4,           # the same, once five or fewer players are alive (the climax)
+    'pacifist_again': 0.05,         # per execution after a save
+    'pacifist_never': 0.1,          # per game: the Pacifist never saves anyone
     # the Storyteller judge (judge.py; scripts other than TB, when one is chosen): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
@@ -514,6 +531,7 @@ class Grimoire:
             if p.shown != p.character: tags.append(f'thinks they are the {p.shown}')
             if not p.alive: tags.append('DEAD' + ('' if p.ghost_vote else ', ghost vote used'))
             if self.is_poisoned(p): tags.append('POISONED')
+            if self.has(p, 'drunk'): tags.append('DRUNK')  # from an ability (none in Trouble Brewing)
             if any(s.kind == 'safe' and s.target == p.name and s.against == 'demon' and self.active(s)
                    for s in self.states):
                 tags.append('protected by the Monk tonight')

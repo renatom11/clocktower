@@ -48,6 +48,7 @@ class Night:
         self.deaths = []
         self.revived = []  # players alive again (the Professor, the Shabaloth), announced at dawn
         self.before = {}  # each player's choice on their previous night, as it stood at dusk (the Shabaloth's meal)
+        self.asleep = set()  # players who don't wake tonight to use their own ability (the Exorcist's Demon)
 
     def choice_of(self, g, character):
         """(The living player who really is `character`, their first choice tonight or None: not woken, or they
@@ -398,9 +399,9 @@ class Game:
         nothing (each character's step acts only for the player who really is that character)."""
         g, names = self.g, self.names
         roles = {c for c in characters if rules(c).night_choice}
-        requests = {}
+        requests, specs = {}, {}
         for p in g.living():
-            if p.shown not in roles:
+            if p.shown not in roles or p.name in night.asleep:
                 continue
             nc = rules(p.shown).night_spec(self, p, night)  # tonight's shape, or None: not woken tonight
             if nc is None:
@@ -408,7 +409,8 @@ class Game:
             spec, v17 = choice_spec(rules(p.shown), nc), not isinstance(nc, Choose)
             last = g.last_choices.get(p.name, []) if spec.not_last else []
             options = [x for x in names if (spec.may_self or x != p.name) and x not in last
-                       and (not spec.alive_only or g[x].appears_alive)]
+                       and (not spec.alive_only or g[x].appears_alive)
+                       and (not spec.dead_only or not g[x].appears_alive)]
             if v17:  # Trouble Brewing's wording and choice, as in protocol v17
                 requests[p.name] = Request('night', f'Night {night.n} — {p.shown}: {spec.prompt} Put your choice in '
                                                     '`targets`.', night.n, n_targets=spec.players, options=options)
@@ -416,7 +418,8 @@ class Game:
             how = ('Put your choice in `targets`' + (' ([] for no one)' if spec.optional else '')
                    + (' and the character in `character`' if spec.character else '') + '.')
             if spec.players == 0:
-                how = 'Put the character in `character`.'
+                how = 'Put the character in `character`' + (' (null for none)' if spec.optional else '') + '.'
+            specs[p.name] = spec
             requests[p.name] = Request('night', f'Night {night.n} — {p.shown}: {spec.prompt} {how}', night.n,
                                        n_targets=spec.players, options=options,
                                        min_targets=0 if spec.optional else spec.players,
@@ -427,8 +430,12 @@ class Game:
             g.last_choices[name] = night.chosen[name]
             g.woke.setdefault(night.n, []).append(name)
             data = {'player': name, 'role': g[name].shown, 'targets': night.chosen[name]}
-            if req.characters:
-                night.characters[name] = data['character'] = self.chosen_character(name, acts[name], req)
+            if req.characters:  # a character only, that may be declined (the Courtier's): None for none, or for a
+                # name not on the script (never a random use of a once-per-game ability)
+                spec = specs[name]
+                declined = spec.optional and not spec.players and acts[name].get('character') not in req.characters
+                night.characters[name] = data['character'] = (None if declined else
+                                                               self.chosen_character(name, acts[name], req))
             self.emit('night_choice', data, 'audit')
 
     async def night(self, n):
@@ -446,6 +453,7 @@ class Game:
             for c in batch:
                 await rules(c).resolve_night(self, night)
                 await self.run_pending()
+        g.expire('dawn')  # protections that last only tonight end (the Innkeeper's)
 
         self.phase = 'day'
         self.emit('header', {'text': f'Day {n}'})
@@ -570,6 +578,13 @@ class Game:
         if died:
             self.kill(g[target], 'slayer')
             g.check_victory()
+
+    async def execution(self, name):
+        """Today's execution, after any decision it needs (whether the Pacifist saves a good player)."""
+        for p in self.g.players:
+            for c in self.g.abilities(p):
+                await rules(c).before_execution(self, p, self.g[name])
+        self.execute(name)
 
     def execute(self, name):
         """Execution is not death: an executed player may survive (the Tea Lady's neighbour, the Fool, a
@@ -718,7 +733,7 @@ class Game:
         if g.winner:
             return
         if block:
-            self.execute(block)
+            await self.execution(block)
             await self.run_pending()
         else:
             self.emit('no_execution', {})
