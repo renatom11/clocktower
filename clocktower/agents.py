@@ -22,6 +22,8 @@ class Request:
     n_targets: int = 0          # night choices
     options: list = field(default_factory=list)   # legal targets / nominees
     alive: bool = True
+    min_targets: int | None = None  # night choices beyond Trouble Brewing's: the fewest players (0: may choose no one)
+    characters: list = field(default_factory=list)  # a character to choose too (the Gambler) or instead (the Courtier)
     mode: str = ''              # 'private' (whispers only) or 'public' (speech only)
 
 
@@ -51,8 +53,13 @@ class RandomSeat:
         r, others = self.rng, [n for n in self.names if n != self.name]
         a = {'say': '', 'whispers': [], 'nominate': None, 'vote': None, 'targets': [],
              'slayer_shot': None}
-        if request.kind in ('night', 'ravenkeeper'):
+        if request.kind in ('night', 'ravenkeeper') and request.min_targets is None:
             a['targets'] = r.sample(request.options, min(request.n_targets, len(request.options)))
+        elif request.kind in ('night', 'ravenkeeper'):
+            k = r.randint(request.min_targets, min(request.n_targets, len(request.options)))
+            a['targets'] = r.sample(request.options, k)
+            if request.characters:
+                a['character'] = r.choice(request.characters)
         elif request.kind == 'beat':
             if r.random() < 0.5: a['say'] = r.choice(LINES)
             if r.random() < 0.3: a['whispers'] = [{'to': [r.choice(others)], 'text': 'psst, what are you?'}]

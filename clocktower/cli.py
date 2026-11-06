@@ -157,7 +157,7 @@ def build(args, seed, out, env: Shared | None = None, humans=None, minion=None):
         if model == 'random':
             return RandomSeat(name, random.Random(bots.random()), names)
         system = player_system(len(names), spec(model)['memory'], args.private_beats, script)
-        c = conversation(env.client, system, player_schema(names), label=name, ledger=env.ledger,
+        c = conversation(env.client, system, player_schema(names, script), label=name, ledger=env.ledger,
                          semaphore=env.semaphore, on_call=game.record_call, model=model, effort=effort,
                          max_tokens=args.max_output, ttl=ttl, flex=args.flex)
         convs.append((name, c))

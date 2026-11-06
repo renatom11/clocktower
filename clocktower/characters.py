@@ -15,6 +15,7 @@ in state.py, as `Choice`s with the scripted style in `state.POLICY`; the hooks h
 apply the results.
 """
 from __future__ import annotations
+from dataclasses import dataclass
 from pathlib import Path
 
 from . import official
@@ -25,6 +26,27 @@ SETUPS = {5: (3, 0, 1), 6: (3, 1, 1), 7: (5, 0, 1), 8: (5, 1, 1), 9: (5, 2, 1), 
           12: (7, 2, 2), 13: (9, 0, 3), 14: (9, 1, 3), 15: (9, 2, 3)}
 
 
+@dataclass(frozen=True)
+class Choose:
+    """What a character chooses at night, beyond Trouble Brewing's (count, prompt, may choose themselves) tuples."""
+    players: int = 1          # how many players, at most (0 with character=True: only a character, the Courtier)
+    prompt: str = ''
+    may_self: bool = True
+    optional: bool = False    # may choose no one (the Po, the Assassin)
+    alive_only: bool = False  # only players who are alive (as the town sees it)
+    not_last: bool = False    # not the player chosen last night (the Exorcist)
+    character: bool = False   # a character too (the Gambler) or instead (the Courtier)
+
+
+def choice_spec(c):
+    """A character's night choice as a Choose, or None. Trouble Brewing's tuples keep their v17 meaning."""
+    nc = c.night_choice
+    if nc is None or isinstance(nc, Choose):
+        return nc
+    k, text, may_self = nc
+    return Choose(players=k, prompt=text, may_self=may_self)
+
+
 class Character:
     """A character with no ability the engine has to act on. Subclasses set what they need."""
     name = ''
@@ -32,7 +54,7 @@ class Character:
     ability = ''             # the text players are shown
     info = False             # an information role (the Drunk believes they are one more often)
     remembered = False       # the Grimoire keeps what they were shown (pair abilities; the Spy sees it)
-    night_choice = None      # (number of targets, prompt, may choose themselves) if they choose at night
+    night_choice = None      # a Choose (or TB's (count, prompt, may choose themselves)) if they choose at night
     kills_at_night = False   # night choices after this step are asked only once it has resolved
     public_action = None     # the move (schema field) through which anyone can claim this character's day action
     outsiders = 0            # setup modifier: Townsfolk turned into Outsiders (the Baron's +2)
@@ -489,6 +511,9 @@ class Script:
         steps = [rules(n) for n in self.all if rules(n).setup_order is not None]
         self.setup_steps = sorted(steps, key=lambda c: c.setup_order)
         self.public_actions = {rules(n).public_action: rules(n) for n in self.all if rules(n).public_action}
+        # Trouble Brewing asks night choices in batches (protocol v17); other scripts wake one character at a time,
+        # since their steps depend on earlier ones (the Lunatic before the Demon, the Exorcist's target, the Goon)
+        self.batched_night = self.id == 'tb'
 
     @classmethod
     def of(cls, name, characters, first_night=(), other_nights=()):
@@ -504,6 +529,7 @@ class Script:
         s.setup_steps = sorted((rules(n) for n in s.all if rules(n).setup_order is not None),
                                key=lambda c: c.setup_order)
         s.public_actions = {rules(n).public_action: rules(n) for n in s.all if rules(n).public_action}
+        s.batched_night = False
         return s
 
     def __repr__(self):

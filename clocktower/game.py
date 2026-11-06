@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 from .agents import Request, ScriptedStoryteller
-from .characters import ALL, TB, card, is_evil_character, kind, rules
+from .characters import ALL, TB, Choose, card, choice_spec, is_evil_character, kind, rules
 from .llm import BudgetExceeded, SeatFailed
 
 
@@ -44,6 +44,7 @@ class Night:
     def __init__(self, n):
         self.n, self.first = n, n == 1
         self.chosen = {}  # player name -> the players they chose tonight
+        self.characters = {}  # player name -> the character they chose tonight (the Courtier, the Gambler)
         self.deaths = []
         self.revived = []  # players alive again (the Professor, the Shabaloth), announced at dawn
 
@@ -57,8 +58,11 @@ class Night:
         """Tonight's night order in batches. Choices are asked a batch at a time, and a batch ends after each
         step that can kill, so a player killed tonight is never woken to choose (the Fortune Teller and Butler
         choose after the Demon's kill). Night 1 has no kill: one batch."""
+        order = script.first_night if first else script.other_nights
+        if not script.batched_night:
+            return [[c] for c in order]
         batches, batch = [], []
-        for c in (script.first_night if first else script.other_nights):
+        for c in order:
             batch.append(c)
             if rules(c).kills_at_night:
                 batches.append(batch)
@@ -254,12 +258,24 @@ class Game:
 
     # ---- night -------------------------------------------------------------------------------
     def targets(self, name, action, request):
+        """The legal players a night choice named, completed at random (with a notice) when too few were named. A
+        choice that may name no one (min_targets 0) is taken as given."""
         chosen = [x for x in dict.fromkeys(action.get('targets') or []) if x in request.options][:request.n_targets]
-        if len(chosen) < request.n_targets:
-            chosen += self.rng.sample([x for x in request.options if x not in chosen], request.n_targets - len(chosen))
+        need = request.n_targets if request.min_targets is None else request.min_targets
+        if len(chosen) < need:
+            chosen += self.rng.sample([x for x in request.options if x not in chosen], need - len(chosen))
             self.emit('notice', {'text': f'(Your choice was incomplete, so the Storyteller chose for you: '
                                          f'{", ".join(chosen)}.)'}, [name])
         return chosen
+
+    def chosen_character(self, name, action, request):
+        """The character a night choice named (the Courtier, the Gambler), or one at random, with a notice."""
+        c = action.get('character')
+        if c in request.characters:
+            return c
+        c = self.rng.choice(request.characters)
+        self.emit('notice', {'text': f'(You named no character on the script, so the Storyteller chose {c}.)'}, [name])
+        return c
 
     def kill(self, p, cause, source=None):
         """The one way anyone dies (Demon, execution, Slayer, starpass, any other ability). Returns whether the
@@ -310,9 +326,16 @@ class Game:
     def request(self, *args, **kw):
         return Request(*args, **kw)
 
+    def inform(self, p, text):
+        """Tell one player something in private (at night: the Demon learning who the Exorcist chose)."""
+        self.emit('info', {'text': text}, [p.name])
+
     def tell(self, p, role, choice, target=None):
         """The Storyteller decides an information role's result and tells the player."""
         text = info_text(role, self.decide(choice), target)
+        self.g.woke.setdefault(self.day, [])
+        if p.name not in self.g.woke[self.day]:
+            self.g.woke[self.day].append(p.name)
         self.emit('info', {'text': f'Night {self.day} — {role}: {text}'}, [p.name])
         if rules(role).remembered:
             self.g.reminders.append(f'{p.name} ({role}) was shown: {text}')
@@ -327,14 +350,31 @@ class Game:
         for p in g.living():
             if p.shown not in roles:
                 continue
-            k, text, may_self = rules(p.shown).night_choice
-            options = [x for x in names if may_self or x != p.name]
-            requests[p.name] = Request('night', f'Night {night.n} — {p.shown}: {text} Put your choice in `targets`.',
-                                       night.n, n_targets=k, options=options)
+            spec, v17 = choice_spec(rules(p.shown)), not isinstance(rules(p.shown).night_choice, Choose)
+            last = g.last_choices.get(p.name, []) if spec.not_last else []
+            options = [x for x in names if (spec.may_self or x != p.name) and x not in last
+                       and (not spec.alive_only or g[x].appears_alive)]
+            if v17:  # Trouble Brewing's wording and choice, as in protocol v17
+                requests[p.name] = Request('night', f'Night {night.n} — {p.shown}: {spec.prompt} Put your choice in '
+                                                    '`targets`.', night.n, n_targets=spec.players, options=options)
+                continue
+            how = ('Put your choice in `targets`' + (' ([] for no one)' if spec.optional else '')
+                   + (' and the character in `character`' if spec.character else '') + '.')
+            if spec.players == 0:
+                how = 'Put the character in `character`.'
+            requests[p.name] = Request('night', f'Night {night.n} — {p.shown}: {spec.prompt} {how}', night.n,
+                                       n_targets=spec.players, options=options,
+                                       min_targets=0 if spec.optional else spec.players,
+                                       characters=list(g.script.all) if spec.character else [])
         acts = await self.ask_many(requests)
         for name, req in requests.items():
             night.chosen[name] = self.targets(name, acts[name], req)
-            self.emit('night_choice', {'player': name, 'role': g[name].shown, 'targets': night.chosen[name]}, 'audit')
+            g.last_choices[name] = night.chosen[name]
+            g.woke.setdefault(night.n, []).append(name)
+            data = {'player': name, 'role': g[name].shown, 'targets': night.chosen[name]}
+            if req.characters:
+                night.characters[name] = data['character'] = self.chosen_character(name, acts[name], req)
+            self.emit('night_choice', data, 'audit')
 
     async def night(self, n):
         """Tonight's steps in the official night order, one character at a time. Choices are asked a batch at

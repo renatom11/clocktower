@@ -172,6 +172,8 @@ class Grimoire:
         self.states = []            # State: what abilities have put on players (poison, protection, a master)
         self.spent = set()          # once-per-game abilities used (by character)
         self.death_log = []         # every death, real or apparent: {player, cause, source, day, phase}
+        self.woke = {}              # night -> players woken to use their own ability (the Chambermaid)
+        self.last_choices = {}      # player -> who they chose on their last night choice (the Exorcist)
         self.day = 0
         self.executed_death = None  # who died by execution today (Undertaker)
         self.alive_at_execution = 0  # players alive just before that execution
@@ -186,6 +188,8 @@ class Grimoire:
         self.__dict__.update(d)
         self.__dict__.setdefault('script', TB)
         self.__dict__.setdefault('death_log', [])
+        self.__dict__.setdefault('woke', {})
+        self.__dict__.setdefault('last_choices', {})
         if 'states' not in d:
             self.states, self.spent = [], set()
             for kind_, name in (('poisoned', old['poisoned']), ('safe', old['protected']), ('master', old['master'])):

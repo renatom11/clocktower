@@ -51,16 +51,49 @@ class Plain(ch.Townsfolk):
     name = 'Test Plain'
 
 
+ORDER = []  # the order steps resolve in tonight
+
+
+class Picker(ch.Townsfolk):
+    """Chooses a character, and may choose no one (like a Courtier)."""
+    name = 'Test Picker'
+    night_choice = ch.Choose(players=0, prompt='Choose a character.', character=True)
+
+    async def resolve_night(self, game, night):
+        ORDER.append(self.name)
+
+
+class Hunter(ch.Minion):
+    """May choose one alive player who wasn't last night's choice, or no one."""
+    name = 'Test Hunter'
+    night_choice = ch.Choose(players=1, prompt='Choose a player, or no one.', optional=True, alive_only=True,
+                             not_last=True)
+
+    async def resolve_night(self, game, night):
+        ORDER.append(self.name)
+
+
 class Henchman(ch.Minion):
     name = 'Test Henchman'
 
 
-TEST = [Guard, Jester, Ghoul, Plain, Henchman]
+TEST = [Guard, Jester, Ghoul, Plain, Henchman, Picker, Hunter]
 
 
 class Silent:
     async def act(self, text, request):
         return Reply(dict(BLANK))
+
+
+class Answers:
+    """Answers night requests from a dict, and records them."""
+
+    def __init__(self, answer, log):
+        self.answer, self.log = answer, log
+
+    async def act(self, text, request):
+        self.log.append(request)
+        return Reply({**BLANK, **(self.answer if request.kind == 'night' else {})})
 
 
 def run(coro):
@@ -179,6 +212,41 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(g.g.is_drunk(g.g[B]))
         g.g.expire('night', 4)  # it ends at the dusk before night 4
         self.assertFalse(g.g.is_drunk(g.g[B]))
+
+
+    def test_new_choice_shapes_no_one_a_character_alive_only_not_last_and_one_step_at_a_time(self):
+        from clocktower.state import Grimoire
+        chars = ['Test Picker', 'Test Plain', 'Test Plain', 'Test Hunter', 'Test Ghoul']
+        logs = {n: [] for n in NAMES[:5]}
+        answers = {A: {'character': 'Test Plain'}, D: {'targets': []}}
+        seats = {n: Answers(answers.get(n, {}), logs[n]) for n in NAMES[:5]}
+        script = ch.Script.of('test', chars, other_nights=['Test Hunter', 'Test Picker'])
+        g = Game(seats, ScriptedStoryteller(random.Random(1)), names=NAMES[:5], seed=3, characters=chars,
+                 script=script, probes=False)
+        g.g = Grimoire(g.names, chars, script=script)
+        g.g[C].alive = False
+        g.g.last_choices[D] = [B]
+        ORDER.clear()
+        run(g.night(2))
+        self.assertEqual(ORDER, ['Test Hunter', 'Test Picker'])  # one step at a time, in night order
+        hunter, picker = logs[D][0], logs[A][0]
+        self.assertEqual((hunter.min_targets, hunter.n_targets), (0, 1))
+        self.assertNotIn(C, hunter.options)  # dead
+        self.assertNotIn(B, hunter.options)  # last night's choice
+        self.assertIn('[] for no one', hunter.prompt)
+        self.assertEqual(picker.characters, script.all)
+        choices = {e['data']['player']: e['data'] for e in g.events if e['kind'] == 'night_choice'}
+        self.assertEqual(choices[D]['targets'], [])  # choosing no one is taken as given, with no notice
+        self.assertEqual(choices[A]['character'], 'Test Plain')
+        self.assertFalse(any(e['kind'] == 'notice' for e in g.events))
+        self.assertEqual(g.g.woke[2], [D, A])
+
+    def test_trouble_brewing_keeps_its_v17_schema(self):
+        from clocktower.schema import player_schema
+        self.assertEqual(player_schema(NAMES), player_schema(NAMES, ch.TB))
+        other = player_schema(NAMES, self.script)
+        self.assertIn('character', other['properties'])
+        self.assertNotIn('slayer_shot', other['properties'])
 
 
 if __name__ == '__main__':

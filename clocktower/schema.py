@@ -13,13 +13,21 @@ def _nullable(schema):
     return {'anyOf': [schema, {'type': 'null'}]}
 
 
-def player_schema(names):
+def player_schema(names, script=None):
+    """The output schema for a table of `names`. Trouble Brewing's (the default) is protocol v17's; another
+    script's adds a `character` field (night choices of a character) and drops the Slayer's shot unless the script
+    has a Slayer."""
     name = {'type': 'string', 'enum': list(names)}
-    return _obj({
+    fields = {
         'say': {'type': 'string'},
         'whispers': {'type': 'array', 'items': _obj({'to': {'type': 'array', 'items': name}, 'text': {'type': 'string'}})},
         'nominate': _nullable(name),
         'vote': _nullable({'type': 'boolean'}),
         'targets': {'type': 'array', 'items': name},
         'slayer_shot': _nullable(name),
-    })
+    }
+    if script is not None and script.id != 'tb':
+        fields['character'] = _nullable({'type': 'string', 'enum': list(script.all)})
+        if 'slayer_shot' not in script.public_actions:
+            del fields['slayer_shot']
+    return _obj(fields)
