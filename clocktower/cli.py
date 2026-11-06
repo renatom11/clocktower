@@ -136,8 +136,9 @@ def build(args, seed, out, env: Shared | None = None, humans=None, minion=None):
     mode = getattr(args, 'judge', None) or 'scripted'
     if mode == 'model' and env is None:
         raise SystemExit('--judge model needs API calls; use rules or dry-run for free games')
-    st_judge = judge.make(mode, model=getattr(args, 'judge_model', None), client=env and env.client,
-                          ledger=env and env.ledger) if mode == 'model' else judge.make(mode)
+    hears = getattr(args, 'judge_hears', None) or 'all'
+    st_judge = judge.make(mode, hears, model=getattr(args, 'judge_model', None), client=env and env.client,
+                          ledger=env and env.ledger) if mode == 'model' else judge.make(mode, hears)
     game = Game({}, None, names=names, seed=seed, private_beats=args.private_beats,
                 public_beats=args.public_beats, max_days=args.days, waves=args.waves, characters=characters,
                 minion=minion, out=out, probes=getattr(args, 'probes', False), script=script, judge=st_judge)
@@ -178,7 +179,7 @@ def build(args, seed, out, env: Shared | None = None, humans=None, minion=None):
               'good_memory': spec(_model((args.good_model or args.model).split(',')[0], '')[0])['memory'],
               'evil_memory': spec(_model((args.evil_model or args.model).split(',')[0], '')[0])['memory'],
               'storyteller': 'scripted' if mode == 'scripted' else f'judge:{mode}' + (
-                  f':{args.judge_model}' if mode == 'model' else ''),
+                  f':{args.judge_model}' if mode == 'model' else '') + f':hears-{hears}',
               'seed': seed,
               'private_beats': args.private_beats, 'public_beats': args.public_beats,
               'whispers': 'private', 'waves': args.waves, 'minion': minion,
@@ -349,8 +350,12 @@ def main(argv=None):
                             '10-12 picks each game\'s size from its seed')
         p.add_argument('--characters', help='comma-separated forced setup, in seating order (tests)')
         p.add_argument('--judge', default='scripted', choices=['scripted', 'rules', 'dry-run', 'model'],
-                       help='the Storyteller judge for decisions that need judgment, in scripts other than TB: '
-                            'scripted (none), rules (free), dry-run (free; writes the model prompts) or model')
+                       help="the Storyteller judge for the Storyteller's discretionary calls (Trouble Brewing's "
+                            'protocol v17 is scripted): scripted (none), rules (free), dry-run (free; writes the model '
+                            'prompts) or model')
+        p.add_argument('--judge-hears', default='all', choices=['all', 'public'],
+                       help='what the judge knows besides the Grimoire, the night choices and the votes: all (every '
+                            'whisper too) or public (only what is said aloud)')
         p.add_argument('--judge-model', default='claude-haiku-4-5',
                        help='the model for --judge model (any model in llm.PRICES; Haiku 5.5 needs adding first)')
         p.add_argument('--script', default='tb', help='tb (Trouble Brewing, protocol v17), bmr (Bad Moon Rising, in '
@@ -441,8 +446,8 @@ def main(argv=None):
     else:
         base = args.seed if args.seed is not None else random.randrange(2 ** 32)
         results = []
-        for i in range(args.games):
-            game, _ = build(args, base + i, None)
+        for i in range(args.games):  # with --out, each game's files (a dry-run judge's prompts) in game-NN
+            game, _ = build(args, base + i, Path(args.out) / f'game-{i + 1:02d}' if args.out else None)
             results.append(asyncio.run(game.run()))
         wins = {w: sum(r['winner'] == w for r in results) for w in ('good', 'evil', None)}
         print(f'{args.games} random games: {wins}')

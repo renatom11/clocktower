@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 from .agents import Request, ScriptedStoryteller
-from .characters import ALL, TB, Choose, card, choice_spec, is_evil_character, kind, rules
+from .characters import ALL, TB, Choose, card, choice_spec, is_evil_character, kind, now, rules, settle
 from .llm import BudgetExceeded, SeatFailed
 
 
@@ -229,7 +229,7 @@ class Game:
         """A decision that needs judgment (misinformation, misregistration, a statement's truth): the judge ranks
         the legal values and the code picks from the ranking with fixed weights (POLICY 'judge_top' for the first,
         'judge_second' for the second, otherwise the scripted style). With no judge, the same as decide()."""
-        if self.judge is None or choice.auto:
+        if self.judge is None or choice.auto:  # exactly decide(): the same value and random draws
             return self.decide(choice)
         ranking, reason = await self.judge.rank(self, choice)
         ranking = [norm(v) for v in ranking if choice.legal(v)]
@@ -265,10 +265,11 @@ class Game:
         # has or believes they have (a Drunk-as-Fortune-Teller needs a red herring too)
         for c in self.script.setup_steps:
             if c.name in {p.character for p in g.players} | {p.shown for p in g.players}:
-                c.setup(self)
+                await settle(c.setup(self))
         drunk = next((p for p in g.players if rules(p.character).always_drunk), None)
-        g.bluffs = self.decide(bluffs_choice([c for c in self.script.good if c not in in_play], drunk is not None,
-                                             drunk.shown if drunk else None))['characters']
+        g.bluffs = (await self.decide_judged(bluffs_choice([c for c in self.script.good if c not in in_play],
+                                                           drunk is not None, drunk.shown if drunk else None)))[
+            'characters']
         self.starting = {p.name: p.character for p in g.players}
         self.start_teams = {p.name: p.alignment for p in g.players}
         if self.seat_factory:
@@ -343,11 +344,16 @@ class Game:
         while self.pending and not self.g.winner:
             await self.pending.pop(0)(self)
 
-    def moment(self, when):
-        """A point of the day when characters' abilities may act (see Character.moment)."""
+    async def moment_judged(self, when):
+        """A point of the day when characters' abilities may act (see Character.moment), a hook that may consult the
+        Storyteller judge (the Tinker's death)."""
         for p in self.g.players:
             for c in self.g.abilities(p):
-                rules(c).moment(self, p, when)
+                await settle(rules(c).moment(self, p, when))
+
+    def moment(self, when):
+        """moment_judged, synchronously (tests; with no judge, or the rules judge)."""
+        now(self.moment_judged(when))
 
     def prevent_death(self, p, cause, unstoppable=False):
         """Whether p, about to die from `cause`, doesn't: a protection or their own ability (the Fool, once), unless
@@ -358,27 +364,36 @@ class Game:
             return True
         return rules(p.character).survives(self, p, cause)
 
-    def attempt_kill(self, target, cause, source=None, night=None, unstoppable=False):
+    async def attempt_kill_judged(self, target, cause, source=None, night=None, unstoppable=False):
         """An ability tries to kill `target`: nothing if they are dead or saved; the Demon's attack may land on
-        someone else (the Mayor). A night death is announced at dawn. Returns the player who died, or None. An
-        `unstoppable` kill goes through every protection and survival, and kills even a player who only seems dead
-        (the Assassin's: "even if for some reason they could not")."""
+        someone else (the Mayor, a Storyteller's call the judge may make). A night death is announced at dawn.
+        Returns the player who died, or None. An `unstoppable` kill goes through every protection and survival, and
+        kills even a player who only seems dead (the Assassin's: "even if for some reason they could not")."""
         if not target.alive or (target.seems_dead and cause != 'execution' and not unstoppable):
             return None
         if self.prevent_death(target, cause, unstoppable):
             return None
         victim = target
         if cause == 'demon':
-            victim = rules(target.character).redirect_attack(self, target, source) or target
+            victim = await settle(rules(target.character).redirect_attack(self, target, source)) or target
         self.kill(victim, cause, source, final=unstoppable)
         if night is not None:
             night.deaths.append(victim)
         return victim
 
-    def demon_attack(self, target, demon, night):
+    def attempt_kill(self, target, cause, source=None, night=None, unstoppable=False):
+        """attempt_kill_judged, synchronously: for every kill but the Demon's (whose redirection the judge may
+        decide), and for tests."""
+        return now(self.attempt_kill_judged(target, cause, source, night, unstoppable))
+
+    async def demon_attack_judged(self, target, demon, night):
         """The Demon attacks `target`: nothing happens if they are dead or safe (the Soldier, the Monk's
         protection); their ability may send the death elsewhere (the Mayor); otherwise they die."""
-        self.attempt_kill(target, 'demon', demon, night)
+        await self.attempt_kill_judged(target, 'demon', demon, night)
+
+    def demon_attack(self, target, demon, night):
+        """demon_attack_judged, synchronously (tests)."""
+        now(self.demon_attack_judged(target, demon, night))
 
     def request(self, *args, **kw):
         return Request(*args, **kw)
@@ -393,9 +408,10 @@ class Game:
         if p.name not in self.g.woke[self.day]:
             self.g.woke[self.day].append(p.name)
 
-    def tell(self, p, role, choice, target=None):
-        """The Storyteller decides an information role's result and tells the player."""
-        text = info_text(role, self.decide(choice), target)
+    async def tell(self, p, role, choice, target=None):
+        """The Storyteller decides an information role's result (a judged call: misinformation, misregistration)
+        and tells the player."""
+        text = info_text(role, await self.decide_judged(choice), target)
         self.woken(p)
         self.emit('info', {'text': f'Night {self.day} — {role}: {text}'}, [p.name])
         if rules(role).remembered:
@@ -518,7 +534,7 @@ class Game:
                            **({'revived': [p.name for p in revived]} if revived else {})})
         if night.first:
             self.probe('dawn')
-        self.moment('dawn')
+        await self.moment_judged('dawn')
         await self.run_pending()
 
     # ---- day ---------------------------------------------------------------------------------
@@ -574,8 +590,8 @@ class Game:
                 say = clip(acts[name].get('say'), words)
                 if say:
                     self.emit('say', {'speaker': name, 'text': say})
-            self.shots(wave, acts)
-            self.public_abilities(wave, acts)
+            await self.shots_judged(wave, acts)
+            await self.public_abilities_judged(wave, acts)
             await self.run_pending()
             if g.winner:
                 return
@@ -599,14 +615,17 @@ class Game:
         await self.turns(n, order, 'beat', f'Day {n}, {"private time" if private else "town square"} {k} of {total}',
                          tail, WORDS['beat'], beat=k, private=private, note=note)
 
-    def shots(self, names, acts):
+    async def shots_judged(self, names, acts):
         """Public day actions taken on these public turns, in order (the Slayer's shot, which anyone can claim)."""
         for name in names:
             t = acts[name].get('slayer_shot')
             if t in self.names and t != name and not self.g.winner:
-                self.slayer(name, t)
+                await self.slayer_judged(name, t)
 
-    def public_abilities(self, names, acts):
+    def shots(self, names, acts):
+        now(self.shots_judged(names, acts))
+
+    async def public_abilities_judged(self, names, acts):
         """Public day abilities claimed on these turns, beyond the Slayer's shot (the Gossip's statement): anyone may
         claim one, the town hears the claim, and it does something only for a real, working one."""
         g = self.g
@@ -618,20 +637,27 @@ class Game:
             text = clip(use.get('text'), WORDS['beat'])
             self.emit('ability', {'player': name, 'character': c, **({'target': target} if target else {}),
                                   **({'text': text} if text else {})})
-            if rules(c).act_publicly(self, name, target, text) and target:
+            if await settle(rules(c).act_publicly(self, name, target, text)) and target:
                 if not self.prevent_death(g[target], c.lower()):
                     self.kill(g[target], c.lower(), g[name])
                     g.check_victory()
 
-    def slayer(self, shooter, target):
+    def public_abilities(self, names, acts):
+        """public_abilities_judged, synchronously (tests)."""
+        now(self.public_abilities_judged(names, acts))
+
+    async def slayer_judged(self, shooter, target):
         g = self.g
         action = g.script.public_actions.get('slayer_shot')  # a script without a Slayer: nobody's shot does anything
-        died = action.act_publicly(self, shooter, target) if action else False
+        died = (await settle(action.act_publicly(self, shooter, target))) if action else False
         died = died and not self.prevent_death(g[target], 'slayer')
         self.emit('slayer', {'shooter': shooter, 'target': target, 'died': died})
         if died:
             self.kill(g[target], 'slayer')
             g.check_victory()
+
+    def slayer(self, shooter, target):
+        now(self.slayer_judged(shooter, target))
 
     async def execution(self, name):
         """Today's execution, after any decision it needs (whether the Pacifist saves a good player)."""
@@ -660,10 +686,13 @@ class Game:
                 g.winner, g.reason = ends
         g.check_victory()
 
-    def virgin(self, nominator, nominee):
+    async def virgin_judged(self, nominator, nominee):
         """The nominee's character reacts to the nomination: True if that ended the day (the Virgin's ability
-        executed the nominator)."""
-        return rules(self.g[nominee].character).nominated(self, self.g[nominee], nominator)
+        executed the nominator; whether a Spy counts as a Townsfolk is a judged call)."""
+        return await settle(rules(self.g[nominee].character).nominated(self, self.g[nominee], nominator))
+
+    def virgin(self, nominator, nominee):
+        return now(self.virgin_judged(nominator, nominee))
 
     def vote_order(self, nominee):
         i = self.names.index(nominee)
@@ -755,7 +784,7 @@ class Game:
                       'You may nominate someone (set `nominate`; your `say` is the accusation), or pass. Only '
                       'nominations are heard now: everyone can comment after the defense. No whispering now.')
             acts = await self.ask_many({name: Request('nominate', prompt, n, options=options) for name in eligible})
-            self.shots(eligible, acts)
+            await self.shots_judged(eligible, acts)
             if g.winner:
                 return
             noms = [(name, acts[name]['nominate'], clip(acts[name].get('say'), WORDS['nominate']))
@@ -772,7 +801,7 @@ class Game:
             nominees.add(nominee)
             self.emit('nomination', {'nominator': nominator, 'nominee': nominee, 'text': accusation})
             g.nominations.append({'day': n, 'nominator': nominator, 'nominee': nominee})
-            if self.virgin(nominator, nominee):
+            if await self.virgin_judged(nominator, nominee):
                 return
             d = await self.ask(nominee, Request('defense', f'Day {n}: {"you have nominated yourself" if nominator == nominee else nominator + " has nominated you"}. '
                                                            'Give your defense in `say`.', n))
@@ -800,12 +829,12 @@ class Game:
                 await self.beat(n, k, private)
                 if g.winner:
                     return
-                self.moment('beat')
+                await self.moment_judged('beat')
                 await self.run_pending()
                 if g.winner:
                     return
         self.probe('nominations')
-        self.moment('nominations')
+        await self.moment_judged('nominations')
         await self.nominations()
         if g.winner:
             return
@@ -814,7 +843,7 @@ class Game:
                 rules(c).end_of_day(self, p)
             if g.winner:
                 return
-        self.moment('dusk')
+        await self.moment_judged('dusk')
         await self.run_pending()
 
     # ---- the whole game ------------------------------------------------------------------------

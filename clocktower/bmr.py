@@ -8,7 +8,7 @@ from itertools import combinations
 import re
 
 from .characters import CHARACTERS, Choose, Demon, Minion, Outsider, Townsfolk, kind, rules
-from .state import POLICY, Choice, State, setup_changes, team_sizes, yes_choice
+from .state import POLICY, Choice, State, judged, setup_changes, team_sizes, yes_choice
 
 
 def ability(name):
@@ -37,7 +37,7 @@ def outsiders_choice(g, p):
         return {'characters': true}
     choice = Choice(f'Godfather:{p.name}', [{'characters': v} for v in values], style)
     choice.truth = lambda v: sorted(v['characters']) == sorted(true)
-    choice.context = {'about': None, 'recipient': p.name, 'impaired': impaired,
+    choice.context = {'call': 'information', 'about': None, 'recipient': p.name, 'impaired': impaired,
                       'question': f'Which Outsider characters is {p.name} (Godfather) shown as in play?'}
     return choice
 
@@ -181,7 +181,7 @@ class Zombuul(Demon):
         g = game.g
         z, t = night.choice_of(g, self.name)
         if t and g.works(z, self.name):
-            game.demon_attack(g[t], z, night)
+            await game.demon_attack_judged(g[t], z, night)
 
 
 class Pukka(Demon):
@@ -208,7 +208,7 @@ class Pukka(Demon):
             # lasts until the victim dies; paused while the Pukka is drunk or poisoned ("the poison resumes")
             g.add(State('poisoned', t, source=pukka.name, until=None, ends_with_source=True, while_source_works=True))
         for s in earlier:  # the previously poisoned player dies (still poisoned), then is healthy
-            game.demon_attack(g[s.target], pukka, night)
+            await game.demon_attack_judged(g[s.target], pukka, night)
             g.states = [x for x in g.states if x is not s]
 
 
@@ -223,7 +223,7 @@ def regurgitation_choice(g, shab, dead):
         good = [x for x in dead if not g[x].evil]
         return {'players': [r.choice(good if good and r.random() >= POLICY['regurgitate_evil'] else dead)]}
     choice = Choice(f'Shabaloth:{shab.name}', [{'players': []}] + [{'players': [x]} for x in dead], style)
-    choice.context = {'about': None, 'recipient': shab.name, 'impaired': False,
+    choice.context = {'call': 'regurgitation', 'about': None, 'recipient': shab.name, 'impaired': False,
                       'question': f'Does the Shabaloth regurgitate one of the dead players it chose last night (alive '
                                   f'again at dawn), and whom? Rarely: once a game, maybe twice ({done} so far).'}
     return choice
@@ -254,7 +254,7 @@ class Shabaloth(Demon):
             game.pick(night, shab, t)
             if not g.works(shab, self.name):
                 break  # the first pick made the Shabaloth drunk (the Goon)
-            game.demon_attack(g[t], shab, night)
+            await game.demon_attack_judged(g[t], shab, night)
 
 
 class Po(Demon):
@@ -278,7 +278,7 @@ class Po(Demon):
             game.pick(night, po, t)
             if not g.works(po, self.name):
                 break  # a pick made the Po drunk (the Goon): the later ones fail
-            game.demon_attack(g[t], po, night)
+            await game.demon_attack_judged(g[t], po, night)
 
 
 # ---- Townsfolk that protect, make players drunk, or bring players back ------------------------------------------
@@ -293,7 +293,7 @@ def sailor_choice(g, sailor, target):
             return {'players': [target if r.random() < POLICY['sailor_townsfolk_drunk'] else sailor.name]}
         return {'players': [sailor.name if r.random() < POLICY['sailor_self_drunk'] else target]}
     choice = Choice(f'Sailor:{sailor.name}', [{'players': [sailor.name]}, {'players': [target]}], style)
-    choice.context = {'about': target, 'recipient': sailor.name, 'impaired': False,
+    choice.context = {'call': 'sailor', 'about': target, 'recipient': sailor.name, 'impaired': False,
                       'question': f'{sailor.name} (Sailor) chose {target} (the {t.character}). Who is drunk until '
                                   f'dusk: the Sailor or {target}? Usually the Townsfolk if a Townsfolk was chosen, '
                                   f'otherwise the Sailor.'}
@@ -332,7 +332,7 @@ def innkeeper_choice(g, inn, pair):
             return {'players': [good[0] if r.random() < POLICY['innkeeper_good_drunk'] else evil]}
         return {'players': [r.choice(pair)]}
     choice = Choice(f'Innkeeper:{inn.name}', [{'players': [x]} for x in pair], style)
-    choice.context = {'about': None, 'recipient': inn.name, 'impaired': False,
+    choice.context = {'call': 'innkeeper', 'about': None, 'recipient': inn.name, 'impaired': False,
                       'question': f'{inn.name} (Innkeeper) protected {" and ".join(pair)}. Which of them is drunk '
                                   'until dusk? Almost always a good player, depending on how the game is going; an '
                                   'Innkeeper who chose themself is usually the drunk one.'}
@@ -439,7 +439,7 @@ def pacifist_choice(g, pac, p):
                                                                'pacifist_save']
         return {'yes': r.random() < chance}
     choice = Choice(f'Pacifist:{p.name}', [{'yes': True}, {'yes': False}], style)
-    choice.context = {'about': p.name, 'recipient': pac.name, 'impaired': False,
+    choice.context = {'call': 'pacifist', 'about': p.name, 'recipient': pac.name, 'impaired': False, 'helps': 'good',
                       'question': f'{p.name} (good) is being executed. Does the Pacifist ({pac.name}) save them, so '
                                   f'they are executed but do not die? About once a game is usual, more likely at the '
                                   f'climax, and less if good is winning ({saves} saved so far).'}
@@ -451,9 +451,13 @@ class Pacifist(Townsfolk):
     ability = ability(name)
     setup_order = 2
 
-    def setup(self, game):
+    async def setup(self, game):
         # rarely, the Storyteller never saves anyone, to make the Pacifist look suspicious: decided once per game
-        game.g.notes['Pacifist never'] = game.decide(yes_choice('Pacifist:never', POLICY['pacifist_never']))['yes']
+        pac = game.g.with_character(self.name, alive=False)
+        choice = judged(yes_choice('Pacifist:never', POLICY['pacifist_never']), 'pacifist_never',
+                        'Before the game: will the Pacifist never save anyone this game (yes: true)? Rarely, to make '
+                        'the Pacifist look suspicious.', about=pac and pac.name, recipient=pac and pac.name)
+        game.g.notes['Pacifist never'] = (await game.decide_judged(choice))['yes']
 
     async def before_execution(self, game, me, p):
         g = game.g
@@ -530,7 +534,9 @@ def grandchild_choice(g, gm):
     def style(r):
         pool = towns if towns and (not others or r.random() < POLICY['grandchild_townsfolk']) else others
         return {'players': [r.choice(pool)]}
-    return Choice(f'Grandchild:{gm.name}', [{'players': [x]} for x in good], style)
+    return judged(Choice(f'Grandchild:{gm.name}', [{'players': [x]} for x in good], style), 'grandchild',
+                  f'Which good player is the Grandmother\'s ({gm.name}) Grandchild? Any good player, usually a '
+                  'Townsfolk.', recipient=gm.name)
 
 
 def grandmother_choice(g, gm, child):
@@ -554,7 +560,7 @@ def grandmother_choice(g, gm, child):
         return true
     choice = Choice(f'Grandmother:{gm.name}', values, style)
     choice.truth = lambda v: v['players'] == [child] and v['character'] == true['character']
-    choice.context = {'about': child, 'recipient': gm.name, 'impaired': impaired,
+    choice.context = {'call': 'information', 'about': child, 'recipient': gm.name, 'impaired': impaired,
                       'question': f'Which player and character is {gm.name} (Grandmother) shown as their Grandchild?'}
     return choice
 
@@ -565,11 +571,11 @@ class Grandmother(Townsfolk):
     info = True
     setup_order = 4  # after the Lunatic's (a good player who may be the Grandchild)
 
-    def setup(self, game):
+    async def setup(self, game):
         g = game.g
         gm = g.with_character(self.name)
         if gm:
-            g.notes['Grandchild'] = game.decide(grandchild_choice(g, gm))['players'][0]
+            g.notes['Grandchild'] = (await game.decide_judged(grandchild_choice(g, gm)))['players'][0]
 
     async def show(self, game, gm, n):
         g = game.g
@@ -614,7 +620,7 @@ def chambermaid_choice(g, cm, pair, n):
         return {'number': true}
     choice = Choice(f'Chambermaid:{cm.name}', [{'number': v} for v in values], style)
     choice.truth = lambda v: v['number'] == true
-    choice.context = {'about': None, 'recipient': cm.name, 'impaired': impaired,
+    choice.context = {'call': 'information', 'about': None, 'recipient': cm.name, 'impaired': impaired,
                       'question': f'{cm.name} (Chambermaid) chose {" and ".join(pair)}: how many of them woke tonight '
                                   'to use their own ability?'}
     return choice
@@ -696,7 +702,7 @@ def statement_choice(g, gossip, text):
     """Whether a statement the code can't check is true, false, or doesn't count. The scripted Storyteller can't
     read it: for it, the statement is not true."""
     choice = Choice(f'Gossip:{gossip.name}', [{'yes': True}, {'yes': False}, {'yes': None}], lambda r: {'yes': False})
-    choice.context = {'about': None, 'recipient': gossip.name, 'impaired': False,
+    choice.context = {'call': 'statement', 'about': None, 'recipient': gossip.name, 'impaired': False,
                       'question': f'{gossip.name} (the Gossip) made this public statement: "{text}". Is it definitely '
                                   'true (yes: True), definitely false (yes: False), or does it not count (nothing): '
                                   'not definite, about the future or intentions, or not something you know?'}
@@ -727,7 +733,7 @@ def gossip_victim_choice(g, gossip):
         pool = evil if evil and (not good or r.random() < POLICY['gossip_victim_evil']) else (good or dying or alive)
         return {'players': [r.choice(pool)]}
     choice = Choice(f'Gossip kill:{gossip.name}', [{'players': [x]} for x in alive], style)
-    choice.context = {'about': None, 'recipient': gossip.name, 'impaired': False,
+    choice.context = {'call': 'gossip_victim', 'about': None, 'recipient': gossip.name, 'impaired': False,
                       'question': "The Gossip's statement yesterday was true: which player dies tonight? Usually one "
                                   'who will actually die (not one protected, nor the Fool), so the Gossip learns from '
                                   'it; never to end the game by your own choice.'}
@@ -794,7 +800,10 @@ def lunatic_demon_choice(g, demon):
 
     def style(r):
         return {'character': real if not others or r.random() < POLICY['lunatic_same_demon'] else r.choice(others)}
-    return Choice('Lunatic:demon', [{'character': d} for d in g.script.demons], style)
+    lun = next((q.name for q in g.players if q.character == 'Lunatic'), None)
+    return judged(Choice('Lunatic:demon', [{'character': d} for d in g.script.demons], style), 'lunatic_demon',
+                  f'Which Demon does the Lunatic believe they are? Usually the one in play ({real}).', about=lun,
+                  recipient=lun)
 
 
 def lunatic_minions_choice(g, lun, demon, k):
@@ -807,7 +816,10 @@ def lunatic_minions_choice(g, lun, demon, k):
             rest = [x for x in others if x != demon.name]
             return {'players': [demon.name] + r.sample(rest, k - 1)}
         return {'players': r.sample([x for x in others if not demon or x != demon.name] or others, k)}
-    return Choice('Lunatic:minions', [{'players': list(c)} for c in combinations(others, k)], style)
+    return judged(Choice('Lunatic:minions', [{'players': list(c)} for c in combinations(others, k)], style),
+                  'lunatic_minions', f'Which {k} player{"s" if k > 1 else ""} does the Lunatic ({lun.name}) see as '
+                  'their Minions? Any players; sometimes the real Demon among them.', about=lun.name,
+                  recipient=lun.name)
 
 
 def lunatic_bluffs_choice(g):
@@ -823,7 +835,10 @@ def lunatic_bluffs_choice(g):
             options = [c for c in pool if c not in picks and (c in in_play) == want_in]
             picks.append(r.choice(options or [c for c in pool if c not in picks]))
         return {'characters': picks}
-    return Choice('Lunatic:bluffs', [{'characters': list(c)} for c in combinations(pool, 3)], style)
+    lun = next((q.name for q in g.players if q.character == 'Lunatic'), None)
+    return judged(Choice('Lunatic:bluffs', [{'characters': list(c)} for c in combinations(pool, 3)], style),
+                  'lunatic_bluffs', 'Which three good characters does the Lunatic learn as their Demon bluffs? Any, '
+                  'even characters in play.', about=lun, recipient=lun)
 
 
 class Lunatic(Outsider):
@@ -832,17 +847,17 @@ class Lunatic(Outsider):
     wakes_at_own_step = True  # as their Demon, before the real one, and only when that Demon would wake
     setup_order = 3
 
-    def setup(self, game):
+    async def setup(self, game):
         g = game.g
         lun = g.with_character(self.name)
         if not lun:
             return
         demon = g.demon()
-        lun.shown = game.decide(lunatic_demon_choice(g, demon))['character']
+        lun.shown = (await game.decide_judged(lunatic_demon_choice(g, demon)))['character']
         k = sum(1 for q in g.players if kind(q.character) == 'Minion')
-        minions = game.decide(lunatic_minions_choice(g, lun, demon, k))['players']
+        minions = (await game.decide_judged(lunatic_minions_choice(g, lun, demon, k)))['players']
         minions = sorted(minions, key=lambda x: g[x].seat)
-        bluffs = game.decide(lunatic_bluffs_choice(g))['characters']
+        bluffs = (await game.decide_judged(lunatic_bluffs_choice(g)))['characters']
         g.notes['Lunatic'] = {'minions': minions, 'bluffs': bluffs}
         g.reminders.append(f'{lun.name} (Lunatic) believes they are the {lun.shown}, and was shown Minions '
                            f'{", ".join(minions)} and bluffs {", ".join(bluffs)}.')
@@ -873,10 +888,8 @@ def tinker_choice(g, tinker, when):
             return {'yes': False}
         return {'yes': r.random() < POLICY['tinker_night' if when == 'night' else 'tinker_day']}
     choice = Choice(f'Tinker:{tinker.name}', [{'yes': True}, {'yes': False}], style)
-    choice.context = {'about': tinker.name, 'recipient': tinker.name, 'impaired': False,
-                      'question': f'Does the Tinker ({tinker.name}) die now ({when})? Most interesting at night; '
-                                  'never to end the game.'}
-    return choice
+    return judged(choice, 'tinker', f'Does the Tinker ({tinker.name}) die now ({when})? Most interesting at night; '
+                                    'never to end the game.', about=tinker.name, recipient=tinker.name, helps='evil')
 
 
 class Tinker(Outsider):
@@ -884,9 +897,13 @@ class Tinker(Outsider):
     ability = ability(name)
     setup_order = 5
 
-    def setup(self, game):
+    async def setup(self, game):
         # sometimes, the Storyteller never kills the Tinker (it makes them look suspicious): decided once per game
-        game.g.notes['Tinker never'] = game.decide(yes_choice('Tinker:never', POLICY['tinker_never']))['yes']
+        t = game.g.with_character(self.name, alive=False)
+        choice = judged(yes_choice('Tinker:never', POLICY['tinker_never']), 'tinker_never',
+                        'Before the game: will the Tinker never die by their own ability this game (yes: true)? '
+                        'Sometimes, to make the Tinker look suspicious.', about=t and t.name, recipient=t and t.name)
+        game.g.notes['Tinker never'] = (await game.decide_judged(choice))['yes']
 
     def can_die(self, g, me):
         # sober and healthy, not protected (the Tea Lady's, the Innkeeper's), and never when it would end the game
@@ -898,9 +915,9 @@ class Tinker(Outsider):
         if t and self.can_die(g, t) and (await game.decide_judged(tinker_choice(g, t, 'night')))['yes']:
             game.ability_kill(t, 'tinker', t)
 
-    def moment(self, game, me, when):
+    async def moment(self, game, me, when):
         g = game.g
-        if self.can_die(g, me) and game.decide(tinker_choice(g, me, when))['yes']:
+        if self.can_die(g, me) and (await game.decide_judged(tinker_choice(g, me, when)))['yes']:
             game.ability_kill(me, 'tinker', me)  # by day announced at once, not why
 
 

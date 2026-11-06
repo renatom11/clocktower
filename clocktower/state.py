@@ -184,7 +184,7 @@ POLICY = {
     'lunatic_same_demon': 0.8,      # the Lunatic believes they are the Demon in play (else another on the script)
     'lunatic_shows_demon': 0.5,     # the real Demon is among the Lunatic's "Minions" (else other players)
     'lunatic_bluff_in_play': 0.25,  # each of the Lunatic's three bluffs is a good character in play (else not)
-    # the Storyteller judge (judge.py; scripts other than TB, when one is chosen): how often the judge's first and
+    # the Storyteller judge (judge.py, when one is chosen; never in TB's protocol v17): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
     'judge_second': 0.10,
@@ -223,6 +223,19 @@ class Choice:
         if self.auto:
             return self.values[0]
         return norm(self.style(r))
+
+
+def judged(choice, call, question, about=None, recipient=None, impaired=False, truth=None, **more):
+    """`choice` with what the Storyteller judge needs (judge.py): `call`, the kind of decision (the rules judge's
+    heuristics go by it); `question`, in plain words; `about`, the player the result is about; `recipient`, who
+    learns or is affected by it; `impaired`, whether they are drunk or poisoned (so any value is legal); `truth`,
+    what a working ability could show. Nothing here touches the scripted style, so with no judge the value is the
+    same."""
+    choice.context = {'call': call, 'about': about, 'recipient': recipient, 'impaired': impaired,
+                      'question': question, **more}
+    if truth is not None:
+        choice.truth = truth
+    return choice
 
 
 _PAUSING = set()  # states whose pause is being worked out (Grimoire.active), so a state can't loop on itself
@@ -568,10 +581,13 @@ class Grimoire:
 
 # ---- Storyteller choices -----------------------------------------------------------
 
-def drunk_as_choice(options):
+def drunk_as_choice(options, drunk=None):
     """The Townsfolk the Drunk believes they are (one not in play)."""
     w = [POLICY['drunk_info_weight'] if c in INFO_ROLES else 1 for c in options]
-    return Choice('drunk_as', [{'character': c} for c in options], lambda r: {'character': r.choices(options, w)[0]})
+    choice = Choice('drunk_as', [{'character': c} for c in options], lambda r: {'character': r.choices(options, w)[0]})
+    return judged(choice, 'drunk_as', 'Which Townsfolk (not in play) does the Drunk believe they are? Usually an '
+                                      'information role, whose false results do the most to mislead.',
+                  about=drunk and drunk.name, recipient=drunk and drunk.name)
 
 
 def red_herring_choice(g):
@@ -583,7 +599,10 @@ def red_herring_choice(g):
     def style(r):
         pool = townsfolk if townsfolk and r.random() < POLICY['herring_townsfolk'] else good
         return {'players': [r.choice(pool)]}
-    return Choice('red_herring', [{'players': [x]} for x in good], style)
+    ft = next((p.name for p in g.players if p.shown == 'Fortune Teller'), None)
+    return judged(Choice('red_herring', [{'players': [x]} for x in good], style), 'red_herring',
+                  'Which good player is the red herring (registers as the Demon to the Fortune Teller all game)? '
+                  'Usually a Townsfolk other than the Fortune Teller.', recipient=ft)
 
 
 def pick_bluffs(r, options, drunk, drunk_shown=None):
@@ -611,8 +630,12 @@ def pick_bluffs(r, options, drunk, drunk_shown=None):
 
 def bluffs_choice(options, drunk, drunk_shown=None):
     """Three good characters not in play, shown to the Imp."""
-    return Choice('bluffs', [{'characters': list(c)} for c in combinations(options, 3)],
-                  lambda r: {'characters': pick_bluffs(r, options, drunk, drunk_shown)})
+    choice = Choice('bluffs', [{'characters': list(c)} for c in combinations(options, 3)],
+                    lambda r: {'characters': pick_bluffs(r, options, drunk, drunk_shown)})
+    return judged(choice, 'bluffs', 'Which three good characters, not in play, does the Demon learn as bluffs? Ones '
+                                    'evil can claim safely: an information role, an Outsider only when the town sees '
+                                    'one Outsider fewer than the setup has (the Drunk), and not the Drunk\'s apparent '
+                                    'character.')
 
 
 def _pair(r, first, others, avoid=()):
@@ -677,7 +700,15 @@ def pair_choice(g, p, ability):
         if ability == 'Investigator' and r.random() < POLICY['pair_partner_good']:
             avoid = {q.name for q in g.players if q.evil}  # the second player is a good one
         return {'players': _pair(r, n, others, avoid), 'character': c}
-    return Choice(f'{ability}:{p.name}', values, style)
+
+    def shows(v):  # what a working ability could show
+        if not v['players']:
+            return ability == 'Librarian' and not any(g.registers_as(q) <= set(s.outsiders) for q in g.players)
+        return any(v['character'] in g.registers_as(g[x]) for x in v['players'])
+    what = {'Washerwoman': 'Townsfolk', 'Librarian': 'Outsider', 'Investigator': 'Minion'}[ability]
+    return judged(Choice(f'{ability}:{p.name}', values, style), 'information',
+                  f'Which two players, and which {what} character, is {p.name} ({ability}) shown?', recipient=p.name,
+                  impaired=impaired, truth=shows)
 
 
 def _pairs(ring, evil):
@@ -695,7 +726,9 @@ def chef_choice(g, p):
         if g.impaired(p) and g.misinformed(p, r):
             return {'number': g.false_result(p, r, lambda r: _pairs(ring, g.false_evil(p, r)), possible)}
         return {'number': _pairs(ring, g.sample_evil(r))}
-    return Choice(f'Chef:{p.name}', [{'number': x} for x in values], style)
+    return judged(Choice(f'Chef:{p.name}', [{'number': x} for x in values], style), 'information',
+                  f'How many pairs of evil players sitting next to each other does {p.name} (Chef) learn?',
+                  recipient=p.name, impaired=g.impaired(p), truth=lambda v: v['number'] in possible)
 
 
 def empath_choice(g, p):
@@ -709,7 +742,10 @@ def empath_choice(g, p):
             return {'number': g.false_result(p, r, count, possible)}
         evil = g.sample_evil(r)
         return {'number': sum(1 for q in nb if q.name in evil)}
-    return Choice(f'Empath:{p.name}', [{'number': x} for x in values], style)
+    return judged(Choice(f'Empath:{p.name}', [{'number': x} for x in values], style), 'information',
+                  f'How many of their alive neighbours ({" and ".join(q.name for q in nb)}) does {p.name} (Empath) '
+                  'learn are evil?', recipient=p.name, impaired=g.impaired(p),
+                  truth=lambda v: v['number'] in possible)
 
 
 def fortune_teller_choice(g, p, targets):
@@ -729,7 +765,10 @@ def fortune_teller_choice(g, p, targets):
         if len(possible) == 1:
             return {'yes': next(iter(possible))}
         return {'yes': r.random() < POLICY['recluse_evil']}
-    return Choice(f'Fortune Teller:{p.name}', [{'yes': x} for x in values], style)
+    return judged(Choice(f'Fortune Teller:{p.name}', [{'yes': x} for x in values], style), 'information',
+                  f'{p.name} (Fortune Teller) chose {" and ".join(targets)}: do they learn that one is the Demon (yes: '
+                  'true)?', recipient=p.name, impaired=impaired, truth=lambda v: v['yes'] in possible,
+                  players=list(targets))
 
 
 def character_choice(g, p, ability, target):
@@ -772,18 +811,38 @@ def character_choice(g, p, ability, target):
     choice = Choice(f'{ability}:{p.name}', [{'character': c} for c in values], style)
     shows = set(g.registers_as(t))
     choice.truth = lambda v: v['character'] in shows
-    choice.context = {'about': target, 'recipient': p.name, 'impaired': impaired,
-                      'question': f'Which character does {p.name} ({ability}) learn {target} is?'}
-    return choice
+    return judged(choice, 'information', f'Which character does {p.name} ({ability}) learn {target} is?', about=target,
+                  recipient=p.name, impaired=impaired)
 
 
-def heir_choice(minions):
+def heir_choice(minions, demon=None):
     """Which living Minion becomes the Imp when the Imp kills themselves (no Scarlet Woman to take over)."""
-    return Choice('starpass', [{'players': [m]} for m in minions], lambda r: {'players': [r.choice(minions)]})
+    choice = Choice('starpass', [{'players': [m]} for m in minions], lambda r: {'players': [r.choice(minions)]})
+    return judged(choice, 'starpass', f'The Demon{f" ({demon.name})" if demon else ""} killed themselves: which '
+                                      f'living Minion ({", ".join(minions)}) becomes the new Demon?',
+                  about=demon and demon.name)
 
 
 def yes_choice(cid, chance):
     return Choice(cid, [{'yes': True}, {'yes': False}], lambda r: {'yes': r.random() < chance})
+
+
+def virgin_choice(g, virgin, nominator):
+    """Whether a nominator who may or may not register as a Townsfolk (the Spy) does so to the Virgin, and so is
+    executed at once (POLICY 'spy_virgin')."""
+    return judged(yes_choice(f'Virgin:{nominator.name}', POLICY['spy_virgin']), 'spy_virgin',
+                  f'{nominator.name} (the {nominator.character}) nominated {virgin.name}, the Virgin (first '
+                  f'nomination). Does {nominator.name} register as a Townsfolk (yes: true), and so is executed at '
+                  'once?', about=nominator.name, recipient=virgin.name, helps='good')
+
+
+def slayer_choice(g, slayer, target):
+    """Whether the Slayer's shot kills a target who may or may not register as the Demon (the Recluse; POLICY
+    'recluse_slain')."""
+    return judged(yes_choice(f'Slayer:{target.name}', POLICY['recluse_slain']), 'recluse_slain',
+                  f'{slayer.name}, the Slayer, shot {target.name} (the {target.character}). Does {target.name} '
+                  'register as the Demon (yes: true), and so die?', about=target.name, recipient=slayer.name,
+                  helps='evil')
 
 
 def mayor_choice(g, mayor, imp):
@@ -797,7 +856,9 @@ def mayor_choice(g, mayor, imp):
             return {'players': [mayor.name]}
         pool = good if good and r.random() >= POLICY['bounce_evil'] else others
         return {'players': [r.choice(pool)]}
-    return Choice(f'Mayor:{mayor.name}', [{'players': [x]} for x in victims], style)
+    return judged(Choice(f'Mayor:{mayor.name}', [{'players': [x]} for x in victims], style), 'mayor_bounce',
+                  f'The Demon ({imp.name}) attacked {mayor.name}, the Mayor, tonight. Who dies: the Mayor, or another '
+                  'player instead?', about=mayor.name, recipient=mayor.name)
 
 
 def info_text(ability, value, target=None):

@@ -108,11 +108,65 @@ The engine's Storyteller should do the same. Today those two calls are fixed coi
    watch and how a good Storyteller handles each (the Spy and the Virgin, the Recluse and the Slayer, the Pukka and
    the Exorcist, ...). The judge reads the notes for the characters in play with every decision.
 
+**Built** (2026-11-06; `clocktower/judge.py`, tests in `tests/test_judge.py`).
+1. **Hearing:** `--judge-hears all` (the default for any judge: the Grimoire, every night's choices, everything said
+   aloud, every whisper, every nomination and vote, the death log; never thinking or belief probes) or `public` (no
+   whispers, and only the latest night's choices). On `run`, `play` and `sim`, next to `--judge`; recorded in the
+   game's config as `judge:<mode>:hears-<setting>`. Hearing all, the rules judge reads whispered claims too (the
+   most recent claim to anyone counts) and the prompt shows every whisper and the claims made in them.
+2. **Every discretionary call is routed** through `Game.decide_judged`, each Choice carrying a context (`call`,
+   `about`, `recipient`, `impaired`, a plain `question`, and `helps` for yes/no calls that help one team) and `truth`
+   where an ability's result is checked: every information result in Trouble Brewing (the Washerwoman, Librarian,
+   Investigator, Chef, Empath, Fortune Teller, Undertaker and Ravenkeeper, so the Spy's and Recluse's registration
+   to each), the Spy and the Virgin, the Slayer and the Recluse, the Mayor's bounce, the starpass heir, the red
+   herring, the Drunk's character, the Demon's bluffs, and in Bad Moon Rising the Lunatic's Demon, Minions and
+   bluffs, the Grandchild, the Pacifist's and Tinker's "never" draws, and the Tinker's day deaths (the rest were
+   judged already). Hooks that make a judged call are coroutines (`setup`, `redirect_attack`, `nominated`,
+   `act_publicly`, `moment`), awaited by the game loop through async variants (`attempt_kill_judged`,
+   `demon_attack_judged`, `virgin_judged`, `slayer_judged`, `shots_judged`, `public_abilities_judged`,
+   `moment_judged`, an async `tell`); the old synchronous entry points remain for tests and run the same code
+   (`characters.now`). With no judge every decision, and every random draw, is exactly as before: the 1,100 TB
+   fingerprints replay, and 300 random BMR games hash identically before and after. Left as dice: completing a
+   player's incomplete choice, which of several simultaneous nominations is taken, and the Godfather's +1 or -1
+   Outsider (drawn while dealing, before there is anything to judge).
+3. **Balance:** the rubric adds honouring both abilities, keeping the game close, and deciding "as a skilled
+   Storyteller who has followed everything". Every prompt has a state-of-the-game summary (`judge.summary`: alive
+   and dead, ghost votes left, claims aloud and in whispers, executions, deaths, recent votes, and `judge.standing`:
+   which team is well ahead, by a documented heuristic). The rules judge's heuristics, each with a short reason,
+   are listed on `RulesJudge`: a Spy claiming a Townsfolk dies to the Virgin (one claiming an Outsider doesn't; with
+   no claim, by balance); yes/no calls that help one team (the Recluse slain, the Tinker's death, the Pacifist's
+   save, the Spy and the Virgin) help the team that is well behind, and have no opinion when it is close; the Mayor
+   dies when good is well ahead and bounces to a good player when evil is; the heir is the Minion with a good claim,
+   then the least suspected; the Gossip's victim and the Shabaloth's regurgitation follow the balance; setup calls
+   have no opinion.
+4. **Storyteller's notes:** `clocktower/data/storyteller/tb.md` and `bmr.md`, a section per character (what the
+   Storyteller decides, the interactions to watch, how a good Storyteller handles them), paraphrased from the
+   almanacs' How to Run sections and the wiki. The model and dry-run prompts include the sections for the
+   characters in play (and those players believe they are). A long list of legal answers (the Demon's bluffs, a
+   poisoned Washerwoman's pairs) is shortened to 40 for a model: the rules judge's top answers, then the scripted
+   style's draws.
+
+**Questions on the built judge, for the owner.**
+1. *Who is ahead* (`judge.standing`, which drives every balance call): evil is ahead with three or fewer alive and
+   the Demon among them, or with no evil player dead and either four or fewer alive or at least half the good team
+   (two or more) dead; good is ahead with an evil player dead and five or more alive, or when the Demon's latest
+   nomination put them on the block; otherwise close. Are those the right thresholds?
+2. *The Slayer and the Recluse in a close game:* the rules judge has no opinion, so the scripted 20% decides; the
+   wiki's player tips say the Slayer "will usually kill" a Recluse. Should the close-game default lean that way?
+3. *The Tinker's day checks* (about twelve a day) are most of the judged calls: with a model judge, should only the
+   Tinker's night step go to the model?
+4. *The Demon's bluffs:* a model judge sees a shortlist of 40 of the possible sets. Enough, or keep bluffs scripted?
+5. *Night choices when hearing only public speech:* only the latest night's are shown; should it be every night's,
+   as a human Storyteller sees them?
+
 **Still to decide.** Balancing and validity: a Storyteller that helps the weaker team compresses the difference
 between strong and weak models. Options for rated games: (a) the same balancing judge in every game of a protocol
 (comparable within it, with smaller gaps), or (b) a judge that honours abilities and bluffs but doesn't balance by
 state. Also cost: hearing whispers makes each judge prompt much longer (a summary instead of the full text, and a
-cheap model, keep it to cents a game).
+cheap model, keep it to cents a game). Measured with random bots: about 15 judged calls a BMR game
+(most of them the Tinker's day checks, the Sailor's and Innkeeper's drunk, and the Pacifist), prompts of about
+10,000 characters; a model judge's cost is that many calls a game. Also: the standing heuristic's thresholds, and
+whether the Tinker's day checks (about 12 a day) should go to a model at all.
 
 **When.** After Bad Moon Rising's characters (Phase 4), before its random-bot checks (Phase 5), so the checks run
 with every call judgeable. For Trouble Brewing it is part of the v18 proposal in section 2.

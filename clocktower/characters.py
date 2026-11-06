@@ -16,6 +16,7 @@ apply the results.
 """
 from __future__ import annotations
 from dataclasses import dataclass
+import inspect
 from pathlib import Path
 
 from . import official
@@ -37,6 +38,24 @@ class Choose:
     dead_only: bool = False   # only players who are dead (as the town sees it: the Professor)
     not_last: bool = False    # not the player chosen last night (the Exorcist)
     character: bool = False   # a character too (the Gambler) or instead (the Courtier)
+
+
+async def settle(result):
+    """A hook's result: hooks that consult the Storyteller judge are coroutines (they await Game.decide_judged), the
+    others return at once."""
+    return (await result) if inspect.isawaitable(result) else result
+
+
+def now(coro):
+    """Run a coroutine that never waits to its end, synchronously: a judged hook with no judge (or the rules judge),
+    for the synchronous entry points kept for tests and callers outside the game loop. A judge that must wait (a
+    model's) needs the async path, which the game loop always takes."""
+    try:
+        coro.send(None)
+    except StopIteration as done:
+        return done.value
+    coro.close()
+    raise RuntimeError('a judged decision had to wait: use the async variant (the game loop does)')
 
 
 def choice_spec(c, nc=None):
@@ -111,6 +130,8 @@ class Character:
         return None
 
     # ---- hooks --------------------------------------------------------------------------------
+    # setup, redirect_attack, nominated, act_publicly and moment may be coroutines (async def) when they make a
+    # Storyteller's call through Game.decide_judged; the game loop awaits them (characters.settle).
     def night_spec(self, game, me, night):
         """What `me`, who believes they are this character, is woken to choose tonight: `night_choice`, a choice of
         another shape (the Po's three after choosing no one) or None not to wake them (the Zombuul when someone died
@@ -205,7 +226,7 @@ class InfoRole(Townsfolk):
             if p.alive and p.shown == self.name:
                 told = self.information(game, p, night)
                 if told:
-                    game.tell(p, self.name, *told)
+                    await game.tell(p, self.name, *told)
 
 
 # ---- Trouble Brewing ------------------------------------------------------------------------------------------
@@ -260,10 +281,10 @@ class FortuneTeller(InfoRole):
     night_choice = (2, 'Choose two players: you learn whether either of them is the Demon.', True)
     setup_order = 1
 
-    def setup(self, game):
+    async def setup(self, game):
         g = game.g
         if any(p.shown == self.name for p in g.players):  # the Drunk-as-Fortune-Teller too
-            g.red_herring = game.decide(state.red_herring_choice(g))['players'][0]
+            g.red_herring = (await game.decide_judged(state.red_herring_choice(g)))['players'][0]
 
     def information(self, game, me, night):
         chosen = night.chosen.get(me.name)
@@ -301,14 +322,14 @@ class Ravenkeeper(InfoRole):
                         'character (`targets`).')
                 req = game.request('ravenkeeper', text, night.n, n_targets=1, options=game.names)
                 t = game.targets(d.name, await game.ask(d.name, req), req)[0]
-                game.tell(d, self.name, state.character_choice(game.g, d, self.name, t), t)
+                await game.tell(d, self.name, state.character_choice(game.g, d, self.name, t), t)
 
 
 class Virgin(Townsfolk):
     name = 'Virgin'
     ability = 'The 1st time you are nominated, if the nominator is a Townsfolk, they are executed immediately.'
 
-    def nominated(self, game, me, nominator):
+    async def nominated(self, game, me, nominator):
         g = game.g
         if g.spent_ability(self.name):
             return False
@@ -318,7 +339,7 @@ class Virgin(Townsfolk):
         registers = {kind(c) == 'Townsfolk' for c in g.registers_as(g[nominator])}
         townsfolk = next(iter(registers))
         if len(registers) > 1:  # a misregistering nominator (the Spy) may or may not count as a Townsfolk
-            townsfolk = game.decide(state.yes_choice(f'Virgin:{nominator}', state.POLICY['spy_virgin']))['yes']
+            townsfolk = (await game.decide_judged(state.virgin_choice(g, me, g[nominator])))['yes']
         if not townsfolk:
             return False
         game.emit('virgin', {'nominator': nominator, 'nominee': me.name})
@@ -331,7 +352,7 @@ class Slayer(Townsfolk):
     ability = 'Once per game, during the day, publicly choose a player: if they are the Demon, they die.'
     public_action = 'slayer_shot'
 
-    def act_publicly(self, game, actor, target, text=None):
+    async def act_publicly(self, game, actor, target, text=None):
         g = game.g
         s, t = g[actor], g[target]
         if not (s.alive and s.character == self.name and not g.spent_ability(self.name)):
@@ -341,7 +362,7 @@ class Slayer(Townsfolk):
             return False
         registers = {kind(c) == 'Demon' for c in g.registers_as(t)}
         if len(registers) > 1:  # a misregistering target (the Recluse) may or may not die
-            return game.decide(state.yes_choice(f'Slayer:{t.name}', state.POLICY['recluse_slain']))['yes']
+            return (await game.decide_judged(state.slayer_choice(g, s, t)))['yes']
         return next(iter(registers))
 
 
@@ -358,9 +379,9 @@ class Mayor(Townsfolk):
     ability = ('If only 3 players live & no execution occurs, your team wins. '
                'If you die at night, another player might die instead.')
 
-    def redirect_attack(self, game, me, demon):
+    async def redirect_attack(self, game, me, demon):
         if game.g.works(me, self.name):
-            return game.g[game.decide(state.mayor_choice(game.g, me, demon))['players'][0]]
+            return game.g[(await game.decide_judged(state.mayor_choice(game.g, me, demon)))['players'][0]]
         return None
 
     def end_of_day(self, game, me):
@@ -387,13 +408,13 @@ class Drunk(Outsider):
     always_drunk = True
     setup_order = 0  # before the red herring, which a Drunk-as-Fortune-Teller needs
 
-    def setup(self, game):
+    async def setup(self, game):
         g = game.g
         drunk = g.with_character(self.name)
         if drunk:
             in_play = {p.character for p in g.players}
             options = [c for c in g.script.townsfolk if c not in in_play]
-            drunk.shown = game.decide(state.drunk_as_choice(options))['character']
+            drunk.shown = (await game.decide_judged(state.drunk_as_choice(options, drunk)))['character']
 
 
 class Recluse(Outsider):
@@ -496,7 +517,7 @@ class Imp(Demon):
             return
         target = g[t]
         if target is not imp:
-            game.demon_attack(target, imp, night)
+            await game.demon_attack_judged(target, imp, night)
             return
         if imp.name == g.protected:  # a Monk-protected Imp cannot die, so no starpass
             return
@@ -508,7 +529,7 @@ class Imp(Demon):
         heir = next((q for q in living if getattr(rules(q.character), 'takes_over', None)
                      and rules(q.character).takes_over(g, q, before)), None)
         if heir is None and living:
-            heir = g[game.decide(state.heir_choice([q.name for q in living]))['players'][0]]
+            heir = g[(await game.decide_judged(state.heir_choice([q.name for q in living], imp)))['players'][0]]
         if heir:
             g.change_character(heir, self.name)  # a Poisoner's poison ends when they stop being the Poisoner
             game.emit('becomes', {'player': heir.name, 'character': self.name}, 'audit')
