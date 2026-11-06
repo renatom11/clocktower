@@ -612,6 +612,8 @@ class Game:
         if s['st_rng'] is not None:
             self.st.rng.setstate(s['st_rng'])
         if self.seat_factory:
+            # by current alignment: right while nobody changes team (Trouble Brewing). With the Goon or Snake Charmer
+            # a converted seat would get the other team's model: see docs/open-decisions.md, section 1
             self.seats = {p.name: self.seat_factory(p.name, 'evil' if p.evil else 'good') for p in self.g.players}
         for name, conv in s['convs'].items():
             for k, v in conv.items():

@@ -192,6 +192,7 @@ alternative. See [`docs/hosting.md`](docs/hosting.md).
 | `docs/findings/` | Analysis reports, with an index |
 | `docs/plans/`, `docs/charts/` | Rating data and pages; charts |
 | `docs/experiments.md` | Open questions to explore next |
+| `docs/open-decisions.md` | Design decisions still open for scripts beyond Trouble Brewing (first: rating seats that change team) |
 | `media/` | Pipelines for videos made from game logs |
 
 ## Contributing
