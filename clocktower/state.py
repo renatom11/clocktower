@@ -26,6 +26,7 @@ class Player:
     alive: bool = True
     ghost_vote: bool = True
     alignment: str = ''     # 'good' or 'evil': dealt with the character, and kept when the character changes
+    seems_dead: bool = False  # alive, but registers and is shown as dead (the Zombuul after its first death)
 
     def __post_init__(self):
         self.alignment = self.alignment or ('evil' if is_evil_character(self.character) else 'good')
@@ -39,6 +40,11 @@ class Player:
     def is_demon(self):
         return kind(self.character) == 'Demon'
 
+    @property
+    def appears_alive(self):
+        """Alive as the town sees it: what nominations, votes, ghost votes and the 'dead' labels go by."""
+        return self.alive and not self.seems_dead
+
 
 @dataclass
 class State:
@@ -48,8 +54,10 @@ class State:
     kind: str
     target: str
     source: str | None = None
-    until: str = 'night'
+    until: str | int = 'night'  # 'night': the next dusk; a number n: the dusk before night n; None: no end
     ends_with_source: bool = False
+    against: str = 'demon'      # for 'safe': the deaths it stops ('demon', 'execution' or 'any')
+    while_source_works: bool = False  # in force only while its source is alive, sober and healthy (the Courtier)
 
 
 def team_sizes(n, outsiders=0):
@@ -163,6 +171,7 @@ class Grimoire:
         self.reminders = []         # what the pair abilities were shown, as on the real Grimoire
         self.states = []            # State: what abilities have put on players (poison, protection, a master)
         self.spent = set()          # once-per-game abilities used (by character)
+        self.death_log = []         # every death, real or apparent: {player, cause, source, day, phase}
         self.day = 0
         self.executed_death = None  # who died by execution today (Undertaker)
         self.alive_at_execution = 0  # players alive just before that execution
@@ -176,6 +185,7 @@ class Grimoire:
         old = {k: d.pop(k, None) for k in ('poisoned', 'protected', 'master', 'slayer_used', 'virgin_used')}
         self.__dict__.update(d)
         self.__dict__.setdefault('script', TB)
+        self.__dict__.setdefault('death_log', [])
         if 'states' not in d:
             self.states, self.spent = [], set()
             for kind_, name in (('poisoned', old['poisoned']), ('safe', old['protected']), ('master', old['master'])):
@@ -192,16 +202,25 @@ class Grimoire:
     def add(self, state):
         self.states.append(state)
 
-    def expire(self, moment):
-        """Remove the states that end at `moment` ('night': each dusk)."""
-        self.states = [s for s in self.states if s.until != moment]
+    def expire(self, moment, night=None):
+        """Remove the states that end at `moment` ('night': each dusk; `night` is the number of the night that
+        starts, which ends states lasting until then)."""
+        self.states = [s for s in self.states if s.until != moment and not (night and s.until == night)]
+
+    def active(self, s):
+        """Whether a state is in force now: one that lasts only while its source works is paused (not removed)
+        while the source is dead, drunk or poisoned (the Courtier's drunkenness, when the Courtier is drunk)."""
+        if not s.while_source_works or not s.source:
+            return True
+        src = self[s.source]
+        return src.alive and not self.impaired(src)
 
     def holders(self, kind_):
         """Names of the players with a state of this kind, in the order the states were made."""
-        return [s.target for s in self.states if s.kind == kind_]
+        return [s.target for s in self.states if s.kind == kind_ and self.active(s)]
 
     def has(self, p, kind_):
-        return any(s.kind == kind_ and s.target == p.name for s in self.states)
+        return any(s.kind == kind_ and s.target == p.name and self.active(s) for s in self.states)
 
     def _single(self, kind_, value, source=None, ends_with_source=False):
         self.states = [s for s in self.states if s.kind != kind_]
@@ -255,7 +274,29 @@ class Grimoire:
 
     def safe_from_demon(self, p):
         """The Demon's attack can't kill p: their own ability (the Soldier) or protection (the Monk's)."""
-        return rules(p.character).safe_from_demon(self, p) or self.has(p, 'safe')
+        return self.safe(p, 'demon')
+
+    def safe(self, p, cause):
+        """Whether p can't die from `cause` ('demon', 'execution', or another source such as 'assassin'): their
+        own ability (the Soldier, against the Demon), a protection on them (the Monk's against the Demon; others
+        against any death), or another player's ability that protects them (a Tea Lady's neighbours)."""
+        if rules(p.character).safe_from(self, p, cause):
+            return True
+        if any(s.kind == 'safe' and s.target == p.name and s.against in (cause, 'any') and self.active(s)
+               for s in self.states):
+            return True
+        return any(q is not p and rules(q.character).protects(self, q, p, cause) for q in self.players)
+
+    def revive(self, p):
+        """p comes back to life (the Professor, the Shabaloth): alive, with their vote token and their ability,
+        even a spent once-per-game one."""
+        p.alive, p.seems_dead, p.ghost_vote = True, False, True
+        self.spent.discard(p.character)
+
+    def died_today(self, day=None):
+        """Players who died (or seemed to) during day `day` (default: the current one), in order."""
+        day = self.day if day is None else day
+        return [d['player'] for d in self.death_log if d['day'] == day and d['phase'] != 'night']
 
     def change_character(self, p, character):
         """p becomes `character` (and believes it), keeping their alignment. States that last only while their

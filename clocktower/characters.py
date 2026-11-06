@@ -63,6 +63,22 @@ class Character:
         """Whether the Demon's attack cannot kill `me` because of their own ability."""
         return False
 
+    def safe_from(self, g, me, cause):
+        """Whether `me` can't die from `cause` ('demon', 'execution', ...) because of their own ability."""
+        return cause == 'demon' and self.safe_from_demon(g, me)
+
+    def protects(self, g, me, other, cause):
+        """Whether `me`'s ability stops `other` dying from `cause` (a Tea Lady's good neighbours)."""
+        return False
+
+    def survives(self, game, me, cause):
+        """`me` would die from `cause`: True if their ability saves them (the Fool, once). May spend it."""
+        return False
+
+    def dies(self, game, me, cause):
+        """`me` dies: 'seems' if they live on but register as dead (the Zombuul, the first time), else None."""
+        return None
+
     # ---- hooks --------------------------------------------------------------------------------
     def setup(self, game):
         """A setup step, run once the characters are dealt (in `setup_order`)."""
@@ -473,6 +489,22 @@ class Script:
         steps = [rules(n) for n in self.all if rules(n).setup_order is not None]
         self.setup_steps = sorted(steps, key=lambda c: c.setup_order)
         self.public_actions = {rules(n).public_action: rules(n) for n in self.all if rules(n).public_action}
+
+    @classmethod
+    def of(cls, name, characters, first_night=(), other_nights=()):
+        """A script built in code from implemented characters, with its night order given (tests; characters
+        not in the official data)."""
+        s = cls.__new__(cls)
+        s.id, s.name = name, name
+        by = {k: [n for n in characters if kind(n) == k] for k in ('Townsfolk', 'Outsider', 'Minion', 'Demon')}
+        s.townsfolk, s.outsiders, s.minions, s.demons = (by[k] for k in by)
+        s.all = s.townsfolk + s.outsiders + s.minions + s.demons
+        s.good = s.townsfolk + s.outsiders
+        s.first_night, s.other_nights = list(first_night), list(other_nights)
+        s.setup_steps = sorted((rules(n) for n in s.all if rules(n).setup_order is not None),
+                               key=lambda c: c.setup_order)
+        s.public_actions = {rules(n).public_action: rules(n) for n in s.all if rules(n).public_action}
+        return s
 
     def __repr__(self):
         return f'Script({self.id!r})'

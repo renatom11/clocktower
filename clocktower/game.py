@@ -45,6 +45,7 @@ class Night:
         self.n, self.first = n, n == 1
         self.chosen = {}  # player name -> the players they chose tonight
         self.deaths = []
+        self.revived = []  # players alive again (the Professor, the Shabaloth), announced at dawn
 
     def choice_of(self, g, character):
         """(The living player who really is `character`, their first choice tonight or None)."""
@@ -127,7 +128,7 @@ class Game:
                 f.write(line + '\n')
 
     def emit(self, kind, data, to='public'):
-        dead = {p.name for p in self.g.players if not p.alive} if self.g else set()
+        dead = {p.name for p in self.g.players if not p.appears_alive} if self.g else set()
         ev = {'seq': len(self.events), 'time': round(time.time(), 2), 'day': self.day, 'phase': self.phase,
               'kind': kind, 'data': data, 'to': to, 'dead': sorted(dead)}
         self.events.append(ev)
@@ -260,24 +261,51 @@ class Game:
                                          f'{", ".join(chosen)}.)'}, [name])
         return chosen
 
-    def kill(self, p, cause):
-        """The one way anyone dies (Demon, execution, Slayer, starpass). Characters react through on_death (the
-        Scarlet Woman takes over a dead Demon); abilities that last only while their source lives end."""
+    def kill(self, p, cause, source=None):
+        """The one way anyone dies (Demon, execution, Slayer, starpass, any other ability). Returns whether the
+        player died as the town sees it. A character may live on while registering as dead (the Zombuul); every
+        death goes in the Grimoire's death log, and characters react through on_death (the Scarlet Woman takes over
+        a dead Demon). Abilities that last only while their source lives end."""
         g = self.g
         before = g.alive_count()
-        g.die(p)
-        self.emit('death', {'player': p.name, 'cause': cause}, 'audit')
+        seems = rules(p.character).dies(self, p, cause) == 'seems'
+        if seems:
+            p.seems_dead = True
+        else:
+            g.die(p)
+        g.death_log.append({'player': p.name, 'cause': cause, 'source': source.name if source else None,
+                            'day': self.day, 'phase': self.phase, **({'seems': True} if seems else {})})
+        self.emit('death', {'player': p.name, 'cause': cause, **({'seems': True} if seems else {})}, 'audit')
         for q in g.players:
             rules(q.character).on_death(self, q, p, cause, before)
+        return True
+
+    def prevent_death(self, p, cause, unstoppable=False):
+        """Whether p, about to die from `cause`, doesn't: a protection (unless `unstoppable`, the Assassin's kill),
+        or their own ability (the Fool, once)."""
+        if not unstoppable and self.g.safe(p, cause):
+            return True
+        return rules(p.character).survives(self, p, cause)
+
+    def attempt_kill(self, target, cause, source=None, night=None, unstoppable=False):
+        """An ability tries to kill `target`: nothing if they are dead or saved; the Demon's attack may land on
+        someone else (the Mayor). A night death is announced at dawn. Returns the player who died, or None."""
+        if not target.alive or (target.seems_dead and cause != 'execution'):
+            return None
+        if self.prevent_death(target, cause, unstoppable):
+            return None
+        victim = target
+        if cause == 'demon':
+            victim = rules(target.character).redirect_attack(self, target, source) or target
+        self.kill(victim, cause, source)
+        if night is not None:
+            night.deaths.append(victim)
+        return victim
 
     def demon_attack(self, target, demon, night):
         """The Demon attacks `target`: nothing happens if they are dead or safe (the Soldier, the Monk's
         protection); their ability may send the death elsewhere (the Mayor); otherwise they die."""
-        if not target.alive or self.g.safe_from_demon(target):
-            return
-        victim = rules(target.character).redirect_attack(self, target, demon) or target
-        self.kill(victim, 'demon')
-        night.deaths.append(victim)
+        self.attempt_kill(target, 'demon', demon, night)
 
     def request(self, *args, **kw):
         return Request(*args, **kw)
@@ -313,7 +341,8 @@ class Game:
         a time (Night.steps), so they can be asked at once while the dead are never woken."""
         g = self.g
         self.day, self.phase = n, 'night'
-        g.expire('night')  # last night's poison, protection and master end at dusk
+        g.day = n
+        g.expire('night', n)  # last night's poison, protection and master end at dusk
         self.emit('header', {'text': f'Night {n}'})
         night = Night(n)
         for batch in Night.steps(night.first, g.script):
@@ -323,8 +352,12 @@ class Game:
 
         self.phase = 'day'
         self.emit('header', {'text': f'Day {n}'})
-        self.emit('dawn', {'day': n, 'deaths': [d.name for d in night.deaths],
-                           'narration': dawn_narration(self.rng, [d.name for d in night.deaths])})
+        # deaths are announced in seat order, so the order never says which ability killed whom
+        deaths = sorted({p.seat: p for p in night.deaths}.values(), key=lambda p: p.seat)
+        revived = sorted({p.seat: p for p in night.revived}.values(), key=lambda p: p.seat)
+        self.emit('dawn', {'day': n, 'deaths': [d.name for d in deaths],
+                           'narration': dawn_narration(self.rng, [d.name for d in deaths]),
+                           **({'revived': [p.name for p in revived]} if revived else {})})
         if night.first:
             self.probe('dawn')
 
@@ -414,16 +447,22 @@ class Game:
         g = self.g
         action = g.script.public_actions.get('slayer_shot')  # a script without a Slayer: nobody's shot does anything
         died = action.act_publicly(self, shooter, target) if action else False
+        died = died and not self.prevent_death(g[target], 'slayer')
         self.emit('slayer', {'shooter': shooter, 'target': target, 'died': died})
         if died:
             self.kill(g[target], 'slayer')
             g.check_victory()
 
     def execute(self, name):
+        """Execution is not death: an executed player may survive (the Tea Lady's neighbour, the Fool, a
+        Pacifist's save; the town is not told why), and executing a dead player kills nobody. Either way it is
+        today's execution."""
         g, p = self.g, self.g[name]
-        died = p.alive
+        died = p.alive  # a player who only seems dead (the Zombuul) dies for real when executed again
+        survived = died and self.prevent_death(p, 'execution')
+        died = died and not survived
         self.executed_today = True
-        self.emit('execution', {'player': name, 'died': died})
+        self.emit('execution', {'player': name, 'died': died, **({'survived': True} if survived else {})})
         if died:
             g.alive_at_execution = g.alive_count()
             ends = rules(p.character).executed(self, p)  # the Saint's team loses

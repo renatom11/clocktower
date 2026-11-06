@@ -39,6 +39,8 @@ def render(ev, viewer, dead=()):
         deaths = d['deaths']
         s = d.get('narration') or ''
         tail = (f"Died in the night: {', '.join(deaths)}." if deaths else 'Nobody died in the night.')
+        if d.get('revived'):
+            tail += f" Alive again: {', '.join(d['revived'])}."
         return (s + ' ' if s else '') + tail
     if k == 'say':
         return f"{nm(d['speaker'])}: {d['text']}"
@@ -71,6 +73,8 @@ def render(ev, viewer, dead=()):
                     'tie': ' That ties the leader, so nobody is about to be executed.',
                     'short': ''}[d['outcome']]
     if k == 'execution':
+        if d.get('survived'):
+            return f"{d['player']} is executed, but does not die."
         return f"{d['player']} is executed." + ('' if d['died'] else ' (They were already dead.)')
     if k == 'no_execution':
         return 'Nobody is executed today.'
