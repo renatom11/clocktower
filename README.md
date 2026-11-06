@@ -169,9 +169,11 @@ alternative. See [`docs/hosting.md`](docs/hosting.md).
 
 | Path | What it holds |
 |---|---|
-| `clocktower/characters.py` | Trouble Brewing characters, setups by table size, night order |
-| `clocktower/state.py` | Grimoire, registration, deaths and victory; the Storyteller's choices and `POLICY` |
-| `clocktower/game.py` | Setup, nights, beats, nominations, votes; one typography for all speech |
+| `clocktower/characters.py` | One entry per character: type, ability, night choice and the hooks through which it acts (Trouble Brewing's 22) |
+| `clocktower/official.py`, `data/official/` | TPI's character data, pinned: official ids and types, the universal night order, jinxes |
+| `clocktower/state.py` | Grimoire: alignment, states (poison, protection) with sources and ends, registration; the Storyteller's choices and `POLICY` |
+| `clocktower/game.py` | Setup, the night in official order, beats, nominations, votes, the one death path; one typography for all speech |
+| `clocktower/fingerprint.py` | Replay fingerprints: proof that a change leaves play unchanged |
 | `clocktower/prompts.py`, `schema.py` | The player system prompt and the fixed output schema ([full prompt](docs/player-prompt.md)) |
 | `clocktower/llm.py` | Claude and OpenAI conversations, per-model settings (`MODELS`), prices, context trimming, ledger |
 | `clocktower/agents.py`, `probe.py` | Seats (model, random bot); belief probes (out-of-game forks of a seat's conversation) |

@@ -39,7 +39,8 @@ python -m clocktower ratings --no-page --out /tmp/f2.json && cmp /tmp/f2.json do
 - Small functions, short docstrings that say *why*; comments for anything a reader would otherwise have to
   rediscover. Match the surrounding code (single quotes, 120-column lines). `pyflakes clocktower tests` should be clean.
 - Every rule should be explainable in one line, with no special cases. Storyteller choices are weights in
-  `state.POLICY`, not branches scattered through the engine.
+  `state.POLICY`, not branches scattered through the engine. What a character does lives in its entry in
+  `characters.py`: the game loop and the Grimoire ask characters through hooks and never test a name.
 - Docs and reports: lead with the answer, plain words, numbers with intervals, and say how many games are behind a
   claim. Quotes from games must be verbatim from `events.jsonl`.
 - Commits: one logical change each, with a message that says what changed and why.
@@ -67,7 +68,9 @@ So a rule change is a proposal, not a patch:
    and how Minions are chosen; a change to play itself starts a new fit.
 
 Harness changes that don't affect play (logging, telemetry, cost accounting, resuming) need no version bump; say so
-in the pull request and show that a seed replays identically.
+in the pull request and show that seeds replay identically: `python -m clocktower fingerprint --check` replays
+1,100 recorded random-bot games (every table size) and compares everything each produced. A change that is meant
+to alter play re-records them with `--write` as part of its version bump.
 
 ## Running experiments that cost money
 
