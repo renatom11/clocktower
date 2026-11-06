@@ -995,6 +995,32 @@ class CheckpointTests(unittest.TestCase):
             again.private_beats = again.public_beats = 1
             self.assertIsNotNone(run(again.run())['winner'])
 
+    def test_a_seat_that_changed_team_keeps_its_dealt_teams_model_on_resume(self):
+        import tempfile
+        from pathlib import Path
+        chars = ['Imp', 'Poisoner', 'Monk', 'Empath', 'Chef', 'Washerwoman', 'Soldier', 'Butler', 'Saint']
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / 'g'
+            first = game(chars, out=out, probes=False)
+            first.private_beats = first.public_beats = 1
+            night = first.night
+
+            async def convert_then_halt(n):
+                if n == 2:
+                    (out / 'STOP').touch()
+                await night(n)
+                if n == 1:
+                    first.g[C].alignment = 'evil'  # as a Goon would: Casey (the Monk) changes team on night 1
+            first.night = convert_then_halt
+            run(first.run())
+            again = game(chars, out=out, probes=False)
+            teams = {}
+            again.seat_factory = lambda name, team: teams.setdefault(name, team) and again.seats[name]
+            self.assertIsNotNone(again.restore())
+            self.assertTrue(again.g[C].evil)
+            self.assertEqual(teams[C], 'good')  # the good team's model still plays Casey
+            self.assertEqual(teams[A], 'evil')
+
     def test_a_killed_game_resumes_from_its_last_dusk_and_plays_out_the_same(self):
         import tempfile, json as _json
         from pathlib import Path

@@ -19,7 +19,8 @@ import time
 from pathlib import Path
 
 from .agents import Request, ScriptedStoryteller
-from .characters import ALL, FIRST_NIGHT, GOOD, MINIONS, OTHER_NIGHTS, PUBLIC_ACTIONS, SETUP_STEPS, card, rules
+from .characters import (ALL, FIRST_NIGHT, GOOD, MINIONS, OTHER_NIGHTS, PUBLIC_ACTIONS, SETUP_STEPS, card,
+                         is_evil_character, rules)
 from .llm import BudgetExceeded, SeatFailed
 
 
@@ -115,7 +116,8 @@ class Game:
         self.events, self.calls, self.errors = [], [], []
         self.buf = {n: [] for n in self.names}
         self.executed_today = False
-        self.starting = None
+        self.starting = None        # {seat: dealt character}
+        self.start_teams = None     # {seat: 'good' or 'evil'} as dealt: which team's model plays the seat, all game
         self.probes, self.probe_tasks, self.probe_log = probes, [], []
 
     # ---- logging -----------------------------------------------------------------------
@@ -225,6 +227,7 @@ class Game:
         g.bluffs = self.decide(bluffs_choice([c for c in GOOD if c not in in_play], drunk is not None,
                                              drunk.shown if drunk else None))['characters']
         self.starting = {p.name: p.character for p in g.players}
+        self.start_teams = {p.name: p.alignment for p in g.players}
         if self.seat_factory:
             self.seats = {p.name: self.seat_factory(p.name, 'evil' if p.evil else 'good') for p in g.players}
         self.emit('setup', {'seats': [{'name': p.name, 'character': p.character, 'shown': p.shown} for p in g.players],
@@ -593,7 +596,8 @@ class Game:
         state = {'night': n, 'elapsed': elapsed, 'day': self.day, 'phase': self.phase, 'g': self.g,
                  'rng': self.rng.getstate(), 'st_rng': getattr(getattr(self.st, 'rng', None), 'getstate', lambda: None)(),
                  'events': self.events, 'calls': self.calls, 'errors': self.errors, 'buf': self.buf,
-                 'executed_today': self.executed_today, 'starting': self.starting, 'meta': self.meta,
+                 'executed_today': self.executed_today, 'starting': self.starting, 'start_teams': self.start_teams,
+                 'meta': self.meta,
                  'probe_lines': len(probes.read_text().splitlines()) if probes.exists() else 0, 'convs': convs}
         tmp = self.out / (self.CHECKPOINT + '.tmp')
         tmp.write_bytes(pickle.dumps(state))
@@ -608,13 +612,15 @@ class Game:
         s = pickle.loads(path.read_bytes())
         for k in ('day', 'phase', 'g', 'events', 'calls', 'errors', 'buf', 'executed_today', 'starting', 'meta'):
             setattr(self, k, s[k])
+        self.start_teams = s.get('start_teams') or {  # checkpoints from before teams were recorded
+            n: 'evil' if is_evil_character(c) else 'good' for n, c in self.starting.items()}
         self.rng.setstate(s['rng'])
         if s['st_rng'] is not None:
             self.st.rng.setstate(s['st_rng'])
         if self.seat_factory:
-            # by current alignment: right while nobody changes team (Trouble Brewing). With the Goon or Snake Charmer
-            # a converted seat would get the other team's model: see docs/open-decisions.md, section 1
-            self.seats = {p.name: self.seat_factory(p.name, 'evil' if p.evil else 'good') for p in self.g.players}
+            # by the team each seat was dealt, not its current one: a seat that changed team (a Goon, a Snake
+            # Charmer's swap) keeps its model (docs/open-decisions.md, section 1)
+            self.seats = {p.name: self.seat_factory(p.name, self.start_teams[p.name]) for p in self.g.players}
         for name, conv in s['convs'].items():
             for k, v in conv.items():
                 setattr(self.seats[name].conversation, k, v)

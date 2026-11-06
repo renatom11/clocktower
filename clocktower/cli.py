@@ -76,8 +76,10 @@ def _model(text, effort):
     return model, e or effort
 
 
-def seat_models(g, args, seed):
-    """Which model (and effort) plays each seat, once the characters are dealt.
+def seat_models(g, args, seed, teams=None, dealt=None):
+    """Which model (and effort) plays each seat, once the characters are dealt. `teams` and `dealt` are each
+    seat's team and character as dealt (Game.start_teams, Game.starting); they default to the current ones, and
+    must be the dealt ones when a game resumes, so a seat that changed team keeps its model.
 
     A team's model may be a comma list (`--good-model A,B,C`): the team's seats, in an order shuffled
     by the seed, take the models in turn, so a mixed team splits as evenly as it can. Then each
@@ -85,12 +87,14 @@ def seat_models(g, args, seed):
     seats (picked by the seed; N defaults to 1) to MODEL, and `CHARACTER:MODEL` (e.g. `Imp:gpt-6-astra`)
     gives the seat dealt that character. Any model may carry an effort, `MODEL@low`."""
     rng = random.Random(f'{seed}-seats')
+    teams = teams or {p.name: 'evil' if p.evil else 'good' for p in g.players}
+    dealt = dealt or {p.name: p.character for p in g.players}
     out = {}
     for team in ('good', 'evil'):
         spec_ = {'good': args.good_model, 'evil': args.evil_model}[team] or args.model
         effort = {'good': args.good_effort, 'evil': args.evil_effort}[team] or args.effort
         models = [_model(m.strip(), effort) for m in spec_.split(',')]
-        seats = [p.name for p in g.players if (p.evil) == (team == 'evil')]
+        seats = [p.name for p in g.players if teams[p.name] == team]
         rng.shuffle(seats)
         for i, name in enumerate(seats):
             out[name] = models[i % len(models)]
@@ -99,14 +103,14 @@ def seat_models(g, args, seed):
         if who in ('good', 'evil'):
             model, _, n = rest.partition(':')
             effort = {'good': args.good_effort, 'evil': args.evil_effort}[who] or args.effort
-            seats = sorted(p.name for p in g.players if p.evil == (who == 'evil'))
+            seats = sorted(p.name for p in g.players if teams[p.name] == who)
             for name in rng.sample(seats, int(n or 1)):
                 out[name] = _model(model, effort)
         else:
-            p = next((q for q in g.players if q.character == who), None)
+            p = next((q for q in g.players if dealt[q.name] == who), None)
             if p is None:
                 continue  # that character isn't in this game
-            effort = (args.evil_effort if p.evil else args.good_effort) or args.effort
+            effort = (args.evil_effort if teams[p.name] == 'evil' else args.good_effort) or args.effort
             out[p.name] = _model(rest, effort)
     return out
 
@@ -131,7 +135,7 @@ def build(args, seed, out, env: Shared | None = None, humans=None, minion=None):
 
     def seat(name, team):  # called once the characters are dealt
         if not assigned:
-            assigned.update(seat_models(game.g, args, seed))
+            assigned.update(seat_models(game.g, args, seed, game.start_teams, game.starting))
             people.update(humans(game.g) if humans else {})
         if name in people:
             game.meta['models'][name] = 'human'
@@ -253,7 +257,7 @@ def parse_only(spec):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] in ('allocate', 'mixed', 'memory-check', 'fingerprint'):  # commands with their own argument parsers
+    if argv and argv[0] in ('allocate', 'mixed', 'memory-check', 'fingerprint'):  # own argument parsers
         from importlib import import_module
         return import_module(f'.{argv[0].replace("-", "_")}', __package__).main(argv[1:])
     ap = argparse.ArgumentParser(prog='clocktower', description='Blood on the Clocktower (Trouble Brewing) played by '

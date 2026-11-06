@@ -217,9 +217,9 @@ class Ravenkeeper(InfoRole):
     async def resolve_night(self, game, night):
         for d in night.deaths:
             if d.shown == self.name:
-                req = game.request('ravenkeeper', f'Night {night.n}: you were killed in the night. Ravenkeeper: choose a '
-                                                  'player to learn their character (`targets`).', night.n, n_targets=1,
-                                   options=game.names)
+                text = (f'Night {night.n}: you were killed in the night. Ravenkeeper: choose a player to learn their '
+                        'character (`targets`).')
+                req = game.request('ravenkeeper', text, night.n, n_targets=1, options=game.names)
                 t = game.targets(d.name, await game.ask(d.name, req), req)[0]
                 game.tell(d, self.name, state.character_choice(game.g, d, self.name, t), t)
 
@@ -384,7 +384,8 @@ class ScarletWoman(Minion):
             game.g.change_character(me, dead.character)
             game.emit('becomes', {'player': me.name, 'character': dead.character}, 'audit')
             game.emit('notice', {'text': f'The Demon has died — and because you are the Scarlet Woman, you are '
-                                         f'now the {dead.character}! From the next night you choose who dies.'}, [me.name])
+                                         f'now the {dead.character}! From the next night you choose who dies.'},
+                      [me.name])
 
 
 class Baron(Minion):
