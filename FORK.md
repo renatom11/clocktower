@@ -39,7 +39,8 @@ Forked at `9fa9773` (2026-11-05). Last compared: 2026-11-06, upstream unchanged 
 | 3 | Characters as data, on a script-independent core; TPI's official data pinned | `a4e2ee4`, `abbfdcc`, `08ca1d0`, `435f793` | No | All 1,100 fingerprints identical; prompt byte-identical; 34 old checkpoints resume identically | Local. Large: open an issue first |
 | 4 | Scripts as a concept, and a script-independent core (deaths, protection, states with durations, night choices, public abilities, setup choices, victory overrides) | `6e9d30f`, `bc9cf13`, `7019ae2`, `278f4f9`, `a713a90` | No | All 1,100 fingerprints identical; TB prompt and schema byte-identical; `tests/test_core.py` | Local. Needed for any script beyond TB |
 | 5 | The Storyteller judge (`judge.py`, `--judge`) | `baab6d7` | No (TB never uses it) | `tests/test_judge.py`: four rulebook and wiki situations, a recorded model answer | Local |
-| - | Fork documents (`docs/open-decisions.md`, this file) | `cf4cba9`, `94c2c24` and later | No | - | Fork only, or part of a BMR proposal |
+| 6 | Bad Moon Rising: all 25 characters (`bmr.py`), the BMR prompt, the omniscient judge, BMR fingerprints | `753bbec`, `e651767`, `37482a4`, `dbfbe81`, `dc35a34` | No (a new protocol, `bmr-v1`) | 353 tests; 1,100 BMR fingerprints; 2,200 random games at every size with no crash | Local. A proposal to the original author: open an issue first |
+| - | Fork documents (`docs/open-decisions.md`, `docs/bmr-rulings.md`, `docs/readiness.md`, this file) | `cf4cba9`, `94c2c24`, `9ed458d`, `19d8c9b` and later | No | - | Fork only, or part of the BMR proposal |
 
 Found on the way, not yet changed (each changes TB play, so each is a proposal): at 5-6 players with a Baron the
 Washerwoman can be the only Townsfolk, and the game stops with "illegal Storyteller value" (5 of the 1,100 recorded
@@ -66,9 +67,11 @@ Signed off 2026-11-06. Trouble Brewing play does not change at any step.
   claude-haiku-4-5, the cheapest the engine prices; Haiku 5.5 needs adding to llm.py first, by CONTRIBUTING's
   process for a new model.*
 - **Phase 4, the 25 BMR characters:** one entry each, with rules tests from the almanac's examples and default
-  Storyteller weights for review; the Gossip last.
+  Storyteller weights for review; the Gossip last. *Done; 35 rulings to review in `docs/bmr-rulings.md`.*
+- **Added on the owner's direction: the omniscient judge** (`docs/open-decisions.md`, section 2b). *Done; five
+  questions on it there.*
 - **Phase 5, checking:** thousands of free random-bot BMR games, fingerprints, the Goon's conversion rate, a
-  readiness note for Sects & Violets and custom scripts.
+  readiness note for Sects & Violets and custom scripts. *Done: `docs/readiness.md`.*
 
 Not without a separate yes: games with paid models; changes to TB play; the social changes (live voting and the
 like); Sects & Violets, custom scripts, Travellers and Fabled; anything on the original repository.
