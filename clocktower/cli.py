@@ -14,6 +14,7 @@
     python -m clocktower allocate ...                 # where extra games go (clocktower/allocate.py)
     python -m clocktower mixed games/v17/b1-          # mixed-team analysis
     python -m clocktower memory-check MODEL           # does a new model see its earlier reasoning? (llm.MODELS)
+    python -m clocktower fingerprint --check          # does every recorded seed still replay identically?
     python -m clocktower fetch 'v17/f3-*'             # download game logs from the Hugging Face dataset
     python -m clocktower replay games/X --view Casey  # re-read a game from one seat (or public/omniscient)
     python -m clocktower watch                        # spectator app at http://127.0.0.1:8800
@@ -252,7 +253,7 @@ def parse_only(spec):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] in ('allocate', 'mixed', 'memory-check'):  # commands with their own argument parsers
+    if argv and argv[0] in ('allocate', 'mixed', 'memory-check', 'fingerprint'):  # commands with their own argument parsers
         from importlib import import_module
         return import_module(f'.{argv[0].replace("-", "_")}', __package__).main(argv[1:])
     ap = argparse.ArgumentParser(prog='clocktower', description='Blood on the Clocktower (Trouble Brewing) played by '
@@ -294,7 +295,8 @@ def main(argv=None):
     ra.add_argument('--lab-trends', action='store_true', help='also per-lab gains (docs/charts/lab-trends.json)')
     for name, text in (('allocate', 'where extra games go, by a fixed rule (see clocktower/allocate.py)'),
                        ('mixed', 'mixed-team analysis (clocktower/mixed.py)'),
-                       ('memory-check', 'does a model see its own earlier reasoning next turn? (for llm.MODELS)')):
+                       ('memory-check', 'does a model see its own earlier reasoning next turn? (for llm.MODELS)'),
+                       ('fingerprint', 'check that recorded seeds replay identically (clocktower/fingerprint.py)')):
         sub.add_parser(name, help=text)  # dispatched above, before parsing
     fp = sub.add_parser('fetch', help='download game logs from the Hugging Face dataset (e.g. v9/e1-*)')
     fp.add_argument('patterns', nargs='+')
