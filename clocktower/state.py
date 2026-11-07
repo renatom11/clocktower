@@ -986,11 +986,14 @@ def _pair(r, first, others, avoid=()):
 def pair_choice(g, p, ability):
     """Washerwoman / Librarian / Investigator starting information."""
     s = g.script
+
+    def minion_too(q):  # (batch 6: a Demon that registers as a Minion too, Legion: to the Investigator)
+        return ability == 'Investigator' and rules(q.character).also_minion
     group = {'Washerwoman': s.townsfolk, 'Librarian': s.outsiders, 'Investigator': s.minions}[ability]
     others = [q.name for q in g.players if q is not p]
     impaired = g.unreliable(p, ability)
     values = [{'players': [a, b], 'character': c} for a, b in combinations(others, 2) for c in group
-              if impaired or any(c in g.registers_as(g[x]) for x in (a, b))]
+              if impaired or any(c in g.registers_as(g[x]) or minion_too(g[x]) for x in (a, b))]
     if ability == 'Librarian' and (impaired or not any(g.registers_as(q) <= set(s.outsiders) for q in g.players)):
         values.append({'players': [], 'character': None})  # "zero Outsiders in play"
 
@@ -1034,6 +1037,9 @@ def pair_choice(g, p, ability):
             # nothing true to show (custom scripts: a Marionette who believes they are the Investigator, the only
             # Minion): a false pair, as when misinformed (only reached where 'zero', not legal for them, was)
             return false_pair(r, r.choice(others), list(group))
+        shown = [v for v in values if v['players']] if not pool and ability == 'Investigator' else []
+        if shown:  # (batch 6: no Minion character, but a player who registers as a Minion too: Legion)
+            return r.choice(shown)
         if not pool:
             return {'players': [], 'character': None}
         n, c = r.choice(pool)
@@ -1045,7 +1051,7 @@ def pair_choice(g, p, ability):
     def shows(v):  # what a working ability could show
         if not v['players']:
             return ability == 'Librarian' and not any(g.registers_as(q) <= set(s.outsiders) for q in g.players)
-        return any(v['character'] in g.registers_as(g[x]) for x in v['players'])
+        return any(v['character'] in g.registers_as(g[x]) or minion_too(g[x]) for x in v['players'])
     what = {'Washerwoman': 'Townsfolk', 'Librarian': 'Outsider', 'Investigator': 'Minion'}[ability]
     return judged(Choice(f'{ability}:{p.name}', values, style), 'information',
                   f'Which two players, and which {what} character, is {p.name} ({ability}) shown?', recipient=p.name,

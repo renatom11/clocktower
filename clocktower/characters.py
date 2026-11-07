@@ -109,6 +109,9 @@ class Character:
     extra_minions = 0        # setup modifier (a Demon's): Minions dealt beyond the table's, in Townsfolk seats (the
     #                          Lord of Typhon's +1)
     listens = False          # its ability is triggered by what players say (`heard`: the Mezepheles's secret word)
+    also_minion = False      # a Demon that registers as a Minion too, to the Investigator (Legion: batch 6)
+    own_evil_info = False    # a Demon whose introduction (`intro`) is its whole evil information: the usual list of
+    #                          Minions is not shown (Legion, which has none: batch 6)
     wakes_before = ''        # a character type: its step moves to just before the first step of that type on the
     #                          script's night order (the Amnesiac's, before the Demons: its ability may protect)
     setup_unheld = False     # its setup step runs though nobody holds it (Lil' Monsta, never dealt: batch 6)

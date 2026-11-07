@@ -1216,7 +1216,52 @@ judge has no heuristic for its calls.
 
 ### Legion
 
-(Not built yet.)
+Built (section "Legion" of `carousel_extra.py`; tests `tests/test_carousel_legion.py`; notes
+`data/storyteller/extra-legion.md`; script `carousel-11`). Its eight official jinxes (Engineer, Hatter, Minstrel,
+Politician, Preacher, Summoner, Zealot, Magician) are implemented, among them the Engineer's that batch 4 left waiting.
+With it the Carousel Script Collection's Devout Theists plays end to end.
+
+162. **The deal.** When the Demon drawn is Legion, a bare majority of the players are Legion ("most players": n // 2 + 1,
+     a reading; options: the almanac's table, or the Storyteller's choice), no Minion is dealt, and the rest are good,
+     the table's Outsiders first (the Drunk only with a Townsfolk left to believe in). A deal with Legion and another evil
+     character, or Legion short of a majority, is refused. Legion is one character several players have
+     (`Character.duplicates`); good wins when every Legion is dead.
+163. **What the Legion learn.** Each Legion learns the others and the bluffs (its own evil information:
+     `Character.own_evil_info`, so the empty Minion list is not shown). The Legion do not wake to choose.
+164. **"A player might die".** Each night but the first, at Legion's step, one judged call for all of them: any living
+     player who is not Legion, or nobody; with only Legion left, one of them, so the game comes down to two. The scripted
+     style kills 85% of nights (POLICY `legion_kill`, default, for review), a good player. It is the Demon's kill. With
+     every living Legion drunk, poisoned or exorcised tonight, nobody dies.
+165. **"Executions fail if only evil voted".** When a player is executed, the vote that put them there (today's last
+     nomination of them) is read: at least one vote, every voter registering as evil to Legion (a Spy or Recluse is a
+     judged call, POLICY `legion_registers_evil` 0.5), while a living Legion is sober: the execution fails, the player
+     does not die (it is still the day's execution). An execution without a vote (madness, the Vizier's) is not "only
+     evil voted".
+166. **"You register as a Minion too".** To the Investigator (shown a Legion as a Minion of the script, true information;
+     a reading): everywhere else Legion registers as Legion only, the Demon, so the Slayer, the Knight and the Fortune
+     Teller see the Demon and nothing else. The engine's registration sets would make "a Demon and a Minion at once" read
+     as "either", the Storyteller's call, which the text does not allow. Option: register as a Minion to every ability
+     that asks about Minions.
+167. **The jinxes.** Engineer: with Legion in play, the Engineer learns it at the start and has no ability (drunk for good,
+     the engine's "no ability", as the Preacher's). Hatter: with Legion in play, no tea party (whoever has the Hatter's
+     ability: the Hermit's too). Engineer, Hatter, Summoner, and any other way (the Pit-Hag's, a reading): when Legion is
+     created, every evil player becomes Legion. Minstrel: a Legion executed sets off a working Minstrel (Legion registers
+     as a Minion), but the Legion are not made drunk, and the Minstrel might learn they were Legion (judged, POLICY
+     `legion_revealed` 0.5). Preacher: a Legion chosen keeps their ability (the Preacher acts only on Minion
+     characters), and the Preacher might learn they are Legion (judged). Politician and Zealot: they might register as
+     evil to Legion's vote check (judged). Magician: with a Magician in play, each Legion learns only which players are
+     good, the Magician left out of that list (each Legion its own group, a reading), not the other Legion.
+168. **Core changes**, each a no-op on every script without Legion: `Character.own_evil_info` (Game.setup) and
+     `also_minion` (the Investigator's pair, `state.pair_choice`, and the fuzzer's Investigator oracle).
+169. **The synthetic script** (`clocktower/data/scripts/carousel-11.json`, "Carousel test 11"): Legion and the Imp; the
+     Engineer, Minstrel, Preacher, Magician, Fortune Teller, Empath, Investigator, Slayer, Monk, Chef, Undertaker,
+     Soldier and Virgin; the Hatter, Politician, Zealot and Drunk; the Summoner, Poisoner, Spy and Scarlet Woman. Every
+     jinx of Legion's is on it, and every size from 5 to 15 deals. Fingerprints: `tests/data/fingerprints-carousel-11.json`.
+     About a quarter of its random-bot games reach the tenth day unfinished (random good votes rarely carry an
+     execution past Legion's rule).
+
+New weights: `legion_kill` 0.85, `legion_registers_evil` 0.5, `legion_revealed` 0.5 (added to POLICY by the section).
+The rules judge has no heuristic for its calls.
 
 ### Riot
 

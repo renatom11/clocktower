@@ -91,7 +91,26 @@ played no part.
 
 ### Legion
 
-(Not built yet.)
+3,000 games (1,500 with Legion forced into play, 1,500 uniform from seed 9330000). The first passes found three faults
+in the new code, fixed before the commit (B32 to B34), and one rules impossibility recorded for the owner (U15). After
+the fixes: 22 violations in the forced run, all U15, and 3 in the uniform one (U1 twice, U14 once).
+
+B32. **Fixed before the commit.** **A lone Investigator with Legion.** No Minion is dealt with Legion, so the
+Investigator had nothing to show and the game stopped (`crash`). Legion registers as a Minion to the Investigator (166).
+
+B33. **Fixed before the commit.** **A Hermit's tea party with Legion in play** (the Hatter jinx made only a Hatter drunk),
+which let a Legion become another Demon (`coherence`). No tea party while Legion is in play, whoever has the Hatter's
+ability (167).
+
+B34. **Fixed before the commit.** **Only Legion left, and the game never ended.** With every good player dead the kill had
+no one to choose and every execution failed (all voters evil): most forced games ran to the day limit. With only Legion
+left the kill chooses one of them (164).
+
+U15. **The Noble and the Knight with nothing true to show.** Legion at 5 or 6 players: three or four Legion leave the
+Noble no three players holding exactly one evil one, and the Knight no two players who are not the Demon
+(`engine-truth`, `oracle`, 22 in 1,500 forced games). Repro: `python -m clocktower fuzz repro --seed 9000210 --players 5 --judge scripted --chars cannibal,chambermaid,nightwatchman,magician,gambler,noble,pixie,professor,washerwoman,sailor,fortuneteller,towncrier,snakecharmer,plaguedoctor,butler,recluse,klutz,cerenovus,organgrinder,scarletwoman,devilsadvocate,legion,lilmonsta,yaggababble,zombuul --setup legion,legion,legion,noble,fortuneteller`.
+A rules impossibility of the deal, as U9, U11 and U12. Suggested ruling: the Storyteller deals fewer Legion at small
+tables (a majority of two at five), or the Noble and Knight learn nothing.
 
 ### Riot
 

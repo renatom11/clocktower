@@ -792,7 +792,8 @@ def _pair(group):
         c = v['character']
         if c is None or kind(c) != group:
             return f'{c} is not a {group}'
-        if not any(could_be(g[x], c) for x in v['players']):
+        if not any(could_be(g[x], c) or (group == 'Minion' and rules(g[x].character).also_minion)
+                   for x in v['players']):  # (batch 6: Legion registers as a Minion too, to the Investigator)
             return f'neither is the {c} (' + ', '.join(f'{x}: {g[x].character}' for x in v['players']) + ')'
         return None
     return check

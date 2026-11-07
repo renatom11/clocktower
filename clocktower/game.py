@@ -473,7 +473,8 @@ class Game:
                 lines.append('You do not learn who the other evil players are.' + (
                     f' Three good characters not in play, for evil to bluff: {", ".join(g.bluffs)}.'
                     if p.is_demon else ''))
-            elif p.is_demon:  # Demon info and Minion info
+            elif p.is_demon and not rules(p.character).own_evil_info:  # Demon info and Minion info (batch 6:
+                #                                                         Legion's is its own)
                 lines.append(demon_info(self.evil_shown(p, minions, 'Minion'), g.bluffs))
             elif kind(p.character) == 'Minion' and knows:
                 others = [m for m in minions if m != p.name and rules(g[m].shown).evil]

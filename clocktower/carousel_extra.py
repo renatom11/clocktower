@@ -761,7 +761,210 @@ CHARACTERS[WIZARD] = Wizard()
 
 
 # ---- Legion ------------------------------------------------------------------------------------------------------
+# "Each night*, a player might die. Executions fail if only evil voted. You register as a Minion too. [Most players are
+# Legion]" Several players have the one Demon character (Character.duplicates), dealt in place of the Minions and some
+# good players (Character.deals); the game is good's when every Legion is dead. docs/carousel-rulings.md, batch 6,
+# Legion.
+from .characters import Demon as _Demon_lg, kind as _kind_lg  # noqa: E402
+from .characters import jinx as _jinx_lg  # noqa: E402
+from . import snv as _snv_lg  # noqa: E402
+from .state import POLICY as _POLICY_lg, SETUPS as _SETUPS_lg, Choice as _Choice_lg, State as _State_lg  # noqa: E402
+from .state import judged as _judged_lg, yes_choice as _yes_lg  # noqa: E402
 
+LEGION = 'Legion'
+_POLICY_lg.update({  # (Carousel, batch 6: Legion. Default, for review.)
+    'legion_kill': 0.85,          # each night*, a player dies (else nobody), a living good player
+    'legion_registers_evil': 0.5,  # a voter who may register either way (a Spy, a Recluse; the jinxes' Politician and
+    #                                Zealot) registers as evil to Legion
+    'legion_revealed': 0.5,       # the Minstrel and Preacher jinxes: the Minstrel (Preacher) learns they are Legion
+})
+
+
+def legion_count(n):
+    """"Most players are Legion": a bare majority (a reading)."""
+    return n // 2 + 1
+
+
+def legions(g, alive=True):
+    return [q for q in g.players if q.character == LEGION and (q.alive or not alive)]
+
+
+def legion_victim_choice(g, n):
+    alive = [q.name for q in g.players if q.alive and q.character != LEGION]
+    if not alive:  # (only Legion left: one of them, so the game comes down to two players)
+        alive = [q.name for q in g.players if q.alive]
+    good = [x for x in alive if not g[x].evil]
+
+    def style(r):
+        if alive and r.random() < _POLICY_lg['legion_kill']:
+            return {'players': [r.choice(good or alive)]}
+        return {'players': []}
+    return _judged_lg(_Choice_lg(f'{LEGION}:{n}', [{'players': [x]} for x in alive] + [{'players': []}], style),
+                      'legion_victim', f'Night {n}: Legion might kill a player: who dies (none for nobody)?')
+
+
+class Legion(_Demon_lg):
+    name = LEGION
+    ability = ability(name)
+    kills_at_night = True
+    deals = True
+    duplicates = 15  # (every player but the good ones)
+    own_evil_info = True  # its intro is the evil information (no Minions to show: Game.setup)
+    also_minion = True  # "You register as a Minion too": to the Investigator (state.pair_choice), a reading
+    setup_order = 9.8
+
+    # ---- the deal ----------------------------------------------------------------------------------------------
+    def deal_error(self, characters, script):
+        if self.name not in characters:
+            return None
+        n, k = len(characters), characters.count(self.name)
+        others = [c for c in characters if _kind_lg(c) in ('Minion', 'Demon') and c != self.name]
+        if others:
+            return f'only Legion is evil with Legion in play: {", ".join(others)}'
+        if k * 2 <= n or k >= n:
+            return f'most players are Legion, and not every one ({k} of {n})'
+        return ''
+
+    def redeal(self, rng, characters, players, script):
+        # the Minions' seats and as many good seats as it takes go to Legion: a bare majority, the good players kept
+        # being Townsfolk and the table's Outsiders first (a reading)
+        if self.name not in characters:
+            return characters
+        good = [c for c in characters if _kind_lg(c) in ('Townsfolk', 'Outsider')]
+        keep = players - legion_count(players)
+        os_ = _SETUPS_lg[players][1]
+        outs = [c for c in good if _kind_lg(c) == 'Outsider'][:min(os_, keep)]
+        towns = [c for c in good if _kind_lg(c) == 'Townsfolk'][:keep - len(outs)]
+        kept = towns + outs
+        spare = [c for c in script.townsfolk if c not in kept]
+        while len(kept) < keep and spare:
+            kept.append(spare.pop(rng.randrange(len(spare))))
+        if len(kept) < keep or ('Drunk' in kept and set(script.townsfolk) <= set(kept)):
+            return None
+        return kept + [self.name] * (players - keep)
+
+    def rule_text(self, script):
+        return ['Legion: when it is the Demon in play, most players are Legion (one Demon character shared by every '
+                'evil player, and no Minions); the Legion learn each other. Each night except the first one player '
+                'might die. An execution fails (the player does not die) if every player who voted for it is evil.']
+
+    # ---- what the Legion learn ---------------------------------------------------------------------------------
+    def intro(self, game, me):
+        g = game.g
+        bluffs = f'Three good characters not in play, for evil to bluff: {", ".join(g.bluffs)}.'
+        if g.script.jinxed('Magician', self.name) and any(q.character == 'Magician' for q in g.players):
+            # the jinx: "Legion wake in separate groups. Each group learns which players are good, but does not
+            # learn the Magician" (the groups: each Legion alone, a reading); the good players named are all but
+            # the Magician
+            good = [q.name for q in g.players if not q.evil and q.character != 'Magician']
+            return [f'You are one of the Legion. With the Magician in play you learn only which players are good: '
+                    f'{", ".join(good)}. {bluffs}']
+        others = [q.name for q in legions(g) if q is not me]
+        return [f'You are one of the Legion: there are no Minions, and the other Legion are '
+                f'{", ".join(others) or "none"}. {bluffs}']
+
+    async def setup(self, game):
+        # the Engineer jinx: "If Legion is in play, the Engineer starts knowing this but has no ability": no ability
+        # is the engine's drunkenness, for good (as the Preacher's). (The Hatter's: Legion.resolve_night)
+        g = game.g
+        if not legions(g):
+            return
+        for q in [q for q in g.players if q.character == 'Engineer' and g.script.jinxed(self.name, 'Engineer')]:
+            g.add(_State_lg('drunk', q.name, source=None, until=None))
+            g.notes.setdefault('Intro', {}).setdefault(q.name, []).append('Legion is in play, so you have no ability.')
+
+    # ---- the night ---------------------------------------------------------------------------------------------
+    async def resolve_night(self, game, night):
+        g = game.g
+        alive = legions(g)
+        self.no_tea_party(g, alive)
+        if night.first or not alive:
+            return
+        working = [q for q in alive if g.works(q, self.name) and q.name not in night.asleep]
+        if not working:
+            for q in alive:
+                _snv_lg.failed(game, q, self.name, 'nobody died')
+            return
+        v = await game.decide_judged(legion_victim_choice(g, night.n))
+        if v['players']:
+            await game.attempt_kill_judged(g[v['players'][0]], 'demon', working[0], night)
+        self.no_tea_party(g, legions(g))
+
+    def no_tea_party(self, g, alive):
+        # the Hatter jinx: "If Legion is in play, the Hatter has no ability": no tea party tonight (whoever has the
+        # Hatter's ability: the Hermit's too), Legion's step coming before the Hatter's
+        if alive and g.notes.get('Tea party') and g.script.jinxed(self.name, 'Hatter'):
+            g.notes['Tea party'] = None
+
+    # ---- executions --------------------------------------------------------------------------------------------
+    async def before_execution(self, game, me, executed):
+        # "Executions fail if only evil voted": the vote that put them on the block (today's last nomination of
+        # them), with at least one vote, every voter registering as evil to Legion, while a living Legion is sober:
+        # they survive the execution (asked once, for the first Legion in seat order)
+        g = game.g
+        alive = legions(g)
+        if not alive or me is not alive[0] or not executed.alive:
+            return
+        noms = [x for x in g.nominations if x['day'] == game.day and x['nominee'] == executed.name]
+        voters = noms[-1].get('voters') if noms else None
+        if not voters or not any(g.works(q, self.name) for q in alive):
+            return
+        for x in voters:
+            q = g[x]
+            regs = set(g.registers_evil(q, me))
+            if any(g.script.jinxed(self.name, c) and q.character == c for c in ('Politician', 'Zealot')):
+                regs.add(True)  # the jinxes: they might register as evil to Legion
+            if regs == {False}:
+                return
+            if regs != {True} and not (await game.decide_judged(_judged_lg(
+                    _yes_lg(f'Legion sees:{x}', _POLICY_lg['legion_registers_evil']), 'legion_registers_evil',
+                    f'{x} ({q.character}) voted: do they register as evil to Legion (yes)?', about=x)))['yes']:
+                return
+        g.add(_State_lg('safe', executed.name, source=me.name, until='night', against='execution'))
+        g.reminders.append(f'Day {game.day}: only evil voted to execute {executed.name}: the execution fails.')
+
+    def on_death(self, game, me, dead, cause, alive_before):
+        # the Minstrel jinx: Legion registers as a Minion, so a Legion executed sets off the Minstrel ("all other
+        # players are drunk until dusk tomorrow"), but "Legion keeps their ability" (the Legion are not made drunk)
+        # and the Minstrel might learn they are Legion. Once per death, for the first Legion holding the hook
+        g = game.g
+        if cause != 'execution' or dead.character != self.name or me is not next(
+                (q for q in g.players if q.character == self.name), None):
+            return
+        for m in [q for q in g.players if q.character == 'Minstrel' and g.works(q, 'Minstrel')
+                  and g.script.jinxed(self.name, 'Minstrel')]:
+            for p in g.players:
+                if p is not m and not p.traveller and p.character != self.name:
+                    g.add(_State_lg('drunk', p.name, source=m.name, until=game.day + 2, ends_with_source=True))
+            game.later(lambda game, m=m: self.reveal(game, m, dead, 'Minstrel'))
+
+    async def reveal(self, game, to, who, by):
+        if (await game.decide_judged(_judged_lg(_yes_lg(f'Legion revealed:{to.name}', _POLICY_lg['legion_revealed']),
+                                                'legion_revealed', f'Does the {by} ({to.name}) learn that {who.name} '
+                                                'is Legion (yes)?', recipient=to.name)))['yes']:
+            game.woken(to)
+            game.inform(to, f'{_snv_lg.when(game)} — {by}: {who.name} is Legion.')
+
+    def chosen(self, game, me, chooser, night):
+        # the Preacher jinx: "If the Preacher chooses Legion, Legion keeps their ability (the Preacher acts only on a
+        # Minion character), but the Preacher might learn they are Legion"
+        g = game.g
+        if chooser.character == 'Preacher' and g.works(chooser, 'Preacher') and g.script.jinxed(self.name, 'Preacher'):
+            game.later(lambda game: self.reveal(game, chooser, me, 'Preacher'))
+
+    async def becomes(self, game, me):
+        # "If Legion is created, all evil players become Legion" (the Engineer, Hatter and Summoner jinxes; the
+        # Pit-Hag's too, as the rule they share: a reading)
+        g = game.g
+        others = [q for q in g.players if q.evil and q.character != self.name and q is not me]
+        if others:
+            await game.changes([(q, self.name, None) for q in others])
+
+
+CHARACTERS[LEGION] = Legion()
+for _other in ('Engineer', 'Hatter', 'Minstrel', 'Politician', 'Preacher', 'Summoner', 'Zealot', 'Magician'):
+    _jinx_lg(LEGION, _other, 'carousel_extra.Legion')
+    JINXES.append((LEGION, _other))
 # ---- end of Legion -----------------------------------------------------------------------------------------------
 
 
