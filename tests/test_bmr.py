@@ -97,6 +97,10 @@ class Seat:
 
     async def act(self, text, request):
         self.log.append(request)
+        if request.prompt.startswith('(That is not a legal choice'):  # a required choice asked again (B2.6, B3.10):
+            need = request.n_targets if request.min_targets is None else request.min_targets  # a legal default
+            return Reply({**BLANK, 'targets': request.options[:need],
+                          'character': request.characters[0] if request.characters else None})
         if request.kind in ('night', 'death_choice'):  # a death_choice by day (the Moonchild's) answers from day n
             return Reply({**BLANK, **self.answers.get(request.day, {})})
         return Reply({**BLANK, 'vote': False})
@@ -603,11 +607,16 @@ class DevilsAdvocateTests(BMRTest):
         g = self.game(self.CHARS)
         g.g[A].alive = False
         g.g[G].seems_dead = True
-        g.g.last_choices[F] = [B]
+        g.g.night_choices[1] = {F: [B]}  # "different to last night": the night just before (owner's ruling B2.8)
         self.answer(2, **{F: [C]})
         run(g.night(2))
         options = self.asked(F, 2)[0].options
         self.assertEqual(options, [C, D, E, F])
+        g.g.night_choices.pop(2)  # chose no one on night 2 (say, dead): on night 3, anyone again, even Blair
+        g.g.last_choices[F] = [B]
+        self.answer(3, **{F: [D]})
+        run(g.night(3))
+        self.assertIn(B, self.asked(F, 3)[0].options)
 
     def test_the_save_lasts_one_day_and_needs_a_working_devils_advocate(self):
         g = self.game(self.CHARS)
@@ -2077,8 +2086,20 @@ class LunaticTests(BMRTest):
         run(g.night(3))
         self.assertEqual(self.asked(A, 3)[0].n_targets, 3)  # a Lunatic-Po charges as the Po would
 
-    def test_the_exorcist_choosing_the_lunatic_does_nothing_and_choosing_the_demon_leaves_the_lunatic_awake(self):
-        g = self.lunatic()
+    def test_the_storyteller_may_treat_an_exorcised_lunatic_as_exorcised_and_an_exorcised_demon_leaves_them_awake(self):
+        """Owner's ruling B3.8: when the Exorcist chooses the Lunatic, the Storyteller may treat them as exorcised
+        (shown the Exorcist, not woken as their Demon tonight); the Lunatic wakes after the Exorcist so it can."""
+        self.assertLess(self.script.other_nights.index('Exorcist'), self.script.other_nights.index('Lunatic'))
+        g = self.lunatic(**{'Exorcist:': {'yes': True}})
+        run(g.night(1))
+        self.answer(2, **{A: [C, D], B: [A], G: [], H: [E, F]})
+        run(g.night(2))
+        self.assertEqual(self.asked(A, 2), [])
+        self.assertEqual(told(g, A)[-1], f'Night 2: the Exorcist chose you. {B} is the Exorcist, and you do not wake '
+                                         'tonight.')
+        self.assertFalse(any('Lunatic' in t and 'chose' in t for t in told(g, H) if t.startswith('Night 2')))
+        self.assertEqual(self.deaths(g, 2), [E, F])
+        g = self.lunatic(**{'Exorcist:': {'yes': False}})  # the Storyteller's other option: nothing happens
         run(g.night(1))
         self.answer(2, **{A: [C, D], B: [A], G: [], H: [E, F]})
         run(g.night(2))
@@ -2087,9 +2108,8 @@ class LunaticTests(BMRTest):
         self.answer(3, **{A: [C, D], B: [H], G: []})
         run(g.night(3))
         self.assertEqual((len(self.asked(A, 3)), self.asked(H, 3)), (1, []))
-        self.assertEqual(told(g, H)[-2:], [f'Night 3: the Lunatic ({A}) chose {C}, {D}.',
-                                           f'Night 3: the Exorcist chose you. {B} is the Exorcist, and you do not wake '
-                                           'tonight.'])
+        self.assertEqual(told(g, H)[-2:], [f'Night 3: the Exorcist chose you. {B} is the Exorcist, and you do not wake '
+                                           'tonight.', f'Night 3: the Lunatic ({A}) chose {C}, {D}.'])
         self.assertEqual(self.deaths(g, 3), [])
 
     def test_the_lunatic_is_a_good_outsider(self):
@@ -2404,3 +2424,68 @@ class BadMoonRisingTests(unittest.TestCase):
                 self.assertTrue(result['winner'] or result['stopped'].startswith('stopped after'), result['reason'])
                 claims += sum(e['kind'] == 'ability' for e in g.events)
         self.assertGreater(claims, 10)
+
+
+class OwnerRulingTests(BMRTest):
+    """The owner's review of the rulings (docs/bmr-rulings.md, 2026-11-06)."""
+
+    def test_b1_8_the_godfather_usually_adds_an_outsider(self):
+        from clocktower.state import random_setup
+        script = ch.Script('bmr')
+        plus = minus = 0
+        for seed in range(600):  # 10 players: 7, 0, 2 normally, so only +1; 11 players: 7, 1, 2, so either
+            chars = random_setup(random.Random(seed), 'Godfather', 11, script)
+            outsiders = sum(ch.kind(c) == 'Outsider' for c in chars)
+            plus, minus = plus + (outsiders == 2), minus + (outsiders == 0)
+        self.assertEqual(plus + minus, 600)
+        self.assertTrue(0.70 < plus / 600 < 0.80, plus / 600)
+
+    def test_b2_6_a_gambler_who_names_no_character_is_asked_again(self):
+        g = self.game(['Gambler', TOWN, 'Test Town 2', 'Test Town 3', 'Test Town 4', 'Assassin', 'Po'])
+        self.choose(2, A, [A])  # no character: asked again, never given one at random
+        run(g.night(2))
+        asks = self.asked(A, 2)
+        self.assertEqual(len(asks), 2)
+        self.assertTrue(asks[1].prompt.startswith('(That is not a legal choice'))
+        self.assertIn('Name a character', asks[1].prompt)
+        self.assertIn('choose yourself and guess Gambler', asks[0].prompt)
+
+    def test_b2_6_choosing_yourself_and_guessing_gambler_is_safe(self):
+        g = self.game(['Gambler', TOWN, 'Test Town 2', 'Test Town 3', 'Test Town 4', 'Assassin', 'Po'])
+        self.choose(2, A, [A], 'Gambler')
+        run(g.night(2))
+        self.assertTrue(g.g[A].alive)
+        self.assertEqual(len(self.asked(A, 2)), 1)
+
+    def test_b3_10_a_seat_that_never_gives_a_legal_answer_stops_the_game_rather_than_being_chosen_for(self):
+        from clocktower.llm import SeatFailed
+        g = self.game(['Gambler', TOWN, 'Test Town 2', 'Test Town 3', 'Test Town 4', 'Assassin', 'Po'])
+
+        async def never(text, request):
+            self.seats[A].log.append(request)
+            return Reply(dict(BLANK))
+        self.seats[A].act = never
+        with self.assertRaises(SeatFailed):
+            run(g.night(2))
+        self.assertEqual(len(self.asked(A, 2)), 1 + g.REASKS)
+
+    def test_b2_10_the_storyteller_chooses_whether_the_pacifist_or_the_fools_own_ability_saves_the_fool(self):
+        chars = ['Pacifist', 'Fool', TOWN, 'Test Town 2', 'Test Town 3', 'Assassin', 'Po']
+        g = self.game(chars, forced={'Pacifist or Fool:': {'yes': True}})
+        run(g.execution(B))
+        self.assertTrue(g.g[B].alive)
+        self.assertFalse(g.g.spent_ability('Fool'))  # the Pacifist saved them: the Fool keeps their ability
+        g = self.game(chars, forced={'Pacifist or Fool:': {'yes': False}})
+        run(g.execution(B))
+        self.assertTrue(g.g[B].alive)
+        self.assertTrue(g.g.spent_ability('Fool'))  # their own ability did
+
+    def test_tinker_cover_the_rules_judge_kills_it_on_a_quiet_night_and_keeps_it_alive_by_day(self):
+        from clocktower import bmr, judge
+        g = self.game(['Tinker', TOWN, 'Test Town 2', 'Test Town 3', 'Test Town 4', 'Assassin', 'Po'])
+        rank = lambda c: judge.RulesJudge().ranking(g, c)[0][0]['yes']
+        self.assertIs(rank(bmr.tinker_choice(g.g, g.g[A], 'night', quiet_night=True, fake_gossip=[])), True)
+        self.assertIs(rank(bmr.tinker_choice(g.g, g.g[A], 'night', quiet_night=False, fake_gossip=[E])), True)
+        self.assertIs(rank(bmr.tinker_choice(g.g, g.g[A], 'beat')), False)
+        from clocktower.state import POLICY
+        self.assertGreater(POLICY['tinker_night'], 8 * POLICY['tinker_day'])

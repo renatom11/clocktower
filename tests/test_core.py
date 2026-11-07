@@ -261,7 +261,7 @@ class CoreTests(unittest.TestCase):
                  script=script, probes=False)
         g.g = Grimoire(g.names, chars, script=script)
         g.g[C].alive = False
-        g.g.last_choices[D] = [B]
+        g.g.night_choices[1] = {D: [B]}  # last night's choice
         ORDER.clear()
         run(g.night(2))
         self.assertEqual(ORDER, ['Test Hunter', 'Test Picker'])  # one step at a time, in night order

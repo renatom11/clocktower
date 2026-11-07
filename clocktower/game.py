@@ -10,6 +10,7 @@ one at a time with a running tally.
 """
 from __future__ import annotations
 import asyncio
+import dataclasses
 import json
 import pickle
 import math
@@ -305,6 +306,36 @@ class Game:
                                          f'{", ".join(chosen)}.)'}, [name])
         return chosen
 
+    REASKS = 4  # reminders before a seat that keeps giving no legal answer to a required choice stops the game
+
+    def choice_problem(self, action, request, spec=None):
+        """Why an answer to a choice isn't legal (too few legal players, or no character on the script when one must
+        be named), or None."""
+        named = [x for x in dict.fromkeys(action.get('targets') or []) if x in request.options][:request.n_targets]
+        need = request.n_targets if request.min_targets is None else request.min_targets
+        if len(named) < need:
+            return (f'You named {len(named)} of the {need} player(s) this choice needs, from: '
+                    f'{", ".join(request.options)}.')
+        optional = spec is not None and spec.optional
+        if request.characters and not optional and action.get('character') not in request.characters:
+            return 'Name a character on the script in `character`.'
+        return None
+
+    async def insist(self, name, request, action, spec=None):
+        """A required choice (the Gambler's guess, the Moonchild's curse, any choice that isn't optional) is asked
+        again until it is legal, never made for the player (owner's rulings B2.6, B3.10). A seat that gives no legal
+        answer after REASKS reminders stops the game, as a failed seat does (it resumes from its checkpoint)."""
+        for _ in range(self.REASKS):
+            problem = self.choice_problem(action, request, spec)
+            if not problem:
+                return action
+            again = dataclasses.replace(request, prompt=f'(That is not a legal choice: {problem} This choice is '
+                                                        f'required.) {request.prompt}')
+            action = await self.ask(name, again)
+        if self.choice_problem(action, request, spec):
+            raise SeatFailed(f'{name}: no legal answer to a required choice after {self.REASKS} reminders')
+        return action
+
     def chosen_character(self, name, action, request):
         """The character a night choice named (the Courtier, the Gambler), or one at random, with a notice."""
         c = action.get('character')
@@ -438,7 +469,8 @@ class Game:
             if nc is None:
                 continue
             spec, v17 = choice_spec(rules(p.shown), nc), not isinstance(nc, Choose)
-            last = g.last_choices.get(p.name, []) if spec.not_last else []
+            # "different to last night": the night just before; a player who chose no one then may choose anyone
+            last = g.night_choices.get(night.n - 1, {}).get(p.name, []) if spec.not_last else []
             options = [x for x in names if (spec.may_self or x != p.name) and x not in last
                        and (not spec.alive_only or g[x].appears_alive)
                        and (not spec.dead_only or not g[x].appears_alive)]
@@ -457,8 +489,11 @@ class Game:
                                        characters=list(g.script.all) if spec.character else [])
         acts = await self.ask_many(requests)
         for name, req in requests.items():
+            if g.script.id != 'tb':  # a required choice is asked again, never made for the player (TB: v17's fill)
+                acts[name] = await self.insist(name, req, acts[name], specs.get(name))
             night.chosen[name] = self.targets(name, acts[name], req)
             g.last_choices[name] = night.chosen[name]
+            g.night_choices.setdefault(night.n, {})[name] = night.chosen[name]
             g.woke.setdefault(night.n, []).append(name)
             data = {'player': name, 'role': g[name].shown, 'targets': night.chosen[name]}
             if req.characters:  # a character only, that may be declined (the Courtier's): None for none, or for a

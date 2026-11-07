@@ -46,6 +46,7 @@ class Godfather(Minion):
     name = 'Godfather'
     ability = ability(name)
     outsider_choices = (-1, 1)  # the Storyteller's choice when dealing (state.random_setup)
+    outsider_policy = 'godfather_more_outsiders'  # how often it is +1 when both can be dealt (owner's ruling B1.8)
     night_choice = Choose(players=1, prompt='An Outsider died today: choose a player: they die.')
     kills_at_night = True
 
@@ -407,6 +408,18 @@ class Exorcist(Townsfolk):
     async def resolve_night(self, game, night):
         g = game.g
         ex, t = night.choice_of(g, self.name)
+        if t and g.works(ex, self.name) and g[t].alive and g[t].character == 'Lunatic':
+            # owner's ruling B3.8: the Storyteller may treat the Lunatic as exorcised, to keep their illusion: they
+            # are shown the Exorcist and not woken as their Demon tonight (the Lunatic wakes after the Exorcist)
+            choice = judged(yes_choice(f'Exorcist:{t}', POLICY['exorcise_lunatic']), 'exorcise_lunatic',
+                            f'The Exorcist ({ex.name}) chose the Lunatic ({t}), who believes they are the '
+                            f'{g[t].shown}. Treat them as exorcised (shown the Exorcist, not woken tonight)?',
+                            about=t, recipient=t)
+            if (await game.decide_judged(choice))['yes']:
+                night.asleep.add(t)
+                game.inform(g[t], f'Night {night.n}: the Exorcist chose you. {ex.name} is the Exorcist, and you do '
+                                  'not wake tonight.')
+            return
         if not t or not g.works(ex, self.name) or not (g[t].alive and g[t].is_demon):
             return
         # the Demon doesn't wake for its own ability tonight; its other abilities still work (the Pukka's poison,
@@ -463,6 +476,17 @@ class Pacifist(Townsfolk):
         g = game.g
         if not (g.works(me, self.name) and p.alive and not p.evil) or g.safe(p, 'execution'):
             return  # nothing to decide: a drunk Pacifist, an evil or dead player, or one saved anyway
+        if p.character == 'Fool' and g.works(p, 'Fool') and not g.spent_ability('Fool'):
+            # owner's ruling B2.10: the Fool survives either way; the Storyteller chooses whether the Pacifist saves
+            # them (the Fool keeps their ability) or the Fool's own ability does
+            choice = judged(yes_choice(f'Pacifist or Fool:{p.name}', POLICY['pacifist_over_fool']),
+                            'pacifist_or_fool', f'{p.name}, the Fool, is being executed and will survive. Does the '
+                            f'Pacifist ({me.name}) save them, so the Fool keeps their ability (yes), or does the '
+                            f"Fool's own ability (no)?", about=p.name, recipient=me.name)
+            if (await game.decide_judged(choice))['yes']:
+                g.add(State('safe', p.name, source=me.name, against='execution', ends_with_source=True,
+                            while_source_works=True))
+            return
         if (await game.decide_judged(pacifist_choice(g, me, p)))['yes']:
             g.notes['Pacifist saves'] = g.notes.get('Pacifist saves', 0) + 1
             g.add(State('safe', p.name, source=me.name, against='execution', ends_with_source=True,
@@ -486,8 +510,10 @@ class Fool(Townsfolk):
 class Gambler(Townsfolk):
     name = 'Gambler'
     ability = ability(name)
-    night_choice = Choose(players=1, character=True, prompt='Choose a player (alive or dead, even yourself) and guess '
-                                                            'their character: if you guess wrong, you die.')
+    night_choice = Choose(players=1, character=True,
+                          prompt='Choose a player (alive or dead, even yourself) and guess their character: if you '
+                                 'guess wrong, you die. You must guess; to risk nothing, choose yourself and guess '
+                                 'Gambler.')
 
     async def resolve_night(self, game, night):
         g = game.g
@@ -845,6 +871,7 @@ class Lunatic(Outsider):
     name = 'Lunatic'
     ability = ability(name)
     wakes_at_own_step = True  # as their Demon, before the real one, and only when that Demon would wake
+    wakes_after = ('Exorcist',)  # so the Storyteller can treat them as exorcised (owner's ruling B3.8)
     setup_order = 3
 
     async def setup(self, game):
@@ -869,7 +896,7 @@ class Lunatic(Outsider):
 
     async def resolve_night(self, game, night):
         # the real Demon learns the Lunatic on the first night, and each night whom they chose, before it acts.
-        # Being told is not waking for an ability; an Exorcist who chooses the Lunatic does nothing (not the Demon)
+        # Being told is not waking for an ability; a Lunatic the Storyteller treated as exorcised chose nothing
         g = game.g
         lun, demon = g.with_character(self.name), g.demon()
         if not (lun and demon):
@@ -881,15 +908,18 @@ class Lunatic(Outsider):
             game.inform(demon, f'Night {night.n}: the Lunatic ({lun.name}) chose {", ".join(picks) or "no one"}.')
 
 
-def tinker_choice(g, tinker, when):
-    """Whether the Tinker dies now (asked only when the death would land and not end the game)."""
+def tinker_choice(g, tinker, when, **cover):
+    """Whether the Tinker dies now (asked only when the death would land and not end the game). `cover` says what
+    could hide the death tonight (owner's notes: a night with no other death looks like the Demon's kill; a day with
+    a fake Gossip claim makes it look like the Gossip's)."""
     def style(r):
         if g.notes.get('Tinker never'):
             return {'yes': False}
         return {'yes': r.random() < POLICY['tinker_night' if when == 'night' else 'tinker_day']}
     choice = Choice(f'Tinker:{tinker.name}', [{'yes': True}, {'yes': False}], style)
-    return judged(choice, 'tinker', f'Does the Tinker ({tinker.name}) die now ({when})? Most interesting at night; '
-                                    'never to end the game.', about=tinker.name, recipient=tinker.name, helps='evil')
+    return judged(choice, 'tinker', f'Does the Tinker ({tinker.name}) die now ({when})? Usually at night, where it '
+                                    'hides among other deaths; never to end the game.', about=tinker.name,
+                  recipient=tinker.name, helps='evil', when=when, **cover)
 
 
 class Tinker(Outsider):
@@ -912,7 +942,12 @@ class Tinker(Outsider):
     async def resolve_night(self, game, night):
         g = game.g
         t = g.with_character(self.name)
-        if t and self.can_die(g, t) and (await game.decide_judged(tinker_choice(g, t, 'night')))['yes']:
+        if not (t and self.can_die(g, t)):
+            return
+        quiet = not night.first and not night.deaths  # no death yet tonight: it would pass for the Demon's kill
+        fake = [e['data']['player'] for e in game.events if e['kind'] == 'ability' and e['day'] == night.n - 1
+                and e['data'].get('character') == 'Gossip' and g[e['data']['player']].character != 'Gossip']
+        if (await game.decide_judged(tinker_choice(g, t, 'night', quiet_night=quiet, fake_gossip=fake)))['yes']:
             game.ability_kill(t, 'tinker', t)
 
     async def moment(self, game, me, when):
@@ -944,8 +979,8 @@ class Moonchild(Outsider):
             game.later(lambda game: self.curse(game, me))
 
     async def curse(self, game, me):
-        """The public choice: asked of the player, completed at random if they name no alive player (the almanac:
-        not choosing is cheating). Whether it kills is decided by the target's alignment now."""
+        """The public choice: asked of the player, and asked again until they name an alive player (owner's ruling
+        B3.10: they must act; never chosen for them). Whether it kills is decided by the target's alignment now."""
         g = game.g
         options = [p.name for p in g.players if p.appears_alive]
         if not options:
@@ -953,7 +988,7 @@ class Moonchild(Outsider):
         req = game.request('death_choice', f'Day {game.day}: you have died. Moonchild: publicly choose an alive player '
                                            '(`targets`): if they are good, they die tonight.', game.day, n_targets=1,
                            options=options)
-        t = game.targets(me.name, await game.ask(me.name, req), req)[0]
+        t = game.targets(me.name, await game.insist(me.name, req, await game.ask(me.name, req)), req)[0]
         game.emit('ability', {'player': me.name, 'character': self.name, 'target': t})
         g.notes.setdefault('Moonchild curses', []).append({'moonchild': me.name, 'target': t, 'good': not g[t].evil,
                                                            'day': game.day})

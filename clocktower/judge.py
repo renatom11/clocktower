@@ -308,6 +308,21 @@ class RulesJudge(Judge):
                 + (', and show a good player as evil' if good else ''))
         return ranked, '; '.join(reasons)
 
+    def _tinker(self, game, choice, ctx):
+        """The Tinker usually dies at night, where the death hides (owner's notes): first choice on a night with no
+        other death yet (it passes for the Demon's kill) or after a fake Gossip claim that day (it passes for the
+        Gossip's kill); by day, not (a public death confirms the Tinker). Otherwise by the balance."""
+        yes = [v for v in choice.values if v.get('yes')]
+        no = [v for v in choice.values if v.get('yes') is False]
+        if ctx.get('when') != 'night':
+            return no, 'a Tinker death by day stands out: keep it for the night'
+        if ctx.get('quiet_night'):
+            return yes, 'nobody has died tonight: a Tinker death passes for the Demon\'s kill'
+        if ctx.get('fake_gossip'):
+            who = ', '.join(ctx['fake_gossip'])
+            return yes, f"{who} falsely claimed the Gossip today: a death tonight looks like the Gossip's"
+        return self.balance(game, choice, ctx)  # no cover tonight: by the balance, as for other calls
+
     def bluff_support(self, game, choice, ctx):
         """[(values showing an evil player as the good character they claimed, why)], by this judge's hearing."""
         if ctx.get('call') not in (None, 'information'):

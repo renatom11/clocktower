@@ -115,7 +115,13 @@ def random_setup(rng, minion=None, players=9, script=TB):
             def dealable(d):
                 t, o, _ = team_sizes(players, change + d)
                 return 0 <= t <= len(script.townsfolk) and 0 <= o <= len(script.outsiders)
-            change += rng.choice([d for d in rules(m).outsider_choices if dealable(d)])
+            options = [d for d in rules(m).outsider_choices if dealable(d)]
+            key = rules(m).outsider_policy
+            if key and len(options) > 1:  # the largest choice by its weight (the Godfather's +1), else the others
+                big = max(options)
+                change += big if rng.random() < POLICY[key] else rng.choice([d for d in options if d != big])
+            else:
+                change += rng.choice(options)
     tf, os_, _ = team_sizes(players, change)
     demon = script.demons if len(script.demons) == 1 else [rng.choice(script.demons)]
     return rng.sample(script.townsfolk, tf) + rng.sample(script.outsiders, os_) + minions + demon
@@ -151,6 +157,11 @@ POLICY = {
     # the Shabaloth regurgitates one of the dead players it chose last night: the almanac says "only rarely ...
     # once per game, maybe twice"; the wiki, usually a good player, a Minion "rarely". Default, for review.
     'shabaloth_regurgitate': 0.25,  # per night with a candidate, while under the budget
+    # the owner's review (docs/bmr-rulings.md), 2026-11-06
+    'godfather_more_outsiders': 0.75,  # the Godfather's +1 Outsider, when -1 is possible too (B1.8: extra Outsiders
+    #                                    feed the Godfather, as the Baron's do)
+    'pacifist_over_fool': 0.5,   # an executed Fool is saved by the Pacifist, keeping their ability (else by their own)
+    'exorcise_lunatic': 0.75,    # an Exorcist choosing the Lunatic is treated as exorcising them (B3.8)
     'regurgitations': 2,            # the budget per game; beyond it the chance is a tenth
     'regurgitate_evil': 0.1,        # the regurgitated player may be evil (else a good one, when there is one)
     # the Sailor's choice of another player: who is drunk. The almanac: "If they choose a Townsfolk, the Storyteller
@@ -177,8 +188,8 @@ POLICY = {
     # when the Tinker dies. The almanac: "most interesting if the Tinker dies at night"; "You can choose to never kill
     # the Tinker"; "never kill the Tinker when it would end the game". Default, for review.
     'tinker_never': 0.1,            # per game: the Tinker never dies by their ability
-    'tinker_night': 0.15,           # per night, at the Tinker's step
-    'tinker_day': 0.005,            # per point of the day (dawn, each beat, nominations, dusk: about 12 a day)
+    'tinker_night': 0.2,            # per night, at the Tinker's step (owner: usually at night, among other deaths)
+    'tinker_day': 0.002,            # per point of the day (about 12 a day: about 2% a day, a tenth of a night's)
     # the Lunatic's illusion. The almanac: Minions "can be any players"; bluffs "can even be characters that are in
     # play"; "You can make the Lunatic think they are a different Demon than the in-play Demon". Default, for review.
     'lunatic_same_demon': 0.8,      # the Lunatic believes they are the Demon in play (else another on the script)
@@ -255,7 +266,8 @@ class Grimoire:
         self.death_log = []         # every death, real or apparent: {player, cause, source, day, phase}
         self.woke = {}              # night -> players woken to use their own ability (the Chambermaid)
         self.nominations = []       # every nomination: {day, nominator, nominee, votes, voters, outcome}
-        self.last_choices = {}      # player -> who they chose on their last night choice (the Exorcist)
+        self.last_choices = {}      # player -> who they chose on their last night choice (the Po)
+        self.night_choices = {}     # night -> {player: who they chose that night} ("last night": the Exorcist)
         self.executions = []        # every execution, killing or not: {player, day, died} (the Mastermind's day)
         self.revivals = []          # every return to life: {player, day, source} (the Shabaloth's budget)
         self.notes = {}             # an ability's own bookkeeping across nights (the Mastermind's extra day)
@@ -276,6 +288,7 @@ class Grimoire:
         self.__dict__.setdefault('woke', {})
         self.__dict__.setdefault('nominations', [])
         self.__dict__.setdefault('last_choices', {})
+        self.__dict__.setdefault('night_choices', {})
         self.__dict__.setdefault('executions', [])
         self.__dict__.setdefault('revivals', [])
         self.__dict__.setdefault('notes', {})

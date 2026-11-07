@@ -137,3 +137,61 @@ New weights: `grandchild_townsfolk` 0.75 (the Grandchild is a Townsfolk, when th
 0.5 (the real Demon among the Lunatic's Minions), `lunatic_bluff_in_play` 0.25 (per bluff). The Grandmother's,
 the Chambermaid's, the Gossip's (statement and victim) and the Tinker's night decisions go through the Storyteller
 judge.
+
+## The owner's review (2026-11-06)
+
+From a voice review (`docs/review/bmr-rulings-voice.md`). **Keep** means the engine's ruling above stands.
+
+| Ruling | Decision | The owner's reasoning |
+|---|---|---|
+| B1.1 Assassin and Zombuul | Keep | The Assassin can target the Zombuul whether it seems alive or dead, and either way it really dies. |
+| B1.2 Godfather trigger | Keep | Not executions only: the ability says "died today". |
+| B1.3 Pukka while drunk | Later | Waiting on a set of Pukka rulings the owner will provide. |
+| B1.4 Pukka choosing itself | Later | Same. |
+| B1.5 Shabaloth regurgitation | Changed (wording) | The Storyteller decides whether to regurgitate, not the Shabaloth; only a dead player it chose last night; possible on a night the Exorcist stops it, if sober. The engine already did this. The first-night-ability part waits on the fresh-instance question (below). |
+| B1.6 Devil's Advocate | Keep | A drunk or dead Devil's Advocate has no ability, so the protection fails. |
+| B1.7 Mastermind's day | Keep | |
+| B1.8 Godfather's Outsiders | **Changed** | +1 Outsider 75% of the time, -1 25%, when both are possible (`godfather_more_outsiders`). Extra Outsiders feed the Godfather, as the Baron's do. |
+| B1.9 Impaired Godfather | Keep | |
+| B2.1 Drunkenness ends with its source | Keep | As soon as a character dies, they lose their ability. |
+| B2.2 Impaired Sailor or Innkeeper | Keep | Does nothing. |
+| B2.3 Innkeeper's protection | Keep | By the text, a Gambler who guesses wrong can be protected by the Innkeeper. |
+| B2.4 Sailor can't die | Keep | |
+| B2.5 Courtier choosing itself | Later | Drunk, or a paradox that cancels? Undecided. |
+| B2.6 Declining a character choice | **Changed** | The Gambler must guess: a Gambler who names no character is asked again. To opt out, they choose themselves and guess Gambler (the prompt says so). The Courtier part stands. |
+| B2.7 Minstrel | Keep | |
+| B2.8 Exorcist | **Changed** | "Last night" means the night just before; if the Exorcist chose no one then (say, dead), they may choose anyone, even an earlier choice. The same for the Devil's Advocate ("different to last night"). The Chambermaid and Zombuul parts stand. |
+| B2.9 Tea Lady | Keep | The one-other-player case comes up when a seeming-dead Zombuul keeps the game going; she would protect them. |
+| B2.10 Pacifist and Fool | **Changed** | When a good Fool is executed, the Storyteller chooses whether the Pacifist saves them (the Fool keeps their ability) or the Fool's own ability does: judged, otherwise half and half (`pacifist_over_fool`). |
+| B2.11 Gambler's guess | Keep | |
+| B2.12 Professor | Later | The fresh-instance question. |
+| B3.1 Grandmother's death | Keep | A protection stops it. |
+| B3.2 Resurrected Grandmother | Later | The fresh-instance question. |
+| B3.3 Misinformation when drunk | Keep | Drunk and poisoned are treated the same. |
+| B3.4 Chambermaid | Keep | |
+| B3.5 Gossip | Keep | The first statement counts; the Gossip rarely makes more than one. The Gossip without a judge needs more design work. |
+| B3.6 Gossip's victim | Keep | |
+| B3.7 Goon | Keep | The Lunatic choosing the Goon counts; the drunkenness ends when the Goon dies. |
+| B3.8 Exorcist and Lunatic | **Changed** | The Storyteller may treat an exorcised Lunatic as exorcised: shown the Exorcist and not woken as their Demon that night (judged, otherwise 75%, `exorcise_lunatic`). For this the Lunatic now wakes just after the Exorcist when both are on the script (they are adjacent in the official order; nothing else moves). |
+| B3.9 Tinker | Keep, with new weights | Usually at night: `tinker_night` 0.2 per night (was 0.15), `tinker_day` 0.002 per point of the day (was 0.005; about 2% a day). The rules judge uses a Tinker death as cover: on a night with no other death yet (it passes for the Demon's kill) or after a fake Gossip claim that day (it passes for the Gossip's); by day, not. |
+| B3.10 Moonchild | **Changed** | Asked straight away; must choose an alive player and is asked again until they do, never chosen for. |
+| B3.11 Random bots' claims | Keep | 8% is fine. |
+
+**Required choices, generally** (the owner: check how the engine makes agents follow mandatory rules). In every
+script but Trouble Brewing, a choice that isn't optional is asked again, with the reason, until it is legal: never
+made for the player. After four reminders a seat that still gives no legal answer stops the game as a failed seat
+does (it resumes from its checkpoint), rather than the engine choosing for it. Trouble Brewing keeps protocol v17's
+rules: an incomplete night choice is completed at random with a notice, and a missing vote is asked once more, then
+counts as no. Optional choices (the Po, the Assassin, the Professor, the Courtier) may still name no one.
+
+**The fresh-instance question** (B1.5, B2.12, B3.2). The sources: the wiki's glossary, "Resurrected / Regurgitated /
+Reborn / Raised: a dead player becoming alive again ... the player gains their ability back, even if it was a 'once
+per game' ability that had been used"; the Professor's page, a revived "first night only" or "you start knowing"
+ability wakes "to use it again, as soon as the Professor goes to sleep"; the Shabaloth's page, a regurgitated player
+with such an ability "may use it again". So both kinds of return restore the ability, first-night ones included. The
+engine re-wakes a Professor's revived player but not a regurgitated one (batch 1, ruling 5), which the Shabaloth's
+page contradicts. Suggested: wake a regurgitated "start knowing" player too (the Storyteller's choice, since it
+"may"), and for the Grandmother, show her Grandchild again (the reminder was placed at setup). For the owner.
+
+**Still open from the review:** the Pukka rulings (B1.3, B1.4); the Courtier choosing itself (B2.5); the
+fresh-instance question; a design for the Gossip in games without a judge.

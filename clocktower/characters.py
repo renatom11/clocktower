@@ -81,6 +81,8 @@ class Character:
     #                          schema field ('slayer_shot', protocol v17) or the shared 'ability' field
     outsiders = 0            # setup modifier: Townsfolk turned into Outsiders (the Baron's +2)
     outsider_choices = ()    # or the Storyteller picks one of these when dealing (the Godfather: -1 or +1)
+    outsider_policy = None   # the POLICY key for how often the largest choice is dealt (else uniform)
+    wakes_after = ()         # characters whose night step must come before this one's (moves this one after them)
     setup_order = None       # characters with a setup step run in this order
     misregisters = None      # the POLICY key for how often a working one registers as evil
     follows_master = False   # may vote only while their master votes (the Butler)
@@ -560,6 +562,18 @@ def card(character):
     return CHARACTERS[character].card()
 
 
+def after(order):
+    """The night order with each character that must wake after another (Character.wakes_after) moved to just after
+    it, when both are on the script (the Lunatic after the Exorcist, so an exorcised Lunatic doesn't wake)."""
+    order = list(order)
+    for c in list(order):
+        for other in rules(c).wakes_after:
+            if other in order and order.index(other) > order.index(c):
+                order.remove(c)
+                order.insert(order.index(other) + 1, c)
+    return order
+
+
 class Script:
     """A script: its characters by type (in the script's order, which random setups draw from), its night order
     (the official universal order filtered to its characters) and its characters' setup steps and public actions.
@@ -575,8 +589,8 @@ class Script:
         self.townsfolk, self.outsiders, self.minions, self.demons = (by[k] for k in by)
         self.all = self.townsfolk + self.outsiders + self.minions + self.demons
         self.good = self.townsfolk + self.outsiders
-        self.first_night = official.night_order(self.all, True)
-        self.other_nights = official.night_order(self.all, False)
+        self.first_night = after(official.night_order(self.all, True))
+        self.other_nights = after(official.night_order(self.all, False))
         steps = [rules(n) for n in self.all if rules(n).setup_order is not None]
         self.setup_steps = sorted(steps, key=lambda c: c.setup_order)
         self.public_actions = {rules(n).public_action: rules(n) for n in self.all
@@ -598,7 +612,7 @@ class Script:
         s.townsfolk, s.outsiders, s.minions, s.demons = (by[k] for k in by)
         s.all = s.townsfolk + s.outsiders + s.minions + s.demons
         s.good = s.townsfolk + s.outsiders
-        s.first_night, s.other_nights = list(first_night), list(other_nights)
+        s.first_night, s.other_nights = after(list(first_night)), after(list(other_nights))
         s.setup_steps = sorted((rules(n) for n in s.all if rules(n).setup_order is not None),
                                key=lambda c: c.setup_order)
         s.public_actions = {rules(n).public_action: rules(n) for n in s.all
