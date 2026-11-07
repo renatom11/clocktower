@@ -81,6 +81,50 @@ class FuzzTests(unittest.TestCase):
         self.assertIsNone(fuzz.empath(m, empath, {}, {'number': 1}))
         self.assertIsNotNone(fuzz.empath(m, empath, {}, {'number': 2}))
 
+    def test_the_experimental_characters_oracles(self):
+        script = fuzz.make_script(['Steward', 'Shugenja', 'Balloonist', 'Nightwatchman', 'Pixie', 'Fisherman', 'Chef',
+                                   'Monk', 'Mayor', 'Soldier', 'Empath', 'Recluse', 'Poisoner', 'Imp'])
+        g = self.game(['Steward', 'Shugenja', 'Imp', 'Monk', 'Recluse', 'Poisoner', 'Soldier', 'Balloonist'], script)
+        m, st, sh, bal = g.fz, g.g['Alex'], g.g['Blair'], g.g['Harper']
+        self.assertIsNone(fuzz.steward(m, st, {}, {'players': ['Drew']}))
+        self.assertIn('evil', fuzz.steward(m, st, {}, {'players': ['Casey']}))
+        # Blair's closest evil: Casey (the Imp), one seat clockwise
+        self.assertIsNone(fuzz.shugenja(m, sh, {}, {'yes': True}))
+        self.assertIsNotNone(fuzz.shugenja(m, sh, {}, {'yes': False}))
+        self.assertIsNone(fuzz.nightwatchman(m, st, {'about': 'Drew'}, {'players': ['Alex']}))
+        self.assertIsNotNone(fuzz.nightwatchman(m, st, {'about': 'Drew'}, {'players': ['Ellis']}))
+        self.assertIsNone(fuzz.pixie(m, st, {}, {'character': 'Monk'}))
+        self.assertIsNotNone(fuzz.pixie(m, st, {}, {'character': 'Chef'}))
+        self.assertIsNone(fuzz.fisherman(m, st, {}, {'statements': ['Drew is the Monk.']}))
+        self.assertIsNotNone(fuzz.fisherman(m, st, {}, {'statements': ['Drew is the Chef.']}))
+        m.balloon[bal.name] = {'Townsfolk'}
+        self.assertIsNone(fuzz.balloonist(m, bal, {}, {'players': ['Casey']}))
+        self.assertIsNotNone(fuzz.balloonist(m, bal, {}, {'players': ['Drew']}))
+        self.assertIsNone(fuzz.widow_knower(m, {}, {'players': ['Drew']}))
+        self.assertIsNotNone(fuzz.widow_knower(m, {}, {'players': ['Frankie']}))
+
+    def test_extra_abilities_need_a_gains_event(self):
+        g = self.game(['Empath', 'Chef', 'Imp', 'Soldier', 'Monk', 'Mayor', 'Poisoner'])
+        g.g['Alex'].extra.append('Monk')
+        g.fz.step('test')
+        self.assertEqual([v['type'] for v in g.fz.violations], ['coherence'])
+        g = self.game(['Empath', 'Chef', 'Imp', 'Soldier', 'Monk', 'Mayor', 'Poisoner'])
+        g.g['Alex'].extra.append('Monk')
+        g.emit('gains', {'player': 'Alex', 'character': 'Monk'}, 'audit')
+        g.fz.step('test')
+        self.assertEqual(g.fz.violations, [])
+
+    def test_setups_with_the_kazali_or_the_summoner(self):
+        r = random.Random(5)
+        for pair in (['Kazali', 'Chef'], ['Summoner', 'Chef']):
+            chars = fuzz.random_script(r, force=pair)
+            setup = fuzz.setup_with(fuzz.make_script(chars), pair, r)
+            self.assertTrue(setup and set(pair) <= set(setup), pair)
+        specs = fuzz.make_specs(fuzz.SEED_BASE, 3, 1, ['scripted'], range(5, 16), force=['Kazali', 'Poisoner'])
+        for spec in specs:  # no setup holds both: the Kazali is dealt, the Poisoner is one it may make
+            self.assertIn('Kazali', spec['setup'])
+            self.assertIn('Poisoner', spec['chars'])
+
     def test_a_once_per_game_ability_used_twice_is_caught(self):
         g = self.game(['Empath', 'Chef', 'Imp', 'Soldier', 'Monk', 'Mayor', 'Poisoner'])
         m = g.fz

@@ -1,13 +1,15 @@
 # Interaction findings: what the fuzzer found
 
-`clocktower/fuzz.py` plays random-bot games on random scripts drawn from every built character (13 Townsfolk,
-4 Outsiders, 4 Minions, 4 Demons, loaded as custom script JSON, so the night order and jinxes are the official ones),
+`clocktower/fuzz.py` plays random-bot games on random scripts drawn from every built character (today 100: the
+Trouble Brewing, BMR and S&V characters and the experimental ones of carousel.py and carousel2.py; each script has
+13 Townsfolk, 4 Outsiders, 4 Minions, 4 Demons, loaded as custom script JSON, so the night order and jinxes are the
+official ones),
 under the scripted Storyteller and the rules judge alternately, and checks invariants after every night step, every
 turn of the day, and at each dawn and dusk. Its module docstring lists the checks; this file is what they turned up,
 triaged, for review. Each entry: the characters, a repro (a one-line command that replays the game and prints the
 violation; add `--events` for the audit trail), what happened, what the rules say, and a suggested ruling or fix.
 
-How to rerun (about 60 games a second on four cores):
+How to rerun (about 80 games a second on four cores):
 
     python -m clocktower fuzz run --games 40000 --out /tmp/fuzz                     # uniform random scripts
     python -m clocktower fuzz run --games 10000 --target-uncovered --coverage /tmp/fuzz/coverage.json --out /tmp/f2
@@ -19,7 +21,51 @@ How to rerun (about 60 games a second on four cores):
 Each run writes `summary.md` (violations grouped, with a first example and its repro; advisories; pair coverage; the
 information checked), `violations.jsonl` (every violation with its repro) and `coverage.json`.
 
-## The runs behind this file (2026-11-07, the 72 characters built then: TB, BMR, S&V)
+## The second runs (2026-11-07, all 100 built characters: TB, BMR, S&V and experimental batches 0-2)
+
+The fuzzer now draws the experimental characters too (they register into `characters.CHARACTERS`), and checks more
+of what they make structural (the module docstring): independent oracles for the Steward, Shugenja, Balloonist,
+Nightwatchman, Pixie, Fisherman ("X is the Y" advice), High Priestess and General (only what the rules fix: their
+answers are the Storyteller's belief), the Widow's knower and the Grandchild (good players), the once-per-game Golem
+nomination and Damsel guesses, extra abilities only through an ability that gives them, the Marionette's seat, the
+Kazali's Minions by the first dawn, and the Leviathan's and the Al-Hadikhia's public announcements. Forced setups
+deal the Kazali (no Minions) and the Summoner (no Demon); a pair no setup can deal (the Kazali and a Minion, the
+Summoner and a Demon) puts one in play and the other on the script. The oracles' misregistration is now what the
+texts allow (the Spy as a Townsfolk or Outsider, the Recluse as a Minion or Demon), not anything.
+
+Same seeds and sizes as the first runs: 40,000 uniform games, 10,000 `--target-uncovered`, 10,000 `--bias rare`,
+and the matrix (5,200 games), about 15 minutes on four cores. A first pass found ten more engine faults, B5 to B10
+below, all fixed; after the fixes (the counts below), nothing else but the unruled interactions:
+
+| finding | violations in 60,000 games (40k / targeted / rare) | in the matrix |
+|---|---|---|
+| U1 Undertaker told the character after a change | 67 (52 / 6 / 9) | 16 |
+| U2 a paused Vigormortis's Minions' effects stay (poison 8, madness 4, curse 3, protection 1) | 16 | 1 |
+| U7 the Summoner summons a Demon already in play | 11 | 1 |
+| U8 the Puzzlemaster's right guess with no Demon in play | 11 | 5 |
+| U4 lone Washerwoman (crash) | 5 | 1 |
+| U3 two living Shabaloths (the Scarlet Woman and the regurgitation) | 4 | 1 |
+| U6 kept abilities outlive a dead Vigormortis | 2 | 1 |
+
+That is 116 violations in 60,000 games (and 26 in the matrix), against 128 in the first 40,000-game pass before
+B6-B10 (35 missed Al-Hadikhia announcements, 9 crashes). Still no loop or timeout, no false or missed win, no dead
+player woken or informed, and no healthy player given information false by the engine's own test except U8. 16
+percent of games reach the ten-day cap. Advisories: protection and a master outliving their source (A1, 1,564 and
+602 in 40,000), the Vigormortis-Poisoner paradox (U2, 20), and 54 setups that cannot be dealt (A4).
+
+**Information checked** (60,000 games): 331,000 decisions of 31 roles against the engine's own truth test, 271,000
+of 25 roles against an independent oracle, and 13,700 Storyteller choices (the Widow's knower, the Grandchild).
+Without an oracle of their own: the Chambermaid, Mathematician, Savant, Artist, Juggler and Puzzlemaster (whether the
+guess was right is not in the choice).
+
+**Pair coverage.** All 4,950 pairs of the 100 characters were in play together (fewest 15 games, median 597) and in
+play with both acting (fewest 4, median 509; 29 pairs under 20, 176 under 50). The thin pairs are the Slayer's again
+(Sage, Ravenkeeper, Heretic, Shabaloth, Moonchild, Vortox, Damsel and Klutz with the Slayer: 4 to 13), which acts
+only when its shot kills the Demon. The targeted run raised the minimum both-acting count from 1 to 4 and cut the
+pairs under 20 from 127 to 38; the rare-biased one, to 29. The rarest character is the Heretic (in 2,503 of the
+60,000 games: its jinxes keep it from the Baron, Godfather, Pit-Hag, Spy and Widow).
+
+## The first runs (2026-11-07, the 72 characters built then: TB, BMR, S&V)
 
 60,000 random-script games (40,000 uniform, 10,000 `--target-uncovered`, 10,000 `--bias rare`; table sizes 5-15;
 scripted Storyteller and rules judge alternating), about 25 minutes on four cores, plus the mechanism matrix (3,744
@@ -72,9 +118,14 @@ IndexError. Repro (before): `python -m clocktower fuzz repro --seed 9001475 --pl
 Fix: with nothing left, any character of the kinds asked (only reached where it used to crash). Rules: a drunk
 Dreamer's two characters are arbitrary, so any is legal; the Dreamer's own legality check then applies.
 
-## Engine bugs, written up (in character entries this branch must not touch: suggested fixes)
+## Engine bugs
 
-B1. **The Scarlet Woman becomes the Demon when a Zombuul only seems to die.** Zombuul + Scarlet Woman. The Zombuul is
+B1 to B4 were found by the first runs and written up with suggested fixes; they are fixed now, as suggested
+(commit 0ebe376; carousel-1 and carousel-2 fingerprints re-recorded). B5 to B10 were found by the second runs and
+fixed at once (c6dd8f3, d700831); their tests are in tests/test_interactions.py. Each fix is unreachable on the base
+scripts, whose fingerprints replay 1100/1100.
+
+B1. **Fixed (0ebe376).** **The Scarlet Woman becomes the Demon when a Zombuul only seems to die.** Zombuul + Scarlet Woman. The Zombuul is
 executed (or killed) for the first time; it lives on, registering as dead, but `ScarletWoman.on_death` sees "the
 Demon died" and makes the Scarlet Woman a second, living Zombuul. Repro:
 `python -m clocktower fuzz repro --seed 9000047 --players 15 --judge rules --chars mathematician,juggler,clockmaker,undertaker,sailor,philosopher,virgin,gossip,ravenkeeper,slayer,mayor,courtier,chef,lunatic,barber,klutz,tinker,scarletwoman,assassin,baron,cerenovus,fanggu,imp,zombuul,nodashii`
@@ -84,7 +135,7 @@ dies; the almanac's Zombuul notes say the Storyteller treats the Zombuul as aliv
 also require `not dead.alive` (Game.kill calls the hooks for an apparent death too). Fingerprint-safe: no base script
 has both. The most frequent violation (about 0.6% of games).
 
-B2. **The Vortox does not falsify the Chambermaid's or the Grandmother's information.** Vortox + Chambermaid or
+B2. **Fixed (0ebe376).** **The Vortox does not falsify the Chambermaid's or the Grandmother's information.** Vortox + Chambermaid or
 Grandmother. `bmr.chambermaid_choice` and `bmr.grandmother_choice` decide impairment with `g.impaired` (drunk or
 poisoned) rather than `g.unreliable` (which adds the Vortox), so their only legal value is the true one and
 `Game.false_only` has nothing false to keep: a sober Chambermaid or Grandmother gets true information under the
@@ -95,7 +146,7 @@ Rules: "Townsfolk abilities yield false info" covers every Townsfolk's informati
 the S&V ones are. Fingerprint-safe (identical to `impaired` with no Vortox on the script). The Godfather's
 information is a Minion's, so it stays as is.
 
-B3. **A Drunk who believes they have a once-per-game night ability is woken to use it again and again.** Drunk + one
+B3. **Fixed (0ebe376; the Marionette believing one too).** **A Drunk who believes they have a once-per-game night ability is woken to use it again and again.** Drunk + one
 of Courtier, Professor, Seamstress, Philosopher (the Drunk believing it). The "spent" marks are made only for the
 player who really has the ability (`g.spend` in Courtier/Professor; `snv.use` in Seamstress/Philosopher only for
 holders), so `night_spec` keeps waking the Drunk, who can "use" it every night. Repros: Courtier
@@ -108,7 +159,7 @@ player (`snv.use`) for every player woken at the step who chose, drunk or not, a
 (`snv.used`) for Courtier and Professor as Seamstress and Philosopher already do. Fingerprint-safe: neither BMR nor
 S&V has the Drunk, and Trouble Brewing has none of the four.
 
-B4. **A Philosopher who gains the Courtier or the Professor: the choice does nothing, or blocks the real one.**
+B4. **Fixed (0ebe376).** **A Philosopher who gains the Courtier or the Professor: the choice does nothing, or blocks the real one.**
 Philosopher + Courtier or Professor. `Courtier.resolve_night` reads only `g.with_character('Courtier')`, so a
 Philosopher-Courtier's choice is ignored, never spent, and they are woken every night; `Professor.resolve_night` takes
 `night.choice_of` (the first holder in seat order), so of a Philosopher-Professor and the real (now drunk) Professor
@@ -119,12 +170,50 @@ Professor `python -m clocktower fuzz repro --seed 9029276 --players 15 --judge s
 so nothing happens and Morgan is woken again). Rules: the Philosopher gains the ability itself and uses it as that
 character would; the in-play one is drunk (so its use does nothing, but is spent). Fix: iterate `snv.holders(g,
 night, name)` as the S&V entries do, spending per player. The Assassin has the same `choice_of`/`spend` shape but is
-evil (no Philosopher can gain it), so it is unaffected today.
+evil (no Philosopher can gain it), so it is unaffected today. With the fix, a resurrected player's per-player use is
+cleared too, as `Grimoire.revive` already cleared the per-character record.
+
+B5. **Fixed (c6dd8f3; carousel-1 re-recorded).** **A drunk or poisoned Poisoner still poisons.** Poisoner + Courtier,
+Innkeeper, Puzzlemaster (noticed by batch 2, docs/carousel-rulings.md 63). The Poisoner's step checked only the
+Preacher's "no ability". Now an impaired Poisoner poisons no one (abnormal for the Mathematician), and its poison is
+in force only while the Poisoner is sober and healthy (a new `State.while_source_sober`), since the Courtier and the
+Innkeeper act after it in the night order and their drunkenness must stop tonight's poison. A Poisoner's poison on
+themself stays unconditional (Trouble Brewing's case; the state would otherwise pause itself). The Widow's poison
+pauses the same way.
+
+B6. **Fixed (d700831; carousel-2 re-recorded).** **A win decided at night does not end the night.** Al-Hadikhia +
+Mastermind (the jinx's last stand, at the Al-Hadikhia's step). Later steps went on waking players after the winner
+was set (`continued-past-win`). `Game.night` now returns at once after a step that sets a winner. Repro (before):
+`python -m clocktower fuzz repro --seed 9000483 --players 14 --judge rules --chars exorcist,banshee,general,minstrel,preacher,philosopher,gossip,investigator,seamstress,steward,tealady,balloonist,mathematician,moonchild,heretic,butler,politician,marionette,mastermind,widow,spy,fanggu,imp,ojo,alhadikhia`.
+
+B7. **Fixed (d700831).** **The Al-Hadikhia's choice is not announced when its player has become another character.**
+Al-Hadikhia + Hatter (a tea party after the Al-Hadikhia's step; also the Pit-Hag, the Barber). "All players learn
+who" was the Al-Hadikhia's dawn `moment`, which runs only for a player with the ability. A new
+`Character.moment_unheld` runs it with no holder. 35 games in 40,000 before. Repro (before):
+`python -m clocktower fuzz repro --seed 9001138 --players 14 --judge scripted --chars snakecharmer,chef,monk,poppygrower,courtier,shugenja,innkeeper,mayor,empath,pixie,slayer,investigator,virgin,drunk,tinker,politician,hatter,mastermind,cerenovus,eviltwin,devilsadvocate,vortox,alhadikhia,zombuul,ojo`.
+
+B8. **Fixed (d700831).** **A drunk information role with nothing true to show crashes.** A Marionette who believes
+they are the Investigator and is the only Minion (also the Washerwoman's and Librarian's code path): a "truthful"
+drunk draw found no true pair and offered "zero", which is not legal for the Investigator. Now such a player gets a
+false pair. Repro (before): `python -m clocktower fuzz repro --seed 9027326 --players 5 --judge scripted --chars preacher,ravenkeeper,virgin,chambermaid,clockmaker,balloonist,poppygrower,fortuneteller,nightwatchman,investigator,professor,fool,monk,drunk,butler,golem,goon,eviltwin,assassin,marionette,witch,leviathan,vigormortis,fanggu,pukka`.
+
+B9. **Fixed (d700831; carousel-3's one recorded crash now plays).** **An impaired Godfather with the Kazali's Outsider
+count crashes.** The Kazali's "-? to +? Outsiders" can leave a count outside the setup modifiers' sizes, from which
+an impaired Godfather's values were drawn; the true set was then not among them. It always is now (as the
+Grandmother's, ruling 63). Repro (before): `python -m clocktower fuzz repro --seed 9016940 --players 11 --judge scripted --chars preacher,gambler,magician,virgin,tealady,oracle,sage,exorcist,shugenja,fisherman,slayer,ravenkeeper,poppygrower,heretic,plaguedoctor,butler,goon,devilsadvocate,assassin,godfather,witch,pukka,kazali,imp,ojo`.
+
+B10. **Fixed (d700831).** **A Drunk with no Townsfolk to believe crashes.** Kazali + Drunk at 15 players: the Kazali's
+"one fewer Outsider" turned the last free Townsfolk into play, and the Drunk's setup drew from nothing (IndexError).
+The Kazali no longer offers one fewer when it would leave a Drunk nothing to believe, and `setup_error` rejects a
+setup with the Drunk and every Townsfolk (a forced one: the fuzzer's own Kazali setups hit it). Repro (before):
+`python -m clocktower fuzz repro --seed 9008676 --players 15 --judge scripted --chars pixie,seamstress,nightwatchman,investigator,librarian,virgin,exorcist,oracle,slayer,chambermaid,grandmother,ravenkeeper,highpriestess,mutant,damsel,tinker,drunk,poisoner,scarletwoman,goblin,godfather,ojo,alhadikhia,kazali,imp`.
 
 ## Unruled interactions (the engine does something defensible; a ruling would settle it)
 
 U1. **The Undertaker learns the executed player's character after it changed.** Undertaker + Pit-Hag or Barber (also
-the Scarlet Woman/Pit-Hag making the dead player a Demon). The executed player dies as, say, the Washerwoman; that
+the Scarlet Woman/Pit-Hag making the dead player a Demon; in the second runs also the Snake Charmer, the Hatter, the
+Cerenovus's madness cell and the Barber's swap onto a dead Marionette or Widow: 67 in 60,000 games, the most frequent
+violation now). The executed player dies as, say, the Washerwoman; that
 night, before the Undertaker's step, the Pit-Hag makes the dead player the Goon (or the Barber's Demon swaps them);
 the Undertaker is told "Goon". Repro: `python -m clocktower fuzz repro --seed 9000547 --players 8 --judge rules --chars chef,savant,slayer,fortuneteller,seamstress,empath,virgin,chambermaid,artist,soldier,clockmaker,undertaker,mathematician,barber,mutant,recluse,goon,poisoner,devilsadvocate,eviltwin,assassin,fanggu,imp,shabaloth,nodashii`.
 About 1 game in 1,000 with both. Rules: the ability is "which character died by execution today", and the almanac's
@@ -135,7 +224,10 @@ TB play would not change). Option: the current character (what the engine does; 
 the Pit-Hag).
 
 U2. **A drunk or poisoned Vigormortis: its dead Minions' effects stay in force.** Vigormortis + Poisoner, Witch,
-Cerenovus or Devil's Advocate (killed by the Vigormortis, so keeping their ability). While the Vigormortis is drunk or
+Cerenovus, Devil's Advocate or (second runs) Widow (killed by the Vigormortis, so keeping their ability). The second
+runs report it as a state outliving its source, with the Vigormortis named as paused: 16 in 60,000 games. B5's
+`while_source_sober` deliberately does not cover it (it pauses the Poisoner's poison on the Poisoner's own
+drunkenness, not on its kept ability), so this ruling stays open. While the Vigormortis is drunk or
 poisoned, its dead Minions have no ability (`Grimoire.keeps_ability` pauses: they are not woken, correctly), but the
 poison, curse, madness or protection they placed earlier stays. Repro (Poisoner):
 `python -m clocktower fuzz repro --seed 9006780 --players 10 --judge scripted --chars slayer,artist,exorcist,gossip,juggler,librarian,empath,tealady,innkeeper,minstrel,oracle,mathematician,chambermaid,lunatic,goon,barber,drunk,baron,godfather,cerenovus,poisoner,pukka,imp,nodashii,vigormortis`;
@@ -150,7 +242,7 @@ keeps the poison (the state is not re-examined). Suggested ruling: as the Pukka'
 stands for its night and day, since it was placed while the ability worked.
 
 U3. **Two living players with the same Demon.** Scarlet Woman + a reviving Demon (Shabaloth), or Pit-Hag + Scarlet
-Woman. The Shabaloth kills itself; the Scarlet Woman becomes the Shabaloth; the next night the new Shabaloth chooses
+Woman (second runs: 4 in 60,000 games, all Shabaloths; the Summoner's duplicates are U7). The Shabaloth kills itself; the Scarlet Woman becomes the Shabaloth; the next night the new Shabaloth chooses
 the dead old one, and the night after regurgitates them, still a Shabaloth. Two living Shabaloths. Repro:
 `python -m clocktower fuzz repro --seed 9004517 --players 13 --judge rules --chars librarian,virgin,slayer,professor,empath,chambermaid,courtier,chef,oracle,innkeeper,seamstress,ravenkeeper,investigator,moonchild,drunk,recluse,sweetheart,godfather,witch,pithag,scarletwoman,shabaloth,vigormortis,imp,po`.
 Similarly the Pit-Hag makes a good player the Vortox, the Storyteller kills the new Demon, the Scarlet Woman becomes
@@ -163,7 +255,8 @@ over only when the last living Demon dies (with a second Demon alive, as in the 
 the Fang Gu jinx's reasoning).
 
 U4. **A lone Washerwoman: no other player registers as a Townsfolk.** Washerwoman + a setup with no other Townsfolk
-(six players with the Baron; or every other Townsfolk position held by misregistering or changed characters). The
+(second runs: 5 in 60,000 games, at five or six players with the Baron, the Summoner's extra Townsfolk not
+helping, and once after the Barber's swap; six players with the Baron; or every other Townsfolk position held by misregistering or changed characters). The
 Washerwoman's choice has no legal value and the game stops ("illegal Storyteller value for Washerwoman"). Trouble
 Brewing has it too: five of its 1,100 recorded fingerprints are this crash (six players, the Baron), so it is part
 of frozen protocol v17. Repro: `python -m clocktower fuzz repro --seed 9002675 --players 6 --judge rules --chars mathematician,librarian,oracle,empath,investigator,savant,tealady,professor,sage,monk,fool,washerwoman,mayor,lunatic,drunk,sweetheart,recluse,witch,scarletwoman,assassin,baron,po,zombuul,imp,vigormortis`.
@@ -178,7 +271,8 @@ and she is shown them, now evil. Rules: "You start knowing a good player": the e
 Suggested ruling: keep (the Grandchild is chosen before the first night); the oracle accepts it.
 
 U6. **The Barber's Demon swaps itself with a dead player: the Vigormortis's kept abilities follow the character to a
-dead holder.** Barber + Vigormortis (matrix cell). The Barber dies; the Vigormortis swaps itself with a dead Juggler, so
+dead holder.** Barber + Vigormortis (matrix cell; second runs: 2 in 60,000 games and the Vigormortis x drunk cell,
+`python -m clocktower fuzz cell --subject vigormortis --mechanism drunk --seed 10709002 --judge scripted`). The Barber dies; the Vigormortis swaps itself with a dead Juggler, so
 the living player is now a Juggler and the dead one the Vigormortis. `Vigormortis.hand_over` moves the "keeps their
 ability" states to the new Vigormortis, who is dead, so the Spy it killed keeps their ability through a dead Demon.
 Repro: `python -m clocktower fuzz cell --subject vigormortis --mechanism barber --seed 10366000 --judge scripted`.
@@ -186,6 +280,24 @@ Rules: the Barber's Demon may choose themself and any other non-Demon player; a 
 dead Demon (good wins at once unless another Demon lives). Suggested ruling: kept abilities end when the Vigormortis
 character ends up dead (as when it dies), and the Storyteller should not choose such a swap (the almanac's "the Demon
 may not choose another Demon" is the only stated limit).
+
+U7. **The Summoner summons a Demon already in play.** Summoner + any Demon brought into play before the third night
+(the Kazali making the Summoner, then the Summoner choosing the Kazali; the Pit-Hag making a Zombuul; the Scarlet
+Woman's or a Courtier-jinx Storyteller summon). `Summoner` offers every Demon on the script, so the summoned player
+can have the same character as a living Demon: two living Kazalis, Zombuuls, Leviathans, Shabaloths, No Dashiis or
+Imps. 11 in 60,000 games. Repro: `python -m clocktower fuzz repro --seed 9202042 --players 12 --judge scripted --chars slayer,chef,courtier,grandmother,gossip,investigator,librarian,steward,nightwatchman,monk,fool,mayor,mathematician,mutant,damsel,plaguedoctor,drunk,cerenovus,devilsadvocate,summoner,spy,shabaloth,ojo,zombuul,kazali --setup courtier,nightwatchman,slayer,kazali,mutant,mathematician,investigator,steward,grandmother,plaguedoctor,damsel,drunk`
+(night 1 the Kazali makes Casey the Summoner; night 3 Casey summons Kit into the Kazali). Rules: the text says "an
+evil Demon of your choice", and the Kazali, Pit-Hag and Hatter jinxes speak of "a second living Demon" without
+saying it must be a different one; the Pit-Hag's own text needs a character "not in play". Suggested ruling: only a
+Demon not in play (as the Pit-Hag's), which removes the duplicate and keeps the jinxes' arbitrary deaths for a second,
+different Demon. Option: allow it (the engine now), two players with one character.
+
+U8. **The Puzzlemaster guesses right while no Demon is in play.** Puzzlemaster + Summoner (before the third night;
+also after the Demon died and before a new one). "Learn who the Demon is": with no player registering as a Demon,
+the engine offers every player and its own truth test calls each false (`engine-truth`, 11 in 60,000 games).
+Repro: `python -m clocktower fuzz repro --seed 9100313 --players 10 --judge rules --chars poppygrower,snakecharmer,minstrel,sailor,slayer,shugenja,dreamer,flowergirl,seamstress,banshee,chef,grandmother,preacher,puzzlemaster,plaguedoctor,hatter,drunk,godfather,summoner,baron,goblin,leviathan,zombuul,alhadikhia,nodashii`
+(day 2, the Summoner's game: Drew guesses his drunk right and is shown Blair, a Townsfolk). Suggested ruling: tell
+them no player is the Demon (true, and the guess is spent); option: hold the guess until a Demon is in play.
 
 ## Advisories (counted, not violations)
 
@@ -205,12 +317,23 @@ population or is negative". Rules: such a script is illegal at those sizes (the 
 Suggested fix: check the Outsider count before sampling and raise a clear error naming the modifiers (ruling-style,
 as the smoke brief asks for genuine impossibilities). The fuzzer counts these as advisories, not crashes.
 
+A4. **The Heretic's jinxes leave some setups undealable.** Heretic + Baron on a script with four Outsiders, the Baron
+forced as the game's Minion (the fuzzer rotates it), at 9, 12 and 15 players: the base two Outsiders plus the Baron's
+two are all four, so the Heretic is always dealt with the Baron. `state.random_setup` raises its clear error ("no
+setup for N players without two characters only one of which can be in play"), which the fuzzer counts as an
+advisory (54 in 40,000 games). A genuine impossibility of that script and size.
+
 A3. **The Pit-Hag's arbitrary deaths are credited to the Pit-Hag even when it has just made itself a Demon and died.**
 Cosmetic (the death log's source); the fuzzer does not count it.
 
 ## What is checked, and where it is weak
 
-**The mechanism matrix** (`docs/fuzz-matrix.md`, `python -m clocktower fuzz matrix`): each of the 72 characters
+**The mechanism matrix** (`docs/fuzz-matrix.md`, `python -m clocktower fuzz matrix`), second runs: each of the 100
+characters against the 13 mechanisms, 1,300 cells, 1,293 with a legal setup (no setup holds the Heretic with the Spy
+or the Pit-Hag, the Kazali with the Poisoner, the Spy, the Pit-Hag or the Cerenovus, or the Summoner with the
+Professor and the Shabaloth); 1,268 with no violation, the other 25 only U1, U2, U3, U4, U6, U7 and U8. The
+mechanism did not reach the character in 184 cells, by construction as before (alignment 74, Snake Charmer 54,
+revival 28, Tea Lady 13, Barber 10, Monk 3, drunk 2). First runs: each of the 72 characters
 against 13 mechanisms (drunk, poisoned, Spy/Recluse misregistration, Monk, Soldier, Tea Lady, Innkeeper, Pit-Hag,
 Barber, Snake Charmer, alignment change, madness, revival), four forced games a cell, the mechanism's characters'
 choices aimed at the character (`Directives`). 936 cells, 935 with a legal setup; 828 with no violation; the other
@@ -222,8 +345,9 @@ not revived; the Tea Lady protects only when both neighbours are good), which ar
 scenarios rather than findings. Each violation line there has its own repro (`fuzz cell ...`).
 
 **Where the checks are weak.** The oracle allows a misregistering character (the Spy, the Recluse) to register as
-anything, so it cannot catch a wrong misregistration; it does not judge Storyteller discretion (whether a value is a
+anything its text allows, so it cannot catch a wrong misregistration within that; it does not judge Storyteller discretion (whether a value is a
 good choice), only whether it is a possible one; "acted" is a coarse record (a choice made, information received, a
 kill, a state placed); the once-per-game check sees uses through night choices, Slayer kills and the per-player use
-record, not the Artist's or the Virgin's by effect; and random bots never make the deliberate plays (a Slayer shooting
+record, the Golem's nomination and the Damsel guesses, not the Artist's or the Virgin's by effect; the High Priestess's
+and the General's answers are the Storyteller's belief, so only their form is checked; and random bots never make the deliberate plays (a Slayer shooting
 the Demon, a Gossip telling the truth) that some interactions need, so those pairs are thin.

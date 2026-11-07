@@ -14,21 +14,27 @@ each dawn and dusk (Monitor):
 - information ('oracle', 'engine-truth', 'falsified-true'): what a sober, healthy player with the ability is told
   must be true, judged by the engine's own truth test and, for the information roles in ORACLES, by an independent
   one computed here from the Grimoire (only the characters whose text says they "might register" may register
-  otherwise); information the Vortox falsifies must be false;
+  otherwise); information the Vortox falsifies must be false; Storyteller choices whose legal values a text fixes
+  ('choice': the Widow's knower and the Grandchild are good) are checked too;
 - dead players' abilities ('dead-acts'): the dead don't wake, learn, kill or place states unless they keep their
   ability (the Vigormortis's Minions) or their ability says it works on or after death (DEAD_OK);
 - once-per-game abilities ('once-twice'): a player-character instance (a new character or a return to life starts a
-  new one) uses it at most once; a player who only believes they have it is not woken to use it again
-  ('once-rewoken');
+  new one) uses it at most once (night choices, the per-player use record, the Golem's nomination, each Minion's
+  Damsel guess); a player who only believes they have it is not woken to use it again ('once-rewoken');
 - the Grimoire's coherence ('coherence'): known characters on the script, one alignment, no two living players with
-  the same character, states naming real players, no state outliving the source it ends with;
+  the same character, states naming real players, no state outliving the source it ends with, no ability held
+  beyond the character's unless an ability gave it (a 'gains' event: the Philosopher, Pixie, Cannibal, Plague
+  Doctor);
+- the setup's structure ('setup'): the Marionette neighbours the Demon; a Kazali has made the table's Minions by
+  the first dawn; and announcements the texts require ('announcement': the Leviathan is in play; whom the
+  Al-Hadikhia chose, at dawn);
 - the end ('missed-win', 'false-win', 'continued-past-win'): no play once there is a winner, no standard win
   declared without its condition, no dawn or dusk with a standard win condition met and nothing to delay it;
 - crashes and loops ('crash', 'loop', 'timeout'): every exception, more than STEP_CAP seat requests, or a game over
   TIME_CAP seconds.
 
-Advisories (not violations, reported for review): states that outlive a dead source, and an unclear error for a
-setup that cannot be dealt.
+Advisories (not violations, reported for review): states that outlive a dead source, and a setup that cannot be
+dealt (a raw sampling error, or the clear error for a jinx that lets only one of two characters be in play).
 
 Pair coverage counts, for every pair of characters, the games in which both were in play (at any point) and the games
 in which both also acted (woke, learned, killed, placed a state or used a public ability; a character with no
@@ -155,6 +161,14 @@ def setup_with(script, required, rng, players=None, tries=60):
                 break
             minions += rng.sample([m for m in script.minions if m not in minions], mn - len(minions))
             demon = demons or [rng.choice(script.demons)]
+            if any(rules(m).no_demon for m in minions):  # the Summoner: no Demon dealt, a Townsfolk in its place
+                if demons:
+                    continue
+                demon, tf = [], tf + 1
+            if rules(demon[0]).no_minions if demon else False:  # the Kazali: no Minions dealt, Townsfolk instead
+                if any(kind(c) == 'Minion' for c in req):
+                    break
+                minions, tf = [], tf + mn
             shift = rng.choice(range(-2, 4))  # setup modifiers move Outsiders: try several counts
             o = max(0, os_ + shift)
             t = tf + os_ - o
@@ -249,6 +263,11 @@ class Monitor:
         self.flagged = set()
         self.checked = Counter()  # information checked, by 'engine:' or 'oracle:' and role
         self.touched = {p: set() for p in game.names}  # player -> {(state kind, source character)} seen
+        self.gained = {}             # player -> characters whose abilities they gained (a 'gains' event)
+        self.balloon = {}            # Balloonist -> the character types the player they were last shown could have
+        self.died_at = {}            # player -> the step at which they died
+        self.announced = set()       # public announcements the texts require, made: 'Leviathan'
+        self.unannounced = []        # Al-Hadikhia choices not yet announced ("all players learn who")
 
     # ---- recording ----------------------------------------------------------------------------------------------
     def flag(self, type_, detail, chars=(), advisory=False):
@@ -278,12 +297,17 @@ class Monitor:
         if kind_ in ('becomes', 'gains'):
             self.epoch[data['player']] += 1
             self.in_play.add(data['character'])
+            if kind_ == 'gains':
+                self.gained.setdefault(data['player'], set()).add(data['character'])
         elif kind_ == 'night_choice':
             self.night_choice(data)
         elif kind_ == 'vote' and data.get('yes'):
             self.votes.append((self.game.day, data['voter'], g[data['voter']].character))
         elif kind_ == 'nomination':
-            self.noms.append((self.game.day, data['nominator'], g[data['nominator']].character))
+            nominator = g[data['nominator']]
+            self.noms.append((self.game.day, data['nominator'], nominator.character))
+            if nominator.character == 'Golem':  # "You may only nominate once per game"
+                self.use(nominator, 'Golem')
         elif kind_ == 'slayer':
             s = g[data['shooter']]
             if data.get('died'):
@@ -293,10 +317,42 @@ class Monitor:
                 else:
                     self.use(s, 'Slayer')
                 self.acted.add('Slayer')
+        elif kind_ == 'setup':
+            self.check_setup(data['seats'])
+        elif kind_ == 'text':
+            t = data.get('text', '')
+            if 'the Leviathan is in play' in t:
+                self.announced.add('Leviathan')
+            if 'the Al-Hadikhia chose' in t:
+                self.unannounced = []
         elif kind_ in ('ability', 'visit_text'):
             p = g[data['player']]
             if data.get('character') in g.abilities(p):
                 self.acted.add(data['character'])
+
+    def check_setup(self, seats):
+        """The setup's structure the texts fix: the Marionette neighbours the Demon ("You neighbour the Demon")."""
+        n = len(seats)
+        for i, s in enumerate(seats):
+            if s['character'] == 'Marionette' and any(kind(x['character']) == 'Demon' for x in seats):
+                near = {seats[(i - 1) % n]['character'], seats[(i + 1) % n]['character']}
+                if not any(kind(c) == 'Demon' for c in near):
+                    self.flag('setup', f'{s["name"]} (Marionette) does not neighbour the Demon', ['Marionette'])
+
+    def kazali_count(self):
+        """At the first dawn, a Kazali dealt (no Minions dealt) has made as many Minions as the table has, unless the
+        script has too few to make (or the Heretic's jinx forbids some)."""
+        g = self.g
+        kaz = [p for p in g.players if self.game.starting and self.game.starting.get(p.name) == 'Kazali']
+        if not kaz:
+            return
+        want = SETUPS[len(g.players)][2]
+        have = sum(1 for p in g.players if kind(p.character) == 'Minion')
+        start = set((self.game.starting or {}).values())
+        free = [c for c in g.script.minions if c not in start]
+        if have != want and len(free) >= want and 'Heretic' not in start:
+            self.flag('setup', f'the Kazali made {have} Minions at a {len(g.players)}-player table (want {want})',
+                      ['Kazali'])
 
     def use(self, p, role):
         key = (p.name, role, self.epoch[p.name])
@@ -310,6 +366,8 @@ class Monitor:
     def night_choice(self, data):
         g = self.g
         p, role = g[data['player']], data.get('role')
+        if role == 'Al-Hadikhia' and len(data.get('targets') or []) == 3 and role in g.abilities(p):  # (not a Lunatic)
+            self.unannounced.append(data['targets'])
         if role in g.abilities(p):
             self.acted.add(role)
         if role not in ONCE:
@@ -329,6 +387,12 @@ class Monitor:
         role = ctx.get('ability') or choice.id.split(':')[0]
         if role in CHARACTERS:
             self.acted.add(role)
+        check = CHOICE_CHECKS.get(ctx.get('call'))
+        if check:
+            problem = check(self, ctx, norm(value))
+            self.checked['choice:' + ctx['call']] += 1
+            if problem:
+                self.flag('choice', f'{ctx["call"]}: {problem}', [role, *self.context_chars()])
         if ctx.get('call') != 'information' or role not in CHARACTERS:
             return
         p = g.by_name.get(ctx.get('recipient'))
@@ -357,6 +421,8 @@ class Monitor:
             if problem:
                 self.flag('oracle', f'healthy {p.name} ({role}) was given {shown}: {problem}',
                           [role, *self.context_chars()])
+        if role == 'Balloonist' and value.get('players'):  # what they were shown, for tomorrow's "different type"
+            self.balloon[p.name] = types(g[value['players'][0]])
 
     def falsifiers(self):
         return [q.character for q in self.g.players if rules(q.character).falsifies_info]
@@ -380,10 +446,13 @@ class Monitor:
             self.flag('coherence', f'{p.name} ({p.character}), already dead, killed again ({cause})', [p.character])
         if cause == 'execution':
             self.death_chars[p.name] = p.character
+        self.died_at[p.name] = (self.game.day, self.step_name)
         c = source.character if source is not None and cause == 'demon' else CAUSES.get(cause)
         if c:
             self.acted.add(c)
-        if source is not None and source is not p and not (source.alive or g.keeps_ability(source)):
+        same_step = self.died_at.get(source.name) == (self.game.day, self.step_name) if source is not None else False
+        if source is not None and source is not p and not (source.alive or g.keeps_ability(source)) and not same_step:
+            # (one who died at this very step acted with its deaths at once: the Al-Hadikhia choosing itself)
             if c not in DEAD_OK and cause not in STORYTELLER_DEATHS and not DEAD_OK & set(g.abilities(source)):
                 self.flag('dead-acts', f'{p.name} killed ({cause}) by dead {source.name} ({source.character})',
                           [source.character, p.character])
@@ -408,8 +477,10 @@ class Monitor:
                           [p.character, p.shown])
             if p.alignment not in ('good', 'evil'):
                 self.flag('coherence', f'{p.name} has alignment {p.alignment!r}', [p.character])
-            if getattr(p, 'extra', None) and 'gain' not in text(p.character).lower():
-                self.flag('coherence', f'{p.name} ({p.character}) holds extra abilities {p.extra}', [p.character])
+            stray = [c for c in getattr(p, 'extra', None) or () if c not in self.gained.get(p.name, ())]
+            if stray:  # an ability gained must have been given by an ability that says so (a 'gains' event)
+                self.flag('coherence', f'{p.name} ({p.character}) holds extra abilities {stray} no ability gave',
+                          [p.character, *stray])
             if p.alive:
                 living[p.character] += 1
         for c, n in living.items():
@@ -425,6 +496,11 @@ class Monitor:
                     self.flagged.add((name, role, n))
                     self.flag('once-twice', f'{name} ({g[name].character}) used the {role} ability {n} times',
                               [g[name].character, role])
+        for name, n in Counter(g.notes.get('Damsel guesses', ())).items():  # "Each Minion gets 1 guess"
+            if n > 1 and ('damsel', name, n) not in self.flagged:
+                self.flagged.add(('damsel', name, n))
+                self.flag('once-twice', f'{name} ({g[name].character}) guessed the Damsel {n} times',
+                          [g[name].character, 'Damsel'])
         if len(g.revivals) > self.revived:
             for r in g.revivals[self.revived:]:
                 self.epoch[r['player']] += 1
@@ -489,6 +565,14 @@ class Monitor:
         g = self.g
         self.step(when)
         self.step_name = f'{when} {n}'
+        if when == 'dawn' and n == 1 and g is not None:
+            self.kazali_count()
+        if when == 'dawn' and g is not None and not g.winner:
+            if any(p.character == 'Leviathan' for p in g.players) and 'Leviathan' not in self.announced:
+                self.flag('announcement', 'the Leviathan is in play and the players were not told', ['Leviathan'])
+            if self.unannounced:
+                self.flag('announcement', f'the Al-Hadikhia chose {self.unannounced[0]} and it was not announced at '
+                                          'dawn', ['Al-Hadikhia'])
         if g is None or g.winner:
             return
         demon = any(p.alive and p.is_demon for p in g.players)
@@ -531,8 +615,13 @@ def reg_evil(p):
     return {True, False} if misreg(p) else {p.evil}
 
 
+# what a misregistering character's text lets it register as, besides itself: the Spy "as good & as a Townsfolk or
+# Outsider", the Recluse "as evil & as a Minion or Demon"
+REGISTERS_AS = {'Spy': ('Townsfolk', 'Outsider'), 'Recluse': ('Minion', 'Demon')}
+
+
 def could_be(p, character):
-    return misreg(p) or p.character == character
+    return p.character == character or misreg(p) and kind(character) in REGISTERS_AS.get(p.character, TYPES)
 
 
 def _pair(group):
@@ -620,8 +709,9 @@ def ravenkeeper(m, p, ctx, v):
 def clockmaker(m, p, ctx, v):
     g = m.g
     options = []
+    summoner = g.script.jinxed('Clockmaker', 'Summoner')  # the jinx: the Summoner registers as the Demon
     for q in g.players:
-        k = kind(q.character)
+        k = 'Demon' if summoner and q.character == 'Summoner' else kind(q.character)
         options.append({k, 'Minion', 'Demon', 'other'} if misreg(q) else {k})
     ok = set()
     from .snv import steps_between
@@ -678,6 +768,8 @@ def sage(m, p, ctx, v):
     g = m.g
     death = next((d for d in reversed(g.death_log) if d['player'] == p.name and d['cause'] == 'demon'), None)
     killer = death and death['source']
+    if p.alive and g.script.jinxed('Leviathan', 'Sage'):  # the jinx: chosen by the Leviathan, they learn it alive
+        killer = next((q.name for q in g.players if q.character == 'Leviathan'), killer)
     if killer in v['players']:
         return None
     if g.script.jinxed('Recluse', 'Sage') and any(g[x].character == 'Recluse' for x in v['players']):
@@ -706,11 +798,99 @@ def godfather(m, p, ctx, v):
     return f'shown {sorted(shown)}, in play {sorted(real)}'
 
 
+def steward(m, p, ctx, v):
+    x = m.g[v['players'][0]]
+    if x is p:
+        return 'shown themself'
+    return None if misreg(x) or not x.evil else f'{x.name} is the {x.character}, evil'
+
+
+def nightwatchman(m, p, ctx, v):
+    return None if v['players'] == [p.name] else f'{ctx.get("about")} was shown {v["players"] or "no one"}'
+
+
+def shugenja(m, p, ctx, v):
+    g = m.g
+    n = len(g.players)
+    flex = [q for q in g.players if misreg(q) and q is not p]
+    fixed = {q.name for q in g.players if q.evil and not misreg(q) and q is not p}
+    ok = set()
+    for combo in product((False, True), repeat=len(flex)):
+        evil = fixed | {q.name for q, e in zip(flex, combo) if e}
+        if not evil:
+            continue
+        cw = next(k for k in range(1, n) if g.players[(p.seat + k) % n].name in evil)
+        ac = next(k for k in range(1, n) if g.players[(p.seat - k) % n].name in evil)
+        ok |= {True, False} if cw == ac else {cw < ac}
+    if not ok:
+        return None
+    return None if v['yes'] in ok else f'{"clockwise" if v["yes"] else "anticlockwise"}, but the Grimoire gives ' \
+        f'{"clockwise" if True in ok else "anticlockwise"}'
+
+
+def types(q):
+    return {kind(q.character), *REGISTERS_AS.get(q.character, TYPES)} if misreg(q) else {kind(q.character)}
+
+
+def balloonist(m, p, ctx, v):
+    x = m.g[v['players'][0]]
+    last = m.balloon.get(p.name)
+    if x is p:
+        return 'shown themself'
+    if last is None or types(x) - last or len(last) > 1:
+        return None
+    return f'{x.name} ({x.character}) is of the type shown last night ({"/".join(sorted(last))})'
+
+
+def pixie(m, p, ctx, v):
+    g = m.g
+    c = v['character']
+    if kind(c) != 'Townsfolk':
+        return f'{c} is not a Townsfolk'
+    return None if any(q is not p and could_be(q, c) for q in g.players) else f'no other player is the {c}'
+
+
+def fisherman(m, p, ctx, v):
+    g = m.g  # "X is the Y." (the other forms: the engine's own test)
+    found = re.fullmatch(r'(\w+) is the (.+)\.', v['statements'][0])
+    if not found or found.group(1) not in g.by_name or found.group(2) not in CHARACTERS:
+        return None
+    x = g[found.group(1)]
+    return None if could_be(x, found.group(2)) else f'{x.name} is the {x.character}'
+
+
+def high_priestess(m, p, ctx, v):
+    # the Storyteller's belief, so any player is legal by the rules; the engine's reading (a living player of their
+    # own team when there is one) is held here only as "not themself"
+    return 'shown themself' if v['players'] == [p.name] else None
+
+
+def general(m, p, ctx, v):
+    return None if v['statements'][0] in ('good', 'evil', 'neither') else f'answered {v["statements"]}'
+
+
 ORACLES = {'Washerwoman': _pair('Townsfolk'), 'Librarian': _pair('Outsider'), 'Investigator': _pair('Minion'),
            'Chef': chef, 'Empath': empath, 'Fortune Teller': fortune_teller, 'Undertaker': undertaker,
            'Ravenkeeper': ravenkeeper, 'Clockmaker': clockmaker, 'Dreamer': dreamer, 'Seamstress': seamstress,
            'Oracle': oracle, 'Flowergirl': flowergirl, 'Town Crier': town_crier, 'Sage': sage,
-           'Grandmother': grandmother, 'Godfather': godfather}
+           'Grandmother': grandmother, 'Godfather': godfather, 'Steward': steward, 'Nightwatchman': nightwatchman,
+           'Shugenja': shugenja, 'Balloonist': balloonist, 'Pixie': pixie, 'Fisherman': fisherman,
+           'High Priestess': high_priestess, 'General': general}
+
+
+def widow_knower(m, ctx, v):
+    x = m.g[v['players'][0]]
+    return None if x.alive and not x.evil else f'{x.name} ({x.character}, {x.alignment}, ' \
+        f'{"alive" if x.alive else "dead"}) learns that a Widow is in play'
+
+
+def grandchild(m, ctx, v):
+    x = m.g[v['players'][0]]
+    return None if not x.evil else f'the Grandchild {x.name} ({x.character}) is evil'
+
+
+# Storyteller choices that are not information but whose legal values the text fixes: {call: check}
+CHOICE_CHECKS = {'widow_knower': widow_knower, 'grandchild': grandchild}
 
 
 # ---- one game -------------------------------------------------------------------------------------------------
@@ -762,7 +942,7 @@ def play(spec, directives=None, decide=None, trace=None):
         game.fz.flag('timeout', str(e), game.fz.context_chars() if game.g else spec['chars'])
     except Exception as e:
         tb = traceback.format_exc()
-        if game.g is None and isinstance(e, ValueError) and 'sample' in str(e).lower():
+        if game.g is None and isinstance(e, ValueError) and ('sample' in str(e).lower() or 'no setup' in str(e)):
             game.fz.flag('setup', f'{type(e).__name__}: {e}', spec['chars'], advisory=True)
         else:
             game.fz.flag('crash', f'{type(e).__name__}: {e}\n{tb[-1500:]}',
@@ -827,6 +1007,10 @@ def make_specs(start, count, rng_seed, modes, sizes, bias=None, force=(), covera
         if forced:
             script = make_script(chars)
             setup = setup_with(script, forced, r, None)
+            for one in ([] if setup else forced):  # a pair no setup can deal (the Kazali and a Minion, the Summoner
+                setup = setup_with(script, [one], r, None)  # and a Demon): one in play, the other on the script
+                if setup:
+                    break
             if setup:
                 spec['players'], spec['setup'] = len(setup), setup
         specs.append(spec)
