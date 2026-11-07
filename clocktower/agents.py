@@ -27,6 +27,10 @@ class Request:
     mode: str = ''              # 'private' (whispers only) or 'public' (speech only)
     claimable: list = field(default_factory=list)  # public turns beyond Trouble Brewing: the characters whose day
     #                                                ability anyone may claim through the `ability` field (the Gossip)
+    visitable: list = field(default_factory=list)  # private turns: the characters whose ability is used by visiting
+    #                                                the Storyteller (the Savant, the Artist), through the `visit` field
+    guesses: list = field(default_factory=list)  # public turns: the characters a claimed ability's guesses may name,
+    #                                              when one takes guesses (the Juggler's), else []
 
 
 class ModelSeat:
@@ -66,30 +70,46 @@ class RandomSeat:
             if r.random() < 0.5: a['say'] = r.choice(LINES)
             if r.random() < 0.3: a['whispers'] = [{'to': [r.choice(others)], 'text': 'psst, what are you?'}]
             if r.random() < 0.03: a['slayer_shot'] = r.choice(others)
-            if request.claimable and r.random() < 0.08: a['ability'] = self.claim(request.claimable)
+            if request.claimable and r.random() < 0.08: a['ability'] = self.claim(request.claimable, request.guesses)
+            if request.visitable and r.random() < 0.15: a['visit'] = self.visit(request.visitable)
         elif request.kind == 'nominate':
             if request.options and r.random() < 0.4:
                 a['nominate'] = r.choice(request.options)
                 a['say'] = 'You seem suspicious.'
         elif request.kind == 'comment':
             if r.random() < 0.3: a['say'] = r.choice(LINES)
-            if request.claimable and r.random() < 0.04: a['ability'] = self.claim(request.claimable)
+            if request.claimable and r.random() < 0.04: a['ability'] = self.claim(request.claimable, request.guesses)
         elif request.kind == 'defense':
             a['say'] = 'I am good, I promise.'
         elif request.kind == 'vote':
             a['vote'] = r.random() < 0.5
         return Reply(a)
 
-    def claim(self, claimable):
+    def claim(self, claimable, guesses=()):
         """A claimed public ability (scripts beyond Trouble Brewing): a character, a player and a statement of one
-        of the forms the Gossip's are checked in, or one only a judge can rule on."""
+        of the forms the Gossip's are checked in, or one only a judge can rule on; and, where an ability takes guesses
+        (the Juggler's), up to five (player, character) guesses."""
         r = self.rng
         x = r.choice(self.names)
         statement = r.choice([f'{x} is evil.', f'{x} is good.', f'{x} is a Minion.', f'{x} is not the Demon.',
                               f'{x} is an Outsider.', f'The {r.choice(claimable)} is in play.',
                               f'I am the Gossip. My statement is: {x} is the {r.choice(claimable)}.',
                               'The Demon is wearing a hat.', f'{x} will be executed today.'])
-        return {'character': r.choice(claimable), 'target': x, 'text': statement}
+        out = {'character': r.choice(claimable), 'target': x, 'text': statement}
+        if guesses:  # (scripts without a guessing ability draw nothing more, so their random play is unchanged)
+            out['guesses'] = [{'player': r.choice(self.names), 'character': r.choice(guesses)}
+                              for _ in range(r.randint(0, 5))]
+        return out
+
+    def visit(self, visitable):
+        """A visit to the Storyteller (scripts with the Savant or the Artist): a character's ability, and a question
+        of a form the code answers or one only a judge can."""
+        r = self.rng
+        x, y = r.sample(self.names, 2)
+        question = r.choice([f'Is {x} evil?', f'Is {x} the Demon?', f'Are {x} and {y} the same alignment?',
+                             f'Is there a {r.choice(visitable)} in play?', f'Is the Demon {x} or {y}?',
+                             'Are we winning?', ''])
+        return {'character': r.choice(visitable), 'text': question}
 
 
 class ScriptedStoryteller:

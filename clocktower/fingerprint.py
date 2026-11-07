@@ -9,6 +9,7 @@ does it for a fixed set of games across every table size and Minion (tests/data/
     python -m clocktower fingerprint --check            # compare every game with the recorded set
     python -m clocktower fingerprint --write            # re-record (only for a deliberate change of play)
     python -m clocktower fingerprint --check --script bmr   # Bad Moon Rising's recorded set
+    python -m clocktower fingerprint --check --script snv   # Sects & Violets'
 """
 from __future__ import annotations
 import argparse
@@ -83,7 +84,7 @@ def main(argv=None):
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument('--check', action='store_true', help='compare with the recorded fingerprints')
     mode.add_argument('--write', action='store_true', help='record fingerprints for the current engine')
-    ap.add_argument('--script', default='tb', help='tb (the default) or bmr')
+    ap.add_argument('--script', default='tb', help='tb (the default), bmr or snv')
     ap.add_argument('--file', help='the recorded set (default: tests/data/fingerprints[-SCRIPT].json)')
     ap.add_argument('--limit', type=int, help='only the first N games (a quick check)')
     args = ap.parse_args(argv)

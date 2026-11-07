@@ -309,8 +309,15 @@ class Game:
         told is not information: drunkenness, poison and the Vortox never touch it. Taking a new character ends the
         old one's ongoing effects (Grimoire.change_character: a Demon that is no longer the Demon stops poisoning)
         and gives its ability fresh, even a once-per-game one used before (the Barber's almanac); a new Demon learns
-        no Minions. Then the new character's `becomes` (a new Evil Twin's twin) and everyone's `changed` hooks run."""
-        g, done = self.g, []
+        no Minions. Then the new character's `becomes` (a new Evil Twin's twin) and everyone's `changed` hooks run.
+        A character that passes from one player to another here (a swap) takes what belongs to it, not to its old
+        player (Character.hand_over: the Vigormortis's dead Minions keep their abilities)."""
+        g, done, moving = self.g, [], []
+        before = [(p, p.character) for p, _, _ in changes]
+        for p, character, _ in changes:
+            giver = next((q for q, c in before if c == character and q is not p), None) if character else None
+            if giver and character != p.character:
+                moving.append((p, rules(character).hand_over(g, giver, p)))
         for p, character, alignment in changes:
             old = (p.character, p.alignment)
             if character and character != p.character:
@@ -322,6 +329,10 @@ class Game:
                 self.emit('alignment', {'player': p.name, 'alignment': alignment}, 'audit')
             if (p.character, p.alignment) != old:
                 done.append((p, old))
+        for p, states in moving:
+            for st in states:
+                st.source = p.name
+                g.add(st)
         when = f'Night {self.day}' if self.tonight is not None else f'Day {self.day}'
         for p, (character, alignment) in done:
             told = [f'you are now the {p.character} ({rules(p.character).ability})'] if p.character != character else []
@@ -550,21 +561,25 @@ class Game:
         g, names = self.g, self.names
         roles = {c for c in characters if rules(c).night_choice}
         tonight = g.script.first_night if night.first else g.script.other_nights
-        requests, specs = {}, {}
+        requests, specs, woken_as = {}, {}, {}
         for p in g.players:
             if not (p.alive or g.keeps_ability(p)):  # the dead don't wake, unless they keep their ability (Vigormortis)
                 continue
+            role = p.shown
             if rules(p.character).wakes_at_own_step:  # at their own step, as who they believe they are, if that
                 if p.character not in characters or not rules(p.shown).night_choice or p.shown not in tonight:
                     continue  # character has a step tonight (a Lunatic who believes they are the Zombuul)
             elif p.shown not in roles:
-                continue
+                # an ability gained beyond their character (the Philosopher's) wakes them at that character's step
+                role = next((c for c in getattr(p, 'extra', ()) if c in roles), None)
+                if role is None:
+                    continue
             if p.name in night.asleep:
                 continue
-            nc = rules(p.shown).night_spec(self, p, night)  # tonight's shape, or None: not woken tonight
+            nc = rules(role).night_spec(self, p, night)  # tonight's shape, or None: not woken tonight
             if nc is None:
                 continue
-            spec, v17 = choice_spec(rules(p.shown), nc), not isinstance(nc, Choose)
+            spec, v17 = choice_spec(rules(role), nc), not isinstance(nc, Choose)
             # "different to last night": the night just before; a player who chose no one then may choose anyone
             last = g.night_choices.get(night.n - 1, {}).get(p.name, []) if spec.not_last else []
             options = [x for x in names if (spec.may_self or x != p.name) and x not in last
@@ -578,8 +593,8 @@ class Game:
                    + (' and the character in `character`' if spec.character else '') + '.')
             if spec.players == 0:
                 how = 'Put the character in `character`' + (' (null for none)' if spec.optional else '') + '.'
-            specs[p.name] = spec
-            requests[p.name] = Request('night', f'Night {night.n} — {p.shown}: {spec.prompt} {how}', night.n,
+            specs[p.name], woken_as[p.name] = spec, role
+            requests[p.name] = Request('night', f'Night {night.n} — {role}: {spec.prompt} {how}', night.n,
                                        n_targets=spec.players, options=options,
                                        min_targets=0 if spec.optional else spec.players,
                                        characters=[c for c in g.script.all if not spec.kinds or kind(c) in spec.kinds]
@@ -592,7 +607,7 @@ class Game:
             g.last_choices[name] = night.chosen[name]
             g.night_choices.setdefault(night.n, {})[name] = night.chosen[name]
             g.woke.setdefault(night.n, []).append(name)
-            data = {'player': name, 'role': g[name].shown, 'targets': night.chosen[name]}
+            data = {'player': name, 'role': woken_as.get(name, g[name].shown), 'targets': night.chosen[name]}
             if req.characters:  # a character only, that may be declined (the Courtier's): None for none, or for a
                 # name not on the script (never a random use of a once-per-game ability)
                 spec = specs[name]
@@ -700,6 +715,7 @@ class Game:
         g = self.g
         size = math.ceil(len(order) / self.waves)
         waves = [order[i:i + size] for i in range(0, len(order), size)]
+        visitable, guessable = getattr(g.script, 'visitable', ()), getattr(g.script, 'guessable', ())
         for w, wave in enumerate(waves, start=1):
             requests = {}
             for name in wave:
@@ -708,10 +724,16 @@ class Game:
                     prompt += ' (You are dead, but you can still ' + ('whisper.)' if private else 'talk.)')
                 requests[name] = Request(kind, prompt, n, beat=beat, alive=g[name].appears_alive,
                                          mode='private' if private else 'public',
-                                         claimable=[] if private else list(g.script.claimable))
+                                         claimable=[] if private else list(g.script.claimable),
+                                         visitable=list(visitable) if private else [],
+                                         guesses=[] if private or not guessable else list(g.script.all))
             acts = await self.ask_many(requests)
             if private:
                 for name in wave:
+                    visit = acts[name].get('visit') if visitable else None
+                    if isinstance(visit, dict) and visit.get('character') in visitable:
+                        if await self.visit_judged(name, visit, acts[name]):
+                            continue  # the turn's one conversation was with the Storyteller
                     if (acts[name].get('say') or '').strip() and not acts[name].get('whispers'):
                         self.emit('notice', {'text': '(Nothing is said aloud in private time: to talk to someone, '
                                                      'whisper to them.)'}, [name])
@@ -740,6 +762,9 @@ class Game:
             note = f' ({left} whisper{"" if left == 1 else "s"} left today after this one)'
             tail = ('You may send one whisper, to one or two players, or none. Nobody can address the town until the '
                     'town square.')
+            if getattr(self.g.script, 'visitable', ()):  # (scripts with the Savant or the Artist)
+                tail += (' Or, instead of whispering, visit the Storyteller in private (`visit`): the town sees that '
+                         'you went, never why. One visit a day.')
         else:
             note, tail = '', 'Say something to the town, or nothing. No whispering now.'
             if k == total:
@@ -767,9 +792,16 @@ class Game:
                 continue
             c, target = use['character'], use.get('target') if use.get('target') in self.names else None
             text = clip(use.get('text'), WORDS['beat'])
+            more = {}
+            if rules(c).public_guesses:  # (player, character) guesses, as many as the ability takes (the Juggler's)
+                more['guesses'] = [{'player': x['player'], 'character': x['character']}
+                                   for x in use.get('guesses') or [] if isinstance(x, dict)
+                                   and x.get('player') in self.names and x.get('character') in g.script.all
+                                   ][:rules(c).public_guesses]
             self.emit('ability', {'player': name, 'character': c, **({'target': target} if target else {}),
-                                  **({'text': text} if text else {})})
-            if await settle(rules(c).act_publicly(self, name, target, text)) and target:
+                                  **({'text': text} if text else {}), **({'guesses': more['guesses']}
+                                                                         if more.get('guesses') else {})})
+            if await settle(rules(c).act_publicly(self, name, target, text, **more)) and target:
                 if not self.prevent_death(g[target], c.lower()):
                     self.kill(g[target], c.lower(), g[name])
                     g.check_victory()
@@ -777,6 +809,32 @@ class Game:
     def public_abilities(self, names, acts):
         """public_abilities_judged, synchronously (tests)."""
         now(self.public_abilities_judged(names, acts))
+
+    async def visit_judged(self, name, visit, action=None):
+        """`name` visits the Storyteller on a private-time turn, claiming `visit['character']`'s ability (the Savant,
+        the Artist) and saying `visit['text']` (the Artist's question). Anyone may visit, so a bluff looks the same:
+        the town sees who went (a public 'visit' event), never why; what was said is the Storyteller's (an audit
+        event the judge hears). The character's `visited` answers privately if they have the ability, or believe
+        they do; otherwise the Storyteller only nods. One visit a day: a second is refused (and the turn goes on). A
+        visit is the turn's one conversation: a whisper sent with it is not sent. Returns whether the visit
+        happened."""
+        g, c = self.g, visit['character']
+        seen = g.notes.setdefault('Visits', {})
+        if seen.get(name) == self.day:
+            self.emit('notice', {'text': '(You have already visited the Storyteller today: one visit a day.)'}, [name])
+            return False
+        seen[name] = self.day
+        text = clip(visit.get('text'), WORDS['whisper'])
+        if (action or {}).get('whispers'):
+            self.emit('notice', {'text': '(Your whisper was not sent: you spent this turn with the Storyteller.)'},
+                      [name])
+        self.emit('visit', {'player': name})
+        self.emit('visit_text', {'player': name, 'character': c, 'text': text}, 'audit')
+        if not await settle(rules(c).visited(self, g[name], text)):
+            self.inform(g[name], f'Day {self.day}: you visited the Storyteller, who listened and nodded. (You do not '
+                                 f'have the {c}\'s ability, so nothing happens; the town saw only that you went.)')
+        await self.run_pending()
+        return True
 
     async def slayer_judged(self, shooter, target):
         g = self.g
@@ -1003,19 +1061,20 @@ class Game:
         await self.moment_judged('dusk')
         await self.run_pending()
 
-    async def judge_madness(self, p, about, must=True, since=None):
+    async def judge_madness(self, p, about, must=True, since=None, after=None):
         """The Storyteller judges whether `p` broke their madness about `about` (a character, or a type such as
         'Outsider'; must=False: they must NOT be mad about it, as the Mutant) in what was said since day `since`
         (default today), and if so whether to execute them ("might be executed"). Both are judged decisions
         (state.madness_choice, madness_penalty_choice); the scripted Storyteller reads only what was said aloud
         (judge.madness_evidence), a judge hears what its `--judge-hears` allows. Only one execution a day: none if
         there was one today. A madness execution is announced, and is today's execution (before nominations, the
-        day's nominations don't open). Returns whether they were executed."""
+        day's nominations don't open). `after`, an event number: only what was said from then on (a later checkpoint
+        the same day, so evidence already judged is not judged again). Returns whether they were executed."""
         from .judge import madness_evidence
         g = self.g
         if self.executed_today or g.winner:
             return False
-        evidence = madness_evidence(self, p.name, about, self.day if since is None else since, 'public')
+        evidence = madness_evidence(self, p.name, about, self.day if since is None else since, 'public', after)
         if not (await self.decide_judged(madness_choice(g, p, about, must, evidence)))['yes']:
             return False
         if not (await self.decide_judged(madness_penalty_choice(g, p, about)))['yes']:

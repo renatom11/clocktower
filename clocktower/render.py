@@ -58,7 +58,13 @@ def render(ev, viewer, dead=()):
     if k == 'ability':
         head = f"{nm(d['player'])} claims the {d['character']}'s ability"
         head += f" on {d['target']}" if d.get('target') else ''
+        if d.get('guesses'):  # the Juggler's guesses
+            head += ', guessing: ' + '; '.join(f"{x['player']} is the {x['character']}" for x in d['guesses'])
         return head + (f': "{d["text"]}"' if d.get('text') else '.')
+    if k == 'visit':  # the town sees who went to the Storyteller, never why
+        return f"{nm(d['player'])} goes to talk to the Storyteller in private."
+    if k == 'visit_text':
+        return f"[{d['player']} tells the Storyteller, as the {d['character']}: {d.get('text') or '(nothing)'}]"
     if k == 'died':  # a death by day through an ability (the Tinker's): the town sees it, never why
         return f"{d['player']} dies."
     if k == 'nominations_open':

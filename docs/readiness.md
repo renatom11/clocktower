@@ -20,27 +20,22 @@ dealt team's model after a team change.
 ## Sects & Violets
 
 **New moves and mechanics**
-- **Visiting the Storyteller** (the Savant, the Artist): a private move, seen by the town as a visit, fakeable by
-  anyone. Not built: no Bad Moon Rising character needed it.
+- **Built in batch 3** (docs/snv-rulings.md): visiting the Storyteller (`visit`, `Game.visit_judged`: a private move
+  seen by the town as a visit, fakeable by anyone), guesses in the public `ability` move (the Juggler), abilities
+  gained beyond one's character woken at their step (the Philosopher), and every remaining character. Sects &
+  Violets plays end to end, with its player prompt and replay fingerprints.
 - **Built in batch 1** (docs/snv-rulings.md): madness (a 'mad' state, `Game.judge_madness`: a judged "did they
   break it?" with a scripted floor and an evidence policy, then a judged "might be executed"; a madness execution
   before nominations is the day's), character changes in bulk with their notices (`Game.change`, `Game.swap`),
   information that must be false (`Character.falsifies`: the Vortox), states worked out on demand (the No Dashii's
   seat-based poison), dead players keeping their ability (the Vigormortis), and abilities triggered by any
   nomination or execution (the Witch, the Evil Twin). The Demons and Minions use them.
-- **Madness still needs:** the S&V player prompt (what madness is, what the Storyteller hears), reports to the
-  Storyteller ("snitching"), and the Mutant's checkpoints.
-- **New win conditions** still to build: the Klutz and the Mutant (`overrides_end` and a public choice on death
-  exist).
-- **Day guesses** (the Juggler: up to five player-and-character guesses): the shared `ability` move needs a list form.
-- **Storyteller content:** Savant statements (templates checked by code against the Grimoire; the TheGrim Discord's
-  Savant Generator is one reference) and the Artist's answers (a model turns the question into a checkable statement,
-  code answers it).
-- **Records** the Flowergirl, Town Crier and Oracle read (who voted, who nominated, dead evil players) exist; the
-  Mathematician needs a record of every ability that misfired (a counterfactual "would a sober ability have given
-  this?").
+- **Still open:** reports to the Storyteller about other players ("snitching") are only what a visit's text says
+  (the model judge reads it; the scripted floor reads only the visitor's own words); the Savant's templates could
+  grow (seat ranges, claims); the Artist's non-yes/no questions get "I don't know" rather than "ask again".
 
-**Storyteller policy:** Storyteller's notes for the 25 characters, POLICY weights, and the judge's rules heuristics.
+**Storyteller policy:** notes for the 25 characters, POLICY weights and the rules judge's heuristics exist, all
+marked for the owner's review (docs/snv-rulings.md).
 
 ## Custom scripts
 

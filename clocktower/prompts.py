@@ -112,8 +112,8 @@ def _teams_bmr(n):
             f"Evil players can only talk the way everyone else does: in town or by whisper.")
 
 
-# Each script's prompt is the Trouble Brewing prompt with these sentences replaced (Bad Moon Rising: a draft for
-# review). Everything else is shared, so the two never drift apart.
+# Each script's prompt is the Trouble Brewing prompt with these sentences replaced (Bad Moon Rising and Sects &
+# Violets: drafts for review). Everything else is shared, so they never drift apart.
 SCRIPT_TEAMS = {'bmr': _teams_bmr}
 SCRIPT_TEXT = {'bmr': [
     ('using the Trouble Brewing script', 'using the Bad Moon Rising script'),
@@ -173,6 +173,105 @@ SCRIPT_TEXT = {'bmr': [
      "You can use it on any public turn: the town square, or the comments on a nomination. The town hears it as a "
      "use of that ability (with the statement, or the player)."),
 ]}
+SCRIPT_TEXT['snv'] = [
+    ("using the Trouble Brewing script",
+     "using the Sects & Violets script"),
+    ("The Saint and Mayor add other ways to win or lose.",
+     "Several characters change this. While the Vortox lives, if nobody is executed in a day, evil wins at dusk. While "
+     "the Evil Twin and their good twin both live, good cannot win, and if the good twin is executed, evil wins. When "
+     "the Klutz dies they must publicly choose an alive player: if that player is evil, the Klutz's team loses. And "
+     "the Storyteller can execute a player for breaking their madness (see below)."),
+    ("At night, characters with night abilities act and the Storyteller gives out information; the Imp kills. At dawn "
+     "the night's deaths are announced, but not how or why. Night order: the Poisoner acts first, then the Monk, then "
+     "the Imp; the information roles (Empath, Fortune Teller, Undertaker and the rest) wake after the Imp, so a player "
+     "killed in the night does not wake again that night (except the Ravenkeeper, whose ability is triggered by that "
+     "death). On the first night the Monk and the Imp do not act.",
+     "At night, characters with night abilities act and the Storyteller gives out information; the Demon attacks. At "
+     "dawn the night's deaths are announced, in seat order, but not how or why. Night order: the Philosopher and the "
+     "Snake Charmer act first, then the Witch, the Cerenovus and the Pit-Hag, then the Demon, then the Barber's swap, "
+     "the Sweetheart and the Sage, and the information roles (the Dreamer, the Flowergirl, the Town Crier, the Oracle, "
+     "the Seamstress, the Juggler, the Mathematician) last, so a player killed in the night does not wake again that "
+     "night (except the Sage, who learns of the Demon that killed them). On the first night no Demon kills. A Minion "
+     "the Vigormortis kills keeps their ability while dead, and a Witch's curse can kill by day."),
+    ("their character stays secret unless an ability (such as the Undertaker's or the Ravenkeeper's) shows it to "
+     "someone. During the day the town talks and whispers, then nominates and votes. There is at most one execution "
+     "per day.",
+     "their character stays secret. During the day the town talks and whispers, then nominates and votes. There is at "
+     "most one execution per day, and a madness execution by the Storyteller counts as it.\nCharacter and alignment "
+     "are separate, and both can change: the Pit-Hag turns a player into another character, the Snake Charmer who "
+     "chooses the Demon swaps characters and teams with them, the Barber's death lets the Demon swap two players' "
+     "characters, and the Fang Gu jumps into an Outsider, who turns evil. A good player who becomes a Minion or the "
+     "Demon stays good, and an evil player made a Townsfolk stays evil, unless they are told their team changed. "
+     "Whenever your character or team changes, the Storyteller tells you at once, in private: this is always true. You "
+     "win or lose with your team as it is at the end.\nMadness. Some abilities make you \"mad\" about something: you "
+     "must try to convince the group of it. The Cerenovus makes a player mad that they are a good character for a day: "
+     "they must claim it and act like it, in earnest. The Mutant must not try to convince anyone that they are an "
+     "Outsider. Breaking your madness (not trying, hinting or winking, saying you are mad, or the Mutant admitting to "
+     "being an Outsider) can get you executed by the Storyteller, without a vote, and that is the day's execution. "
+     "Assume the Storyteller hears everything: what you say aloud, what you tell them on a visit, and your whispers "
+     "too, so a private confession can count."),
+    ("Information from a working ability is true, except that the Spy and Recluse can register as something they are "
+     "not, and the Fortune Teller's red herring registers as a Demon to the Fortune Teller.",
+     "Many abilities here make players drunk or poisoned without their knowing: the No Dashii poisons its two nearest "
+     "Townsfolk, each Minion the Vigormortis kills poisons a Townsfolk neighbour, the old Demon a Snake Charmer swaps "
+     "with is poisoned for good, the Philosopher makes the player of the ability they gain drunk, and the Sweetheart's "
+     "death makes someone drunk from then on. Information from a working ability is true, except under the Vortox: "
+     "while it lives, every Townsfolk's information is false, always (a change of character or team you are told of is "
+     "not information, and is true)."),
+    ("The Slayer's shot is public, and anyone can claim to take one: a fake or failed shot simply does nothing.",
+     "Some abilities are used in public, and anyone can claim to use them: a claim by anyone else simply does nothing. "
+     "The Juggler's guesses are public: on their first day as the Juggler they guess up to five players' characters in "
+     "one go, and learn that night how many were right. The Klutz is asked to choose as soon as they learn they died, "
+     "and the town hears the choice.\nVisits to the Storyteller. The Savant (each day: two statements, one true and "
+     "one false, not saying which) and the Artist (once per game: one yes/no question, answered yes, no or \"I don't "
+     "know\") use their abilities by visiting the Storyteller during private time. Anyone may visit, to bluff these "
+     "characters: the town sees that you went to the Storyteller, never why or what was said. A visit takes the place "
+     "of that turn's whisper, and you can visit once a day."),
+    ("- Information can be wrong: players may be drunk or poisoned, the Spy and Recluse can misregister, and the "
+     "Fortune Teller has a red herring.",
+     "- Information can be wrong: many players become drunk or poisoned without being told, and under the Vortox all "
+     "Townsfolk information is false. Working out which Demon is in play comes first.\n- Outsiders here hurt their own "
+     "team when they die (the Sweetheart, the Barber, the Klutz), and the Mutant must hide that they are one, so "
+     "Outsiders often bluff."),
+    ("- The Demon's three bluffs are characters not in play (though the Drunk may believe they are one of them). The "
+     "Minion only learns them if the Demon shares them.",
+     "- The Demon's three bluffs are characters not in play. The Minions only learn them if the Demon shares them."),
+    ("- Night deaths are evidence too: the Demon chooses who dies, and who survives.",
+     "- Night deaths are evidence, but not only the Demon kills (the Witch's curse, the Pit-Hag making a Demon), a "
+     "dead Minion may still act (the Vigormortis), and a Demon may die and be replaced (the Fang Gu's jump)."),
+    ("- targets: the player(s) you choose for a night ability, otherwise [].",
+     "- targets: the player(s) you choose for a night ability, or the player you choose when the Klutz's death asks "
+     "you to choose, otherwise []."),
+    ("- slayer_shot: a player's name to publicly use the Slayer's ability, otherwise null. You can shoot on any public "
+     "turn: the town square, the call for nominations, or the comments on a nomination.",
+     "- character: the character you choose when a night ability asks for one (the Philosopher's, the Pit-Hag's, the "
+     "Cerenovus's), otherwise null.\n- ability: to use a public day ability, or to claim to: {\"character\": "
+     "\"Juggler\", \"target\": null, \"text\": \"\", \"guesses\": [{\"player\": a name, \"character\": a character}, "
+     "... up to five]}, or {\"character\": \"Klutz\", \"target\": a player, \"text\": \"\", \"guesses\": []}; "
+     "otherwise null. You can use it on any public turn: the town square, or the comments on a nomination. The town "
+     "hears it, with the guesses or the player.\n- visit: during private time only, to visit the Storyteller instead "
+     "of whispering: {\"character\": \"Savant\" or \"Artist\", \"text\": your question for the Artist, else \"\"}; "
+     "otherwise null. The answer comes to you in private; the town sees only that you went."),
+]
+
+
+def _teams_snv(n):
+    tf, os_, mn = SETUPS[n]
+    minions = 'one Minion' if mn == 1 else f'{mn} Minions'
+    return (f"Teams. Good: Townsfolk and Outsiders. Evil: the Demon and {minions}. With {WORDS[n]} players there are "
+            f"normally {tf} Townsfolk, {os_} Outsider{'' if os_ == 1 else 's'}, {minions} and one Demon (the Fang Gu, "
+            f"Vigormortis, No Dashii or Vortox); with the Fang Gu there is one Outsider more, with the Vigormortis one "
+            f"fewer (if there is one to remove). Each character is in play at most once. You know your own character, "
+            f"not anyone else's.\n"
+            f"Evil knows itself at the start. The Demon and "
+            f"{'its Minion know each other' if mn == 1 else 'its Minions all know one another'}, and the Demon learns "
+            f"three good characters that are not in play (bluffs). The Evil Twin and their good twin also learn each "
+            f"other. But characters and teams change during the game, and a player who becomes the Demon later learns "
+            f"no Minions. Evil players can only talk the way everyone else does: in town, by whisper, or to the "
+            f"Storyteller on a visit.")
+
+
+SCRIPT_TEAMS['snv'] = _teams_snv
 
 
 DAWN_DEATHS = [

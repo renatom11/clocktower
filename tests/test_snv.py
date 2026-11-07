@@ -8,21 +8,22 @@ import random
 import unittest
 
 from clocktower import characters as ch
-from clocktower import judge, official
+from clocktower import judge, official, snv
 from clocktower.agents import ScriptedStoryteller
 from clocktower.game import ALL_NAMES, NAMES, Game
 from clocktower.llm import Reply
 from clocktower.characters import kind
 from clocktower.snv import (abnormal_since_dawn, arbitrary_deaths_choice, clockmaker_choice, demon_voted,
                             dreamer_choice, mathematician_choice, minion_nominated, oracle_choice, sage_choice,
-                            seamstress_choice, twin_choice, yes_no)
+                            seamstress_choice, twin_choice, used, yes_no)
 from clocktower.state import (POLICY, Grimoire, State, empath_choice, madness_choice, madness_penalty_choice,
                               random_setup, setup_error, team_sizes)
 
 A, B, C, D, E, F, G, H, I = NAMES
 BLANK = {'say': '', 'whispers': [], 'nominate': None, 'vote': None, 'targets': []}
 SNV = ['Clockmaker', 'Dreamer', 'Snake Charmer', 'Mathematician', 'Flowergirl', 'Town Crier', 'Oracle', 'Seamstress',
-       'Sage', 'Witch', 'Cerenovus', 'Pit-Hag', 'Evil Twin', 'Fang Gu', 'Vigormortis', 'No Dashii', 'Vortox']
+       'Sage', 'Savant', 'Philosopher', 'Artist', 'Juggler', 'Mutant', 'Sweetheart', 'Barber', 'Klutz', 'Witch',
+       'Cerenovus', 'Pit-Hag', 'Evil Twin', 'Fang Gu', 'Vigormortis', 'No Dashii', 'Vortox']
 INFO = ['Empath', 'Chef']
 
 
@@ -1285,12 +1286,12 @@ class SeamstressTests(InfoTest):
         run(g.night(2))
         self.choose(3, F, [G])
         run(g.night(3))
-        self.assertFalse(g.g.spent_ability('Seamstress'))
+        self.assertFalse(used(g.g, g.g[A], 'Seamstress'))
         self.choose(4, A, [F, C])
         self.choose(4, F, [B])
         run(g.night(4))
         self.assertTrue(self.told(A, f'{F} and {C} are NOT the same alignment'))
-        self.assertTrue(g.g.spent_ability('Seamstress'))
+        self.assertTrue(used(g.g, g.g[A], 'Seamstress'))
 
     def test_a_good_witch_and_a_townsfolk_are_the_same_alignment(self):
         """Example: the Pit-Hag turns the Mathematician into the Witch, who remains good; later that night the
@@ -1313,7 +1314,7 @@ class SeamstressTests(InfoTest):
         self.mostly_false(g, lambda: seamstress_choice(g.g, g.g[A], [C, D]))
         self.choose(1, A, [C, D])
         run(g.night(1))
-        self.assertTrue(g.g.spent_ability('Seamstress'))
+        self.assertTrue(used(g.g, g.g[A], 'Seamstress'))
         self.g = g = self.game(['Seamstress', T1, O1, T3, 'Witch', 'Vortox', T4])
         self.always_false(g, lambda: seamstress_choice(g.g, g.g[A], [E, F]))
 
@@ -1390,6 +1391,573 @@ class SageTests(InfoTest):
         self.choose(2, F, [A])
         run(g.night(2))
         self.assertTrue(self.told(A, 'Sage: the Demon who killed you'))
+
+
+# ---- Batch 3: the Vigormortis charmed, visits, the last Townsfolk and the Outsiders -----------------------------
+
+class VigormortisCharmedTests(InfoTest):
+    def test_charming_the_vigormortis_keeps_its_dead_minions_abilities_and_poison(self):
+        """Batch 2 left the kept abilities tied to the old player: they belong to the Vigormortis character."""
+        self.g = g = self.game(['Snake Charmer', T1, O1, T3, 'Pit-Hag', 'Vigormortis', T4],
+                               forced={'Vigormortis': {'players': [D]}})
+        self.choose(2, A, [B])
+        self.choose(2, E, [B], T1)
+        self.choose(2, F, [E])
+        run(g.night(2))
+        self.assertTrue(g.g.keeps_ability(g.g[E]))
+        self.assertTrue(g.g.is_poisoned(g.g[D]))
+        self.steps(3, A, ([F], None), ([G], None))  # charms the Vigormortis, then kills as the new one
+        self.choose(3, E, [B], T1)
+        run(g.night(3))
+        self.assertEqual(g.g[A].character, 'Vigormortis')
+        self.assertTrue(g.g.keeps_ability(g.g[E]))  # the dead Pit-Hag still has their ability
+        self.assertTrue(g.g.is_poisoned(g.g[D]))     # and its Townsfolk neighbour is still poisoned
+        self.assertTrue([r for r in self.seats[E].log if r.kind == 'night' and r.day == 3])  # woke tonight
+        self.assertTrue(g.g.is_poisoned(g.g[F]))     # the old Vigormortis, now the Snake Charmer
+        g.kill(g.g[A], 'execution')                  # the new Vigormortis dies: all of it ends
+        self.assertFalse(g.g.keeps_ability(g.g[E]))
+        self.assertFalse(g.g.is_poisoned(g.g[D]))
+
+
+class VisitTests(InfoTest):
+    CHARS = ['Savant', 'Artist', O1, T3, 'Witch', 'Fang Gu', T4]
+
+    def visit(self, g, who, character, text=''):
+        return run(g.visit_judged(who, {'character': character, 'text': text}))
+
+    def test_the_town_sees_who_visited_never_why_and_anyone_may_fake_it(self):
+        self.g = g = self.game(self.CHARS)
+        self.assertTrue(self.visit(g, E, 'Artist', 'Is Blair evil?'))  # the Witch bluffing the Artist
+        public = [e for e in g.events if e['kind'] == 'visit']
+        self.assertEqual([(e['to'], e['data']) for e in public], [('public', {'player': E})])
+        audit = [e for e in g.events if e['kind'] == 'visit_text']
+        self.assertEqual(audit[0]['to'], 'audit')
+        self.assertEqual(audit[0]['data']['text'], 'Is Blair evil?')
+        self.assertTrue(self.told(E, 'listened and nodded'))
+        self.assertFalse(used(g.g, g.g[B], 'Artist'))
+        self.assertIn('visits you in private (as the Artist): Is Blair evil?', '\n'.join(judge.record(g, 'public')))
+
+    def test_one_visit_a_day_and_it_takes_the_turns_whisper(self):
+        self.g = g = self.game(self.CHARS)
+        self.assertTrue(run(g.visit_judged(A, {'character': 'Savant'}, {'whispers': [{'to': [B], 'text': 'hi'}]})))
+        self.assertTrue(self.told(A, 'Your whisper was not sent'))
+        self.assertFalse(self.visit(g, A, 'Savant'))
+        self.assertTrue(self.told(A, 'already visited the Storyteller today'))
+        self.day(g, 2)
+        self.assertTrue(self.visit(g, A, 'Savant'))
+
+    def test_private_turns_offer_a_visit_and_a_visiting_turn_sends_no_whisper(self):
+        self.g = g = self.game(self.CHARS)
+        self.seats[A].day['beat'] = [{'visit': {'character': 'Savant', 'text': ''},
+                                      'whispers': [{'to': [B], 'text': 'psst'}]}]
+        run(g.beat(1, 1, True))
+        request = [r for r in self.seats[A].log if r.kind == 'beat'][0]
+        self.assertEqual(request.visitable, ['Savant', 'Artist'])
+        self.assertIn('visit the Storyteller', request.prompt)
+        self.assertFalse([e for e in g.events if e['kind'] == 'whisper'])
+        self.assertTrue(self.told(A, 'Savant: the Storyteller tells you two things'))
+
+    def test_tb_and_bmr_schemas_and_requests_are_unchanged(self):
+        from clocktower.schema import player_schema
+        bmr = ch.Script('bmr')
+        self.assertNotIn('visit', player_schema(NAMES, bmr)['properties'])
+        self.assertNotIn('guesses', player_schema(NAMES, bmr)['properties']['ability']['anyOf'][0]['properties'])
+        self.assertEqual((bmr.visitable, bmr.guessable, ch.TB.visitable, ch.TB.guessable), ([], [], [], []))
+        props = player_schema(NAMES, ch.Script('snv'))['properties']
+        self.assertEqual(props['visit']['anyOf'][0]['properties']['character']['enum'], ['Savant', 'Artist'])
+        self.assertIn('guesses', props['ability']['anyOf'][0]['properties'])
+
+    def test_a_confession_to_the_storyteller_on_a_visit_is_heard_and_is_not_aloud(self):
+        self.g = g = self.game([T1, 'Mutant', O1, T3, 'Witch', 'Fang Gu', T4])
+        self.visit(g, B, 'Artist', "I'm the Mutant, but is Alex evil?")
+        ev = judge.madness_evidence(g, B, 'Outsider', 1, 'public')
+        self.assertTrue(ev['claimed'])
+        self.assertFalse(ev['aloud'])
+        self.assertIn('to you', ev['quotes'][0])
+
+
+class SavantTests(InfoTest):
+    CHARS = ['Savant', T1, 'Witch', T3, O1, 'Fang Gu', T4]
+
+    def statements(self, g, p=A):
+        return {s['text']: s['true'] for s in snv.savant_statements(g.g, g.g[p])}
+
+    def test_the_templates_are_checked_against_the_grimoire_and_records(self):
+        self.g = g = self.game(self.CHARS)
+        s = self.statements(g)
+        self.assertTrue(s[f'{A} and {B} are the same alignment.'])
+        self.assertFalse(s[f'{E} and {F} are the same alignment.'])
+        self.assertFalse(s[f'{A} and {C} are the same alignment.'])
+        self.assertNotIn(f'{C} and {F} are the same alignment.', s)  # neighbours, and pairs with the Savant
+        self.assertTrue(s[f'The Demon sits within 1 seat of {E} (and is not {E}).'])
+        self.assertFalse(s[f'The Demon sits within 2 seats of {B} (and is not {B}).'])
+        self.assertTrue(s['There is a Witch in play.'])
+        self.assertFalse(s['There is a Vortox in play.'])
+        self.assertNotIn('There is a Savant in play.', s)  # never about the Savant's own character
+        self.assertTrue(s['Exactly 0 living players are drunk or poisoned.'])
+        self.assertTrue(s['There is exactly 1 Outsider in play.'])
+        self.assertEqual({t for t in s if 'Outsider' in t and 'exactly' in t},  # what some legal setup allows
+                         {'There are exactly 0 Outsiders in play.', 'There is exactly 1 Outsider in play.'})
+        self.assertTrue(s['A Minion sits next to the Demon (the dead count).'] is False)
+        g.g.add(State('poisoned', D, source=C, until=None))
+        g.g.night_choices[1] = {C: [D]}
+        s = self.statements(g)
+        self.assertTrue(s['Exactly 1 living player is drunk or poisoned.'])
+        self.assertTrue(s[f"{D} has been chosen at night by another player's ability."])
+        self.assertFalse(s[f"{B} has been chosen at night by another player's ability."])
+
+    def test_one_true_and_one_false_and_never_the_demon_named_as_evil(self):
+        self.g = g = self.game(self.CHARS)
+        for i in range(80):
+            g.st.rng = random.Random(i)
+            choice = snv.savant_choice(g.g, g.g[A])
+            v = run(g.decide_judged(choice))
+            truth = self.statements(g)
+            self.assertEqual(sum(truth[x] for x in v['statements']), 1, v)
+            self.assertNotIn(f'{F} is evil.', v['statements'])
+        self.assertEqual(g.g.abnormal, [])
+
+    def test_under_the_vortox_both_are_false_and_drunk_usually_both_wrong(self):
+        self.g = g = self.game(['Savant', T1, 'Witch', T3, O1, 'Vortox', T4])
+        for j in (None, judge.RulesJudge()):
+            g.judge = j
+            for i in range(40):
+                g.st.rng = random.Random(i)
+                v = run(g.decide_judged(snv.savant_choice(g.g, g.g[A])))
+                truth = self.statements(g)
+                self.assertEqual([truth[x] for x in v['statements']], [False, False])
+        self.g = g = self.game(self.CHARS)
+        self.poison(g, A)
+        self.mostly_false(g, lambda: snv.savant_choice(g.g, g.g[A]))
+
+    def test_the_visit_gives_two_statements_and_a_dead_savant_gets_nothing(self):
+        self.g = g = self.game(self.CHARS)
+        run(g.visit_judged(A, {'character': 'Savant'}))
+        told = self.told(A, 'Savant: the Storyteller tells you two things')
+        self.assertEqual(len(told), 1)
+        self.assertEqual(len(g.g.notes['Savant told'][A]), 2)
+        g.g[A].alive = False
+        self.day(g, 2)
+        run(g.visit_judged(A, {'character': 'Savant'}))
+        self.assertTrue(self.told(A, 'listened and nodded'))
+
+
+class PhilosopherTests(InfoTest):
+    CHARS = ['Philosopher', T1, 'Witch', T3, O1, 'Fang Gu', T4]
+
+    def test_gaining_the_dreamer_they_act_when_the_dreamer_acts(self):
+        """Example: the Philosopher gains the Dreamer's ability and acts when the Dreamer acts."""
+        self.g = g = self.game(self.CHARS)
+        self.steps(1, A, ([], 'Dreamer'), ([C], None))
+        run(g.night(1))
+        self.assertEqual((g.g[A].character, g.g[A].extra), ('Philosopher', ['Dreamer']))
+        self.assertTrue(self.told(A, f'Dreamer: {C} is either the'))
+        self.assertTrue(self.told(A, 'You are still the Philosopher'))
+        self.assertIn('also has the ability of the Dreamer', g.g.grimoire_text())
+        self.choose(2, C, [B])
+        self.choose(2, F, [G])
+        run(g.night(2))  # spent: not woken as the Philosopher again
+        self.assertEqual([r.prompt.split(':')[0] for r in self.seats[A].log if r.day == 2][:1],
+                         ['Night 2 — Dreamer'])
+
+    def test_the_clockmaker_on_the_third_night_learns_at_once(self):
+        """Example: on the third night the Philosopher gains the Clockmaker's ability and learns the distance."""
+        self.g = g = self.game(self.CHARS)
+        self.choose(3, A, [], 'Clockmaker')
+        self.choose(3, C, [B])
+        self.choose(3, F, [G])
+        run(g.night(3))
+        self.assertTrue(self.told(A, 'Clockmaker: the Demon is 3 steps from its nearest Minion'))
+
+    def test_an_in_play_character_is_drunk_until_the_philosopher_dies_or_is_impaired(self):
+        """Example: the Philosopher gains the Artist's ability; the Artist is drunk; the Philosopher dies, and the
+        Artist is sober again."""
+        self.g = g = self.game(['Philosopher', 'Artist', 'Witch', T3, O1, 'Fang Gu', T4])
+        self.choose(1, A, [], 'Artist')
+        run(g.night(1))
+        self.assertTrue(g.g.is_drunk(g.g[B]))
+        self.poison(g, A)
+        self.assertFalse(g.g.is_drunk(g.g[B]))
+        g.g.states = [s for s in g.g.states if s.source != 'test']
+        self.assertTrue(g.g.is_drunk(g.g[B]))
+        g.kill(g.g[A], 'demon')
+        self.assertFalse(g.g.is_drunk(g.g[B]))
+
+    def test_a_character_not_in_play_then_made_is_drunk_and_two_artists_ask_once_each(self):
+        self.g = g = self.game(['Philosopher', T1, O1, T3, 'Pit-Hag', 'Fang Gu', T4],
+                               forced={'Artist:': {'yes': None}})
+        self.choose(2, A, [], 'Artist')
+        self.choose(2, E, [C], T1)
+        self.choose(2, F, [G])
+        run(g.night(2))
+        self.assertFalse(any(g.g.is_drunk(q) for q in g.g.players))
+        self.choose(3, E, [B], 'Artist')
+        self.choose(3, F, [D])
+        run(g.night(3))
+        self.assertTrue(g.g.is_drunk(g.g[B]))
+        self.day(g, 3)
+        run(g.visit_judged(A, {'character': 'Artist', 'text': 'Is the Demon wearing a hat?'}))
+        run(g.visit_judged(B, {'character': 'Artist', 'text': 'Is the Demon wearing a hat?'}))
+        self.assertTrue(used(g.g, g.g[A], 'Artist') and used(g.g, g.g[B], 'Artist'))
+
+    def test_declining_keeps_the_ability_and_a_drunk_philosopher_gains_nothing(self):
+        self.g = g = self.game(self.CHARS)
+        run(g.night(1))  # chose no one
+        self.assertFalse(used(g.g, g.g[A], 'Philosopher'))
+        g.g.add(State('drunk', A, source='test', until=None))
+        self.choose(2, A, [], 'Dreamer')
+        self.choose(2, C, [B])
+        self.choose(2, F, [G])
+        run(g.night(2))
+        self.assertEqual(g.g[A].extra, [])
+        self.assertTrue(used(g.g, g.g[A], 'Philosopher'))
+        self.assertEqual(self.abnormal(g), [A])
+
+    def test_a_gained_klutz_works_while_dead_and_a_change_of_character_loses_it(self):
+        self.g = g = self.game(self.CHARS)
+        self.choose(1, A, [], 'Klutz')
+        run(g.night(1))
+        self.seats[A].day['death_choice'] = [{'targets': [F]}]
+        run(g.execution(A))
+        run(g.run_pending())
+        self.assertEqual(g.g.winner, 'evil')
+        self.g = g = self.game(self.CHARS)
+        self.choose(1, A, [], 'Klutz')
+        run(g.night(1))
+        run(g.change(g.g[A], character=T5))
+        self.assertEqual(g.g[A].extra, [])
+
+
+class ArtistTests(InfoTest):
+    CHARS = ['Artist', T1, 'Evil Twin', T3, O1, 'Fang Gu', T4]
+
+    def ask(self, g, text, who=A):
+        run(g.visit_judged(who, {'character': 'Artist', 'text': text}))
+        return self.told(who, 'The Storyteller answers')
+
+    def test_the_almanacs_questions(self):
+        """Examples: "Is David the Evil Twin?" yes; "How many Minions are alive?" and "Are we winning?" can't be
+        answered yes or no: "I don't know" (the scripted Storyteller); the brown chair is not in this game."""
+        for text, answer in ((f'Is {C} the Evil Twin?', 'Yes.'), ('How many Minions are alive?', "I don't know."),
+                             ('Are we winning?', "I don't know."), ('Is the Demon sitting in a brown chair?',
+                                                                   "I don't know.")):
+            self.g = g = self.game(self.CHARS)
+            self.assertTrue(self.ask(g, text)[0].endswith(answer), text)
+
+    def test_the_forms_the_code_answers(self):
+        self.g = g = self.game(self.CHARS)
+        t = lambda q: snv.artist_truth(g.g, g.g[A], q)
+        self.assertIs(t(f'Is {F} the Demon?'), True)
+        self.assertIs(t(f'Is the Demon {B}, {C} or {D}?'), False)
+        self.assertIs(t(f'Is the Demon one of {E}, {F} and {G}?'), True)
+        self.assertIs(t(f'Is {B} or {F} the Demon?'), True)
+        self.assertIs(t(f'Are {C} and {F} the same alignment?'), True)
+        self.assertIs(t(f'Are {A} and {C} on the same team?'), False)
+        self.assertIs(t('Is there a Vortox in play?'), False)
+        self.assertIs(t('Is the Fang Gu in play?'), True)
+        self.assertIs(t('Am I the Artist?'), True)
+        self.assertIs(t(f'Is {E} an Outsider?'), True)
+        self.assertIs(t(f'is {C} evil'), True)
+        self.assertIsNone(t('Does 2 + 2 = 4?'))
+
+    def test_once_per_game_and_an_empty_question_is_not_a_use(self):
+        self.g = g = self.game(self.CHARS)
+        self.ask(g, '')
+        self.assertTrue(self.told(A, 'ask your yes/no question'))
+        self.assertFalse(used(g.g, g.g[A], 'Artist'))
+        self.day(g, 2)
+        self.ask(g, f'Is {F} evil?')
+        self.day(g, 3)
+        self.ask(g, f'Is {C} evil?')
+        self.assertTrue(self.told(A, 'already asked your one question'))
+        self.assertEqual(len(self.told(A, 'The Storyteller answers')), 1)
+
+    def test_under_the_vortox_a_checkable_answer_is_false(self):
+        self.g = g = self.game(['Artist', T1, 'Witch', T3, O1, 'Vortox', T4])
+        self.assertTrue(self.ask(g, f'Is {F} the Demon?')[0].endswith('No.'))
+        self.assertEqual(self.abnormal(g), [A])
+        self.always_false(g, lambda: snv.artist_choice(g.g, g.g[A], f'Is {C} evil?'))
+
+
+class JugglerTests(InfoTest):
+    CHARS = ['Juggler', T1, 'Witch', T3, O1, 'Fang Gu', T4]
+
+    def juggle(self, g, who, guesses):
+        g.public_abilities([who], {who: {'ability': {'character': 'Juggler', 'target': None, 'text': '',
+                                                     'guesses': [{'player': p, 'character': c} for p, c in guesses]}}})
+
+    def night2(self, g, n=2):
+        self.choose(n, C, [B])
+        self.choose(n, F, [G])
+        run(g.night(n))
+
+    def test_three_guesses_two_correct(self):
+        """Example: the Juggler guesses three players' characters on the first day and learns a 2 that night."""
+        self.g = g = self.game(self.CHARS)
+        self.juggle(g, A, [(B, T1), (F, 'Witch'), (C, 'Witch')])
+        ev = [e for e in g.events if e['kind'] == 'ability'][0]
+        self.assertEqual(len(ev['data']['guesses']), 3)  # the town hears the guesses
+        self.assertIn(f'{B} is the {T1}', '\n'.join(g.buf[D]))
+        self.night2(g)
+        self.assertTrue(self.told(A, 'Juggler: 2 of your guesses were correct'))
+
+    def test_the_savant_made_the_juggler_guesses_on_their_first_day_as_the_juggler(self):
+        """Example: the Savant becomes the Juggler on night 4; the next day they guess the Pit-Hag twice and the
+        Witch once, one right: a 1."""
+        self.g = g = self.game(['Savant', T1, 'Witch', T3, O1, 'Fang Gu', 'Pit-Hag', T4])
+        self.juggle(g, A, [(B, T1)])  # not the Juggler yet: nothing
+        g.tonight = ch.CHARACTERS  # (any non-None: the change happens at night)
+        self.day(g, 4)
+        run(g.change(g.g[A], character='Juggler'))
+        g.tonight = None
+        self.juggle(g, A, [(G, 'Pit-Hag'), (G, 'Witch'), (B, 'Pit-Hag')])
+        self.choose(5, C, [B])
+        self.choose(5, F, [H])
+        self.choose(5, G, [B], T1)
+        run(g.night(5))
+        self.assertTrue(self.told(A, 'Juggler: 1 of your guesses was correct'))
+
+    def test_only_the_first_day_and_a_dead_juggler_learns_nothing(self):
+        self.g = g = self.game(self.CHARS)
+        self.day(g, 2)
+        self.juggle(g, A, [(B, T1)])
+        self.night2(g, 3)
+        self.assertFalse(self.told(A, 'Juggler:'))
+        self.g = g = self.game(self.CHARS)
+        self.juggle(g, A, [(B, T1)])
+        g.kill(g.g[A], 'execution')
+        self.night2(g)
+        self.assertFalse(self.told(A, 'Juggler:'))
+
+    def test_drunk_when_guessing_sober_at_night_is_true_and_the_vortox_is_false(self):
+        self.g = g = self.game(self.CHARS)
+        self.poison(g, A)
+        self.juggle(g, A, [(B, T1), (C, 'Witch')])
+        g.g.states = [s for s in g.g.states if s.source != 'test']
+        self.night2(g)
+        self.assertTrue(self.told(A, '2 of your guesses were correct'))
+        self.g = g = self.game(['Juggler', T1, 'Witch', T3, O1, 'Vortox', T4])
+        self.juggle(g, A, [(B, T1)])
+        self.always_false(g, lambda: snv.juggler_choice(g.g, g.g[A], g.g.notes['Juggler'][A]))
+
+    def test_a_fake_juggler_does_nothing(self):
+        self.g = g = self.game(self.CHARS)
+        self.juggle(g, C, [(B, T1)])
+        self.assertNotIn('Juggler', g.g.notes)
+
+
+class MutantTests(InfoTest):
+    CHARS = [T1, 'Mutant', O1, T3, 'Cerenovus', 'Fang Gu', T4]
+
+    def test_saying_they_are_the_mutant_gets_them_executed_and_no_nominations(self):
+        """Example: ten seconds into the first day the Mutant says they're the Mutant: executed at once, and there is
+        no nomination today."""
+        self.g = g = self.game(self.CHARS, forced={'Madness execution': {'yes': True}})
+        self.say(g, B, 'I am the Mutant.')
+        run(g.daytime(1))
+        self.assertEqual(g.g.executions[0]['player'], B)
+        self.assertFalse([e for e in g.events if e['kind'] == 'nominations_open'])
+
+    def test_claiming_a_townsfolk_is_safe_and_a_drunk_mutant_may_say_anything(self):
+        self.g = g = self.game(self.CHARS, forced={'Madness execution': {'yes': True}})
+        self.say(g, B, 'I am the Oracle.')
+        run(g.daytime(1))
+        self.assertEqual(g.g.executions, [])
+        self.g = g = self.game(self.CHARS, forced={'Madness execution': {'yes': True}})
+        g.g.add(State('drunk', B, source='test', until=None))  # the Sweetheart's example
+        self.say(g, B, 'I am the Mutant.')
+        run(g.daytime(1))
+        self.assertEqual(g.g.executions, [])
+
+    def test_an_outsider_claim_in_a_defense_is_judged_at_dusk(self):
+        self.g = g = self.game(self.CHARS, forced={'Madness execution': {'yes': True}})
+        self.seats[A].day['nominate'] = [{'nominate': B}]
+        self.seats[B].day['defense'] = [{'say': "Don't kill me, I'm an Outsider."}]
+        run(g.daytime(1))
+        self.assertEqual([x['player'] for x in g.g.executions], [B])
+        madness = [e for e in g.events if e['kind'] == 'st_choice' and e['data']['id'] == f'Madness:{B}']
+        self.assertEqual(len(madness), 2)  # before nominations (kept), then at dusk on what was said since
+
+    def test_a_whispered_confession_is_heard_by_the_judge_hearing_all(self):
+        self.g = g = self.game(self.CHARS, forced={'Madness execution': {'yes': True}}, judge_=judge.RulesJudge())
+        self.say(g, B, "I'm the Mutant, keep it quiet.", to=[A])
+        g.st.rng = random.Random(0)  # the judge's first choice
+        run(g.daytime(1))
+        self.assertEqual([x['player'] for x in g.g.executions], [B])
+
+
+class SweetheartTests(InfoTest):
+    CHARS = [T1, 'Sweetheart', O1, T3, 'Witch', 'Fang Gu', T4]
+
+    def test_when_they_die_a_player_is_drunk_from_now_on(self):
+        """Examples: the Sweetheart dies and the Demon is now drunk: their attack kills nobody."""
+        self.g = g = self.game(self.CHARS, forced={'Sweetheart': {'players': [F]}})
+        run(g.execution(B))
+        run(g.run_pending())
+        self.assertTrue(g.g.is_drunk(g.g[F]))
+        self.choose(2, F, [A])
+        self.choose(2, E, [C])
+        run(g.night(2))
+        self.assertTrue(g.g[A].alive)
+        self.assertEqual(self.abnormal(g), [F])
+        run(g.change(g.g[F], character='Vortox'))
+        self.assertTrue(g.g.is_drunk(g.g[F]))  # from now on
+
+    def test_usually_a_living_good_townsfolk_and_a_poisoned_sweethearts_death_is_wasted(self):
+        picks = []
+        for i in range(60):
+            self.g = g = self.game(self.CHARS)
+            g.st.rng = random.Random(i)
+            g.kill(g.g[B], 'demon')
+            run(g.run_pending())
+            picks += [q.name for q in g.g.players if g.g.is_drunk(q)]
+        self.assertGreater(sum(x in (A, D, G) for x in picks) / len(picks), 0.8)
+        self.g = g = self.game(self.CHARS)
+        self.poison(g, B)
+        g.kill(g.g[B], 'demon')
+        run(g.run_pending())
+        self.assertFalse(any(g.g.is_drunk(q) for q in g.g.players))
+
+    def test_the_rules_judge_makes_an_evil_player_drunk_when_evil_is_far_ahead(self):
+        self.g = g = self.game(self.CHARS)
+        for x in (A, C, D, B):
+            g.g[x].alive = False
+        ranked, _ = judge.RulesJudge().ranking(g, snv.sweetheart_choice(g.g, g.g[B]))
+        self.assertTrue(g.g[ranked[0]['players'][0]].evil)
+
+
+class BarberTests(InfoTest):
+    CHARS = ['Oracle', 'Barber', T1, T3, 'Witch', 'Vortox', T4]
+
+    def test_the_demon_swaps_the_alive_oracle_with_the_dead_barber(self):
+        """Example: the Barber dies; the Demon swaps the alive Oracle with the dead Barber: there is now an alive
+        Barber and a dead Oracle."""
+        self.g = g = self.game(self.CHARS)
+        run(g.execution(B))
+        self.steps(2, F, ([C], None), ([A, B], None))
+        self.choose(2, E, [D])
+        run(g.night(2))
+        self.assertEqual((g.g[A].character, g.g[A].alive, g.g[B].character, g.g[B].alive),
+                         ('Barber', True, 'Oracle', False))
+        self.assertEqual((g.g[A].alignment, g.g[B].alignment), ('good', 'good'))
+        self.assertTrue(self.told(A, 'you are now the Barber') and self.told(B, 'you are now the Oracle'))
+        asked = [r for r in self.seats[F].log if r.kind == 'night' and 'Barber' in r.prompt][0]
+        self.assertIn(F, asked.options)
+        self.assertEqual(asked.min_targets, 0)
+
+    def test_the_demon_may_do_nothing_or_swap_themself_with_a_minion(self):
+        """Examples: the Demon considers a swap and does nothing; the Vortox swaps themself with an alive Witch."""
+        self.g = g = self.game(self.CHARS)
+        run(g.execution(B))
+        self.steps(2, F, ([C], None), ([], None))
+        self.choose(2, E, [D])
+        run(g.night(2))
+        self.assertEqual(g.g[B].character, 'Barber')
+        self.g = g = self.game(self.CHARS)
+        g.kill(g.g[B], 'demon')
+        self.steps(2, F, ([C], None), ([F, E], None))
+        self.choose(2, E, [D])
+        run(g.night(2))
+        self.assertEqual((g.g[E].character, g.g[E].alignment, g.g[F].character), ('Vortox', 'evil', 'Witch'))
+
+    def test_no_haircuts_without_a_barber_death_and_a_drunk_barbers_death_is_wasted(self):
+        self.g = g = self.game(self.CHARS)
+        self.choose(2, F, [C])
+        run(g.night(2))
+        self.assertFalse([r for r in self.seats[F].log if 'Barber' in r.prompt])
+        self.poison(g, B)
+        run(g.execution(B))
+        self.choose(3, F, [D])
+        run(g.night(3))
+        self.assertFalse([r for r in self.seats[F].log if 'Barber' in r.prompt])
+
+
+class KlutzTests(InfoTest):
+    CHARS = ['Klutz', T1, O1, T3, 'Witch', 'Fang Gu', T4]
+
+    def test_executed_and_chooses_a_good_player_the_game_goes_on(self):
+        """Example: the Klutz is executed and chooses the Seamstress; the game continues."""
+        self.g = g = self.game(self.CHARS)
+        self.seats[A].day['death_choice'] = [{'targets': [B]}]
+        run(g.execution(A))
+        run(g.run_pending())
+        self.assertIsNone(g.g.winner)
+        self.assertEqual([e['data'] for e in g.events if e['kind'] == 'ability'],
+                         [{'player': A, 'character': 'Klutz', 'target': B}])
+
+    def test_killed_at_night_learns_at_dawn_and_choosing_the_demon_loses(self):
+        """Example: the Demon kills the Klutz; in the morning they choose the Demon and evil wins."""
+        self.g = g = self.game(['Klutz', T1, O1, T3, 'Witch', 'Vigormortis', T4])  # (a Fang Gu would jump)
+        self.seats[A].day['death_choice'] = [{'targets': [F]}]
+        self.choose(2, F, [A])
+        self.choose(2, E, [B])
+        run(g.night(2))
+        self.assertEqual(g.g.winner, 'evil')
+        self.assertIn('Klutz, chose Frankie', g.g.reason)
+
+    def test_the_choice_is_required_asked_again_until_legal(self):
+        self.g = g = self.game(self.CHARS)
+        self.seats[A].day['death_choice'] = [{'targets': []}]
+        run(g.execution(A))
+        run(g.run_pending())
+        asks = [r for r in self.seats[A].log if r.kind == 'death_choice']
+        self.assertEqual(len(asks), 2)
+        self.assertTrue(asks[1].prompt.startswith('(That is not a legal choice'))
+
+    def test_an_evil_klutz_choosing_evil_makes_good_win_and_a_drunk_one_does_nothing(self):
+        self.g = g = self.game(self.CHARS)
+        g.g[A].alignment = 'evil'
+        self.seats[A].day['death_choice'] = [{'targets': [E]}]
+        run(g.execution(A))
+        run(g.run_pending())
+        self.assertEqual(g.g.winner, 'good')
+        self.g = g = self.game(self.CHARS)
+        self.poison(g, A)
+        self.seats[A].day['death_choice'] = [{'targets': [E]}]
+        run(g.execution(A))
+        run(g.run_pending())
+        self.assertIsNone(g.g.winner)
+        self.assertEqual(self.abnormal(g), [A])
+
+
+class ScriptTests(SNVTest):
+    def test_the_script_loads_with_every_character_and_its_official_text(self):
+        snv_ = ch.Script('snv')
+        self.assertEqual(len(snv_.all), 25)
+        self.assertEqual((snv_.claimable, snv_.visitable, snv_.guessable),
+                         (['Juggler', 'Klutz'], ['Savant', 'Artist'], ['Juggler']))
+        for c in snv_.all:
+            self.assertEqual(ch.rules(c).ability, official.role(c)['ability'], c)
+
+    def test_the_player_prompt_swaps_only_sentences_that_exist_and_builds_at_every_size(self):
+        from clocktower import prompts
+        for old, _ in prompts.SCRIPT_TEXT['snv']:
+            self.assertIn(old, prompts._PLAYER_SYSTEM)
+        snv_ = ch.Script('snv')
+        for n in range(5, 16):
+            text = prompts.player_system(n, script=snv_)
+            self.assertIn('Sects & Violets', text)
+            self.assertNotIn('slayer_shot', text)
+            self.assertNotIn('Imp', text.replace('Impact', ''))
+        for word in ('mad', 'Vortox', 'visit', 'guesses', 'whisper', 'executed', 'alignment'):
+            self.assertIn(word, text)
+
+    def test_whole_games_of_the_script_run_to_the_end_at_every_size(self):
+        from clocktower.agents import RandomSeat
+        snv_ = ch.Script('snv')
+        seen = set()
+        for n in range(5, 16):
+            for k in range(3):
+                seed = n * 10 + k
+                names = ALL_NAMES[:n]
+                seats = {x: RandomSeat(x, random.Random(seed * 13 + i), names) for i, x in enumerate(names)}
+                g = Game(seats, ScriptedStoryteller(random.Random(seed)), names=names, seed=seed, script=snv_,
+                         probes=False, private_beats=2, public_beats=2, max_days=12,
+                         judge=judge.RulesJudge() if k == 2 else None)
+                result = run(g.run())
+                self.assertTrue(result['winner'] or result['stopped'].startswith('stopped after'), result['reason'])
+                seen |= {e['kind'] for e in g.events}
+        self.assertTrue({'visit', 'ability', 'becomes'} <= seen, seen)
 
 
 class SmokeTests(SNVTest):

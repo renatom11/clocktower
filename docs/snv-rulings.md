@@ -193,3 +193,97 @@ counts.
     and one alive on the final night (the almanac's drunk Sage). Their sobriety at the step decides.
 
 New weights: `dreamer_minion_in_play` 0.5, `dreamer_bluff` 0.5, `dreamer_secretive` 0.3, `sage_alive` 0.9.
+
+## Batch 3: visits to the Storyteller, the last Townsfolk, the Outsiders; the script plays end to end
+
+### The core
+
+34. **The Vigormortis charmed (a fix to batch 2, ruling 28).** The kept abilities of the Minions the Vigormortis
+    killed, and their poison, belong to the Vigormortis character, not its player: when the Snake Charmer charms the
+    Vigormortis (or the Barber swaps it), they move to the new Vigormortis, whose sobriety then decides them; the old
+    Vigormortis, now the poisoned Snake Charmer, keeps nothing. Generic: `Character.hand_over` (a character passing
+    from one player to another in one change takes what is its own; Game.changes puts it back with the new source).
+    Option: they end, as before.
+35. **Visiting the Storyteller** (`visit`, `Game.visit_judged`). On a private-time turn any player may visit the
+    Storyteller claiming a visiting ability (the Savant, the Artist), with a text (the Artist's question). The town sees
+    a public event naming who went, never why; what was said is the Storyteller's (an audit event the judge hears,
+    under either hearing). A player with the ability, or who believes they have it, is answered in private; anyone
+    else is told the Storyteller listened and nodded (the almanac: help evil bluff). **One visit a day per player, and
+    a visit is the turn's one conversation: a whisper sent with it is not sent** (a reading: one conversation at a time,
+    as whispers are). Options: a visit alongside the whisper; more than one visit a day. Dead players may visit (and
+    are answered only if their ability works dead: none of these). The field is in the schema, and offered to random
+    seats, only for scripts with a visiting ability, so Trouble Brewing and Bad Moon Rising are unchanged.
+36. **What is said on a visit is evidence for madness** (said to the Storyteller, so heard under both hearings, but
+    not "aloud" for the Cerenovus). This is a first channel for reports to the Storyteller ("snitching"): the model
+    judge reads every visit's text in its record. The scripted floor reads only the visitor's own words.
+37. **Abilities gained beyond one's character** (the Philosopher's `Player.extra`): the player is woken at that
+    character's step (Game.wake) as that character; `Grimoire.holder` and the S&V Townsfolk steps look at abilities,
+    not characters, and loop over every holder (the Philosopher and the drunk original). **A player whose character
+    changes loses the abilities gained through the old one** (`Grimoire.change_character`; the almanac: the duplicate
+    sobers up if the Philosopher "turned into a different character"). Once-per-game S&V abilities are spent per
+    player (`snv.used`), so the Philosopher and the original each have theirs; a player who becomes the character
+    later starts fresh.
+38. **The Juggler's guesses** are a list form of the shared public `ability` move (`Character.public_guesses`): up to
+    five {player, character} guesses, heard by the town. In the schema only when a script has such a character.
+39. **The Mutant's checkpoints**: judged once before nominations on the day's talk (as the Cerenovus), and again at
+    dusk on what was said since (nominations, defenses), if nobody was executed today (`Game.judge_madness(after=)`,
+    so evidence is never judged, and the "might" rolled, twice). Not at night (nobody talks then). Option: after every
+    beat (closer to "at any time"; a madness execution would then end the day earlier).
+
+### Townsfolk
+
+40. **The Savant's statements** (`snv.savant_statements`): twelve templates checked by code against the Grimoire and
+    records: two players are the same alignment (neighbours, and the Savant with anyone); the Demon sits within 1 or 2
+    seats of a living player (and is not them); exactly N living players are drunk or poisoned (0-3); a living player
+    has been chosen at night by another's ability; there is a Y in play (any character but the Savant's own); exactly
+    N Outsiders (only counts some legal setup has); N of the Savant's living neighbours are evil; a living player is
+    evil; a Minion sits next to the Demon; and from day 2: everyone got true information last night, a Demon voted
+    yesterday, a Minion nominated yesterday, N dead players are evil. **The scoring rule** (the scripted Storyteller):
+    the true statement's form uniformly among the forms with one, then by weight (2 if about living players only, 1
+    otherwise), never a true "X is evil" for the Demon and nothing heard before; the false one of the same form 50%
+    of the time (`savant_same_kind`), else any. Drunk or poisoned: two false 70% (`savant_both_false`), else two true;
+    under the Vortox, two false always. The rules judge has no opinion (thousands of pairs); a model judge ranks a
+    shortlist. Options: more templates (seat ranges, claims); a weight for "pertinent to today's claims".
+41. **The Philosopher** chooses any Townsfolk or Outsider (or none, keeping it). Spent even if drunk or poisoned (a
+    wasted choice is abnormal for the Mathematician). The in-play player of the gained character is drunk while the
+    Philosopher has their own ability (worked out on demand: a player made that character later is drunk too). A
+    "you start knowing" ability gained after the first night acts at once (the Clockmaker example); on the first
+    night, at its step. Choosing the Philosopher does nothing.
+42. **The Artist.** Code answers questions of the simple forms `snv.artist_truth` reads ("Is X the Y / evil / an
+    Outsider?", "Is the Demon X, Y or Z?", "Are X and Y the same alignment?", "Is there a Y in play?"); misinformed or
+    under the Vortox the opposite. Anything else goes to the judge (yes, no, "I don't know"); the scripted Storyteller
+    says "I don't know". **A question that is not yes/no gets "I don't know" and spends the ability** (a reading; the
+    almanac asks them to rephrase: option: let the judge return "ask again" without spending it). An empty question
+    is not a use. Under the Vortox a question only the judge can answer is the judge's to answer falsely.
+43. **The Juggler**: only a living Juggler's first claim with at least one guess, on their first day as the Juggler
+    (day 1, or the day they became it), counts, drunk or not; correct guesses are counted at once against true
+    characters; that night's sobriety decides (one off when misinformed, any other number under the Vortox). A claim
+    with no guesses is not a use (option: it is, and learns 0).
+
+### Outsiders
+
+44. **The Mutant** must not claim any Outsider (or the type) aloud, in a whisper heard, or on a visit, nor say they
+    are mad (the batch 1 floor with `must=False`); judged at the two checkpoints (ruling 39), executed by the usual
+    "might" weights.
+45. **The Sweetheart**: any death; their sobriety as they die decides (a drunk or poisoned Sweetheart's death is
+    wasted). The Storyteller picks any other player, drunk for the rest of the game (through later changes); the
+    scripted style: a living good Townsfolk 90% (`sweetheart_townsfolk`), else any other living player; the rules
+    judge: an evil player when evil is well ahead, else a good Townsfolk. Decided at once (at the next safe point).
+46. **The Barber**: a death by day gives haircuts the coming night, at night that night; the Barber's sobriety as
+    they die decides. The Demon (the Storyteller's pick of several, uniformly) may choose two players, alive or dead,
+    themself included, never another Demon, or none (one named is none); the swap keeps alignments and each is told.
+47. **The Klutz** chooses when they learn they died (at dawn, or at once by day), publicly, required (asked again
+    until legal). Evil chosen: the Klutz's team loses at once (an evil Klutz choosing evil: good wins); their sobriety
+    at the choice decides; not touched by the Vortox. The Klutz is a claimable public ability, so anyone may fake a
+    Klutz choice (it does nothing).
+
+### Playability
+
+48. **Sects & Violets plays end to end**: `Script('snv')` loads, random games run at every size with and without the
+    rules judge, the player prompt is written (Trouble Brewing's with sentences swapped: madness and what the
+    Storyteller hears, character and alignment changes, the Vortox, visits, the Juggler's guesses, the new response
+    fields), and its replay fingerprints are recorded (`tests/data/fingerprints-snv.json`). The prompt tells players
+    to assume the Storyteller hears everything, whispers included, which is true under the default hearing and safe
+    under the others.
+
+New weights: `savant_same_kind` 0.5, `savant_both_false` 0.7, `sweetheart_townsfolk` 0.9.

@@ -95,6 +95,10 @@ class Character:
     derives = False          # its ability puts states in force that are worked out from the Grimoire whenever they
     #                          are asked about (`ongoing`: the No Dashii's poisoned neighbours, recomputed)
     falsifies_info = False   # its ability can make other players' information false (`falsifies`: the Vortox)
+    visit = False            # its ability is used by visiting the Storyteller in private by day (the Savant, the
+    #                          Artist): anyone may claim a visit on a private-time turn (`visited` answers it)
+    public_guesses = 0       # its public day ability takes up to this many (player, character) guesses (the
+    #                          Juggler's 5), passed to `act_publicly` as `guesses`
 
     @property
     def evil(self):
@@ -190,9 +194,23 @@ class Character:
 
     def act_publicly(self, game, actor, target, text=None):
         """`actor` publicly claims this character's day action (on `target`, with `text`, such as the Gossip's
-        statement). Anyone may claim it; it does something only for a real, working one. Returns whether the
-        target dies at once (the Slayer's shot)."""
+        statement; with `public_guesses`, also `guesses`, a list of {player, character}: the Juggler's). Anyone may
+        claim it; it does something only for a real, working one. Returns whether the target dies at once (the
+        Slayer's shot)."""
         return False
+
+    def visited(self, game, me, text):
+        """With `visit`: `me` visited the Storyteller in private claiming this character's ability, saying `text`
+        (the Artist's question). If they have it, or believe they do, the Storyteller answers them privately and this
+        returns True; otherwise False (a pretend visit: the town saw a visit, nothing happens)."""
+        return False
+
+    def hand_over(self, g, old, new):
+        """This character passes from player `old` to player `new` in one change (a swap: the Snake Charmer's, the
+        Barber's). Returns the States that belong to the character rather than its player, taken out of the Grimoire
+        (and moves its own bookkeeping); Game.changes puts them back with `new` as their source once the change is
+        made, so they are not lost with the old player (the Vigormortis's dead Minions keep their abilities)."""
+        return []
 
     def moment(self, game, me, when):
         """A point of the day when the Storyteller may act for this character: 'dawn', 'beat' (after each beat),
@@ -632,6 +650,8 @@ class Script:
         self.claimable = [n for n in self.all if rules(n).public_action == 'ability']  # via the 'ability' field
         self.derivers = [n for n in self.all if rules(n).derives]  # characters with states worked out on demand
         self.falsifiers = [n for n in self.all if rules(n).falsifies_info]  # characters that can falsify information
+        self.visitable = [n for n in self.all if rules(n).visit]  # abilities used by visiting the Storyteller
+        self.guessable = [n for n in self.all if rules(n).public_guesses]  # public abilities that take guesses
         # Trouble Brewing asks night choices in batches (protocol v17); other scripts wake one character at a time,
         # since their steps depend on earlier ones (the Lunatic before the Demon, the Exorcist's target, the Goon)
         self.batched_night = self.id == 'tb'
@@ -656,6 +676,8 @@ class Script:
         s.claimable = [n for n in s.all if rules(n).public_action == 'ability']
         s.derivers = [n for n in s.all if rules(n).derives]  # characters with states worked out on demand
         s.falsifiers = [n for n in s.all if rules(n).falsifies_info]  # characters that can falsify information
+        s.visitable = [n for n in s.all if rules(n).visit]  # abilities used by visiting the Storyteller
+        s.guessable = [n for n in s.all if rules(n).public_guesses]  # public abilities that take guesses
         s.batched_night, s.jinxes = False, {}
         return s
 

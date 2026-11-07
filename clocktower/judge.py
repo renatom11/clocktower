@@ -68,8 +68,11 @@ SHORTLIST = 40  # a model is shown at most this many answers (the rules judge's,
 
 
 def _heard(ev, hears):
-    """Whether a judge with this hearing heard the event: public speech, and whispers when hearing all."""
+    """Whether a judge with this hearing heard the event: public speech, what players said to the Storyteller on a
+    visit (the Savant's, the Artist's: said to them, so heard either way), and whispers when hearing all."""
     if ev['to'] == 'public' and ev['kind'] in PUBLIC:
+        return True
+    if ev['kind'] == 'visit_text':
         return True
     return hears == 'all' and ev['kind'] == 'whisper'
 
@@ -84,6 +87,10 @@ def record(game, hears='public', limit=None):
         d = ev['data']
         if ev['kind'] == 'whisper':
             out.append(f"Day {ev['day']}, {d['from']} whispers to {' and '.join(d['to'])}: {d.get('text') or ''}")
+            continue
+        if ev['kind'] == 'visit_text':
+            out.append(f"Day {ev['day']}, {d['player']} visits you in private (as the {d['character']}): "
+                       f"{d.get('text') or '(says nothing)'}")
             continue
         who = d.get('speaker') or d.get('nominator') or d.get('nominee') or d.get('player') or d.get('shooter')
         text = d.get('text') or (f"claims the {d['character']}'s ability" if ev['kind'] == 'ability' else '')
@@ -127,11 +134,13 @@ def claims(game, hears='public'):
 TYPES = ('townsfolk', 'outsider', 'minion', 'demon')
 
 
-def madness_evidence(game, player, about, since, hears='public'):
-    """What the Storyteller heard `player` say from day `since` on about being `about` (a character, or a character
-    type such as 'Outsider'), for judging madness: aloud (speech, nominations, defenses, and public ability claims,
-    which claim that character), and whispers too when hearing all (the almanac: the Storyteller "overhears" a
-    private hint). Never anyone's thinking or belief probes. Returns {'since', 'aloud': claimed `about` aloud,
+def madness_evidence(game, player, about, since, hears='public', after=None):
+    """What the Storyteller heard `player` say from day `since` on (and, given `after`, only in events from that
+    sequence number on: a later checkpoint the same day) about being `about` (a character, or a character type such as
+    'Outsider'), for judging madness: aloud (speech, nominations, defenses, and public ability claims, which claim that
+    character), what they said to the Storyteller on a visit (not aloud), and whispers too when hearing all (the
+    almanac: the Storyteller "overhears" a private hint). Never anyone's thinking or belief probes. Returns {'since',
+    'after', 'aloud': claimed `about` aloud,
     'claimed': claimed it anywhere heard, 'latest_matches': the latest character or type they were heard claiming is
     `about` (None: no claim), 'denied': said they are not `about`, 'confessed': said they are mad, 'quotes'}."""
     g = game.g
@@ -145,11 +154,11 @@ def madness_evidence(game, player, about, since, hears='public'):
 
     def fits(c):
         return c == about or (c in g.script.all and kind(c) == about)
-    out = {'since': since, 'aloud': False, 'claimed': False, 'latest_matches': None, 'denied': False,
+    out = {'since': since, 'after': after, 'aloud': False, 'claimed': False, 'latest_matches': None, 'denied': False,
            'confessed': False, 'quotes': []}
     for ev in game.events:
         d = ev['data']
-        if ev['day'] < since or not _heard(ev, hears):
+        if ev['day'] < since or (after is not None and ev['seq'] < after) or not _heard(ev, hears):
             continue
         if ev['kind'] == 'whisper':
             who = d.get('from')
@@ -159,7 +168,7 @@ def madness_evidence(game, player, about, since, hears='public'):
             who = d.get('speaker') or d.get('nominator') or d.get('player')
         if who != player:
             continue
-        aloud = ev['kind'] != 'whisper'
+        aloud = ev['kind'] not in ('whisper', 'visit_text')
         text = d.get('text') or ''
         said = [canon[m.group(1).lower()] for m in claim.finditer(text)]
         if ev['kind'] == 'ability':
@@ -174,7 +183,8 @@ def madness_evidence(game, player, about, since, hears='public'):
         if mad.search(text):
             out['confessed'] = True
         if said or out['denied'] or mad.search(text):
-            out['quotes'].append(f"day {ev['day']}{'' if aloud else ', whispered'}: {text[:120]}")
+            how = '' if aloud else ', to you' if ev['kind'] == 'visit_text' else ', whispered'
+            out['quotes'].append(f"day {ev['day']}{how}: {text[:120]}")
     return out
 
 
@@ -335,6 +345,9 @@ class RulesJudge(Judge):
       (the Mutant), they broke it by claiming it. The quotes it relied on are the reason.
     - madness_penalty: a good player who broke madness is executed (the rulebook: the player's choice); an evil one
       by the balance (the almanac: "might" lets the Storyteller stop evil using it).
+    - sweetheart_drunk: a living good Townsfolk; with evil well ahead, a living evil player (the almanac).
+    - the Savant's statements, the Artist's questions the code can't answer, the Barber's Demon: no opinion (the
+      scripted style: the Savant's scoring rule, "I don't know"); a model judge ranks them.
     - setup calls (the red herring, the Drunk's character, the Demon's and the Lunatic's bluffs, the Grandchild),
       the Sailor's and Innkeeper's drunk, and Gossip statements the code can't read: no opinion (the scripted
       style, which follows the almanacs; there is nothing yet to read, or nothing this judge can read)."""
@@ -347,6 +360,8 @@ class RulesJudge(Judge):
         ctx = getattr(choice, 'context', {}) or {}
         call = ctx.get('call')
         ranked, reasons = [], []
+        if ctx.get('rules_opinion') is False:  # (the Savant's thousands of pairs: the scripted scoring rule picks)
+            return [], ''
 
         def add(values, reason):
             ranked.extend(v for v in values if v not in ranked)
@@ -423,7 +438,8 @@ class RulesJudge(Judge):
 
     def _madness(self, game, choice, ctx):
         from .state import madness_broken
-        ev = madness_evidence(game, ctx['about'], ctx['mad_about'], ctx.get('since', game.day), self.hears)
+        ev = madness_evidence(game, ctx['about'], ctx['mad_about'], ctx.get('since', game.day), self.hears,
+                              ctx.get('after'))
         broke = madness_broken(ev, ctx.get('must', True))
         quotes = '; '.join(ev['quotes'][-3:]) or 'nothing said about it'
         return ([v for v in choice.values if v['yes'] is broke],
@@ -434,6 +450,17 @@ class RulesJudge(Judge):
             return ([v for v in choice.values if v['yes'] is True],
                     'a good player who broke their madness chose the penalty: execute them')
         return self.balance(game, choice, ctx)
+
+    def _sweetheart_drunk(self, game, choice, ctx):
+        """The almanac: almost always a Townsfolk, which hurts good; with evil winning convincingly, an evil player."""
+        lead, why = standing(game)
+        g = game.g
+        alive = [v for v in choice.values if g[v['players'][0]].alive]
+        if lead == 'evil':
+            return ([v for v in alive if g[v['players'][0]].evil],
+                    f'evil is well ahead ({why}): an evil player is made drunk')
+        return ([v for v in alive if not g[v['players'][0]].evil and kind(g[v['players'][0]].character) == 'Townsfolk'],
+                'a living good Townsfolk is made drunk, as the almanac advises')
 
     def _mayor_bounce(self, game, choice, ctx):
         lead, why = standing(game)

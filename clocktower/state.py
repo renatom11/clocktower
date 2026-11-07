@@ -223,6 +223,15 @@ POLICY = {
     # alive players ... If the Sage dies on the final night, feel free to show one alive and one dead player".
     # Default, for review.
     'sage_alive': 0.9,              # before the final night, the other player shown is alive (else anyone)
+    # the Savant's two statements (snv.savant_choice). The almanac: "Keep the information you give helpful and related
+    # to the game. Avoid saying who exactly the Demon is"; a drunk or poisoned Savant "might get two pieces of true
+    # information or two pieces of false information". Default, for review.
+    'savant_same_kind': 0.5,        # the false statement has the same form as the true one (else any form)
+    'savant_both_false': 0.7,       # a misinformed Savant hears two false statements (else two true ones)
+    # whom the Sweetheart's death makes drunk. The almanac: "You will almost always want to make a Townsfolk drunk ...
+    # but if evil is winning quite convincingly, you can make an Outsider, Minion, or even the Demon drunk." Default,
+    # for review.
+    'sweetheart_townsfolk': 0.9,    # a living good Townsfolk (else any other living player)
     # the Storyteller judge (judge.py, when one is chosen; never in TB's protocol v17): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
@@ -231,16 +240,20 @@ POLICY = {
 
 
 def norm(value):
-    """A Storyteller value: any of players, character, number, yes, characters."""
+    """A Storyteller value: any of players, character, number, yes, characters, and statements (the Savant's: only
+    when there are some, so values without them read exactly as before)."""
     value = value or {}
-    return {'players': list(value.get('players') or []), 'character': value.get('character'),
-            'number': value.get('number'), 'yes': value.get('yes'),
-            'characters': list(value.get('characters') or [])}
+    out = {'players': list(value.get('players') or []), 'character': value.get('character'),
+           'number': value.get('number'), 'yes': value.get('yes'), 'characters': list(value.get('characters') or [])}
+    if value.get('statements'):
+        out['statements'] = list(value['statements'])
+    return out
 
 
 def _key(v):
     v = norm(v)
-    return tuple(sorted(v['players'])), v['character'], v['number'], v['yes'], tuple(sorted(v['characters']))
+    return (tuple(sorted(v['players'])), v['character'], v['number'], v['yes'], tuple(sorted(v['characters'])),
+            tuple(sorted(v.get('statements', []))))
 
 
 class Choice:
@@ -399,8 +412,9 @@ class Grimoire:
                    and self.active(s) for s in self.states)
 
     def holder(self, character):
-        """The player who has `character`'s own ability now: alive, or dead and keeping it (Grimoire.keeps_ability)."""
-        return next((p for p in self.players if p.character == character and (p.alive or self.keeps_ability(p))),
+        """The player who has `character`'s ability now (their own, or one gained: the Philosopher's): alive, or dead
+        and keeping it (Grimoire.keeps_ability). The first in seat order, if several have it."""
+        return next((p for p in self.players if character in self.abilities(p) and (p.alive or self.keeps_ability(p))),
                     None)
 
     def nearest(self, p, step, test=lambda q: True):
@@ -518,6 +532,8 @@ class Grimoire:
         """p becomes `character` (and believes it), keeping their alignment. States that last only while their
         source has its ability end (a Poisoner who becomes the Imp stops poisoning)."""
         p.character = p.shown = character
+        if getattr(p, 'extra', None):  # abilities gained through the old character go with it (the Philosopher's)
+            p.extra = []
         self._source_lost(p)
 
     def _source_lost(self, p):
@@ -687,6 +703,7 @@ class Grimoire:
                     tags.append({'cursed': 'CURSED (dies if they nominate today)',
                                  'mad': f'MAD about being the {s.about}',
                                  'has ability': 'keeps their ability while dead'}[s.kind])
+            if getattr(p, 'extra', None): tags.append(f"also has the ability of the {', '.join(p.extra)}")
             if p.name == self.red_herring: tags.append("Fortune Teller's red herring")
             if self.has(p, 'master'): tags.append("Butler's master")
             team = 'evil' if p.evil else 'good'
@@ -1022,13 +1039,21 @@ def madness_choice(g, p, about, must, evidence):
     whispers."""
     broke = madness_broken(evidence, must)
     choice = Choice(f'Madness:{p.name}', [{'yes': True}, {'yes': False}], lambda r: {'yes': broke})
-    what = (f'mad about being the {about}: trying, sincerely, to convince the group they are the {about}' if must
-            else f'not mad about being {about}: not trying to convince anyone they are {about}')
+    it = being(g, about)
+    what = (f'mad about being {it}: trying, sincerely, to convince the group they are {it}' if must
+            else f'not mad about being {it}: not trying to convince anyone, aloud, in private or to you, that they '
+                 f'are {it}')
     return judged(choice, 'madness', f'{p.name} must be {what}. Today, did they break their madness (yes: they did, '
                                      'and might be executed for it)? Judge their effort and intent, as with humour: a '
                                      'claim with no effort behind it, a hint or wink, a private confession you heard, '
                                      'or silence when asked all count against them.',
-                  about=p.name, recipient=p.name, mad_about=about, must=must, since=evidence['since'])
+                  about=p.name, recipient=p.name, mad_about=about, must=must, since=evidence['since'],
+                  after=evidence.get('after'))
+
+
+def being(g, about):
+    """'the Chef' for a character, 'an Outsider' for a character type (the Mutant's madness)."""
+    return f'the {about}' if about in g.script.all else f'a{"n" if about[:1] in "AEIOU" else ""} {about}'
 
 
 def madness_penalty_choice(g, p, about):
@@ -1036,9 +1061,9 @@ def madness_penalty_choice(g, p, about):
     (it is their choice), less often for an evil one, so evil can't use it to end the day."""
     chance = POLICY['mad_execute_evil' if p.evil else 'mad_execute_good']
     return judged(yes_choice(f'Madness execution:{p.name}', chance), 'madness_penalty',
-                  f'{p.name} broke their madness about being the {about}. Do you execute them now (yes), which is '
-                  "today's execution, or let it pass? Usually yes for a good player (their choice); for an evil one, "
-                  'not if it would help evil (ending the day before a dangerous nomination).', about=p.name,
+                  f'{p.name} broke their madness about being {being(g, about)}. Do you execute them now (yes), which '
+                  "is today's execution, or let it pass? Usually yes for a good player (their choice); for an evil "
+                  'one, not if it would help evil (ending the day before a dangerous nomination).', about=p.name,
                   recipient=p.name, helps='good' if p.evil else 'evil')
 
 

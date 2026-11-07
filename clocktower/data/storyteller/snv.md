@@ -133,3 +133,57 @@ If the Demon's own attack kills the Sage at night, they wake and are shown two p
 killed them. Other deaths (the Witch, an execution, the Pit-Hag's arbitrary deaths) give nothing. Early in the game,
 show two living players so evil keeps a chance; on the final night one may be dead. A drunk or poisoned Sage (a No
 Dashii neighbour) is usually shown two players who are not that Demon; under the Vortox they never include it.
+
+## Savant
+Each day the Savant may visit you in private and hear two statements, one true and one false, without being told
+which. Make both helpful and about this game, of the kind a Townsfolk ability would give (alignments of a pair, how
+near the Demon sits to someone, how many are drunk or poisoned, whether a character is in play), and never simply
+name the Demon. Give a false statement that is plausible for the setup's counts, often of the same form as the true
+one, and don't repeat earlier ones. A drunk or poisoned Savant may hear two false (usually) or two true statements;
+under the Vortox both are false. Anyone may visit you to bluff the Savant: the town sees only that they went.
+
+## Philosopher
+Once per game, at night, the Philosopher may choose a good character and gain its ability (they stay the
+Philosopher). They then wake when that character wakes; a starting-knowledge ability acts at once. If that character
+is in play, its player is drunk for as long as the Philosopher has their own ability: sober again if the Philosopher
+dies, is drunk or poisoned, or changes character, and a player made into that character later is drunk too. Pit-Hags,
+Dreamers and the Juggler see "Philosopher". A drunk Philosopher's choice is wasted.
+
+## Artist
+Once per game, by day, the Artist may visit you in private and ask any yes/no question. Answer honestly with yes, no
+or "I don't know" (subjective questions, the future, intentions, or anything you cannot know, such as "Are we
+winning?"); a question that is not yes/no can get "I don't know" too. A drunk or poisoned Artist may get a false
+answer; under the Vortox an answer you could give must be false (a question like "is 2 + 2 four?" detects it). Evil
+players may pretend to visit as the Artist: say nothing that gives them away.
+
+## Juggler
+On their first day as the Juggler (the first day of the game, or the day after becoming it), the Juggler publicly
+guesses up to five players' characters. Count the correct guesses at once, against the true characters; that night
+they learn the number. Drunk when guessing but sober at night: true. Drunk or poisoned at night: usually one off;
+under the Vortox any other number. If they die before night, they learn nothing. Anyone may announce guesses to bluff
+the Juggler; only the real one's count.
+
+## Mutant
+The Mutant must not try to convince anyone that they are an Outsider (any Outsider, not only the Mutant): claiming
+it aloud, hinting or winking, confessing in a whisper you hear, telling you on a visit, or going silent when asked
+all count. If they break it you may execute them, which is the day's execution and ends the day; you usually do for a
+good player. A Mutant who claims a Townsfolk and plays it convincingly is safe. A drunk or poisoned Mutant (a
+Sweetheart's drunk) may say anything.
+
+## Sweetheart
+When the Sweetheart dies, by any cause, choose one player to be drunk for the rest of the game. Almost always make a
+living good Townsfolk drunk, ideally one whose information matters; if evil is winning convincingly, an Outsider, a
+Minion or even the Demon can be made drunk instead (a drunk Demon kills nobody). A drunk or poisoned Sweetheart's death
+does nothing. The drunk player is not told.
+
+## Barber
+If the Barber died today or tonight, that night the Demon may choose two players (alive or dead, themself included,
+never another Demon) to swap characters. Alignments stay; each swapped player is told their new character, and a new
+character's ability is fresh. The Demon may swap no one. With several Demons, you pick which one chooses. A drunk or
+poisoned Barber's death gives no haircut, nor does a dead player who later becomes the Barber.
+
+## Klutz
+When the Klutz learns they died (at dawn after a night death, at once after an execution), they must publicly choose
+an alive player; ask again until they name one. If the chosen player is evil, the Klutz's team loses at once (an evil
+Klutz choosing an evil player makes good win); if good, nothing happens. Not information: the Vortox does not touch
+it. A drunk or poisoned Klutz's choice does nothing.

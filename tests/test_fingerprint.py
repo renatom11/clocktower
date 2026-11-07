@@ -23,6 +23,14 @@ class FingerprintTests(unittest.TestCase):
             sha, _ = fingerprint.play(g['players'], g['seed'], g['minion'], script=bmr)
             self.assertEqual(sha, g['sha'], f"BMR, {g['players']} players, seed {g['seed']}: no longer identical")
 
+    def test_a_sample_of_sects_and_violets_recorded_seeds_replays_identically(self):
+        from clocktower.characters import Script
+        snv = Script('snv')
+        recorded = json.loads(fingerprint.file_for(snv).read_text())['games']
+        for g in recorded[::37]:
+            sha, _ = fingerprint.play(g['players'], g['seed'], g['minion'], script=snv)
+            self.assertEqual(sha, g['sha'], f"S&V, {g['players']} players, seed {g['seed']}: no longer identical")
+
 
 if __name__ == '__main__':
     unittest.main()

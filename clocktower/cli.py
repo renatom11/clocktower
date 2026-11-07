@@ -359,7 +359,7 @@ def main(argv=None):
         p.add_argument('--judge-model', default='claude-haiku-4-5',
                        help='the model for --judge model (any model in llm.PRICES; Haiku 5.5 needs adding first)')
         p.add_argument('--script', default='tb', help='tb (Trouble Brewing, protocol v17), bmr (Bad Moon Rising), '
-                                                      'snv (Sects & Violets, in development) or a script JSON in the '
+                                                      'snv (Sects & Violets) or a script JSON in the '
                                                       'official format')
         p.add_argument('--out')
         if name in ('run', 'sim'):

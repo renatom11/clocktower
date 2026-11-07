@@ -16,7 +16,8 @@ def _nullable(schema):
 def player_schema(names, script=None):
     """The output schema for a table of `names`. Trouble Brewing's (the default) is protocol v17's; another
     script's adds a `character` field (night choices of a character) and drops the Slayer's shot unless the script
-    has a Slayer."""
+    has a Slayer; a script with public abilities adds `ability` (with `guesses` if one takes them: the Juggler), and one
+    with abilities used by visiting the Storyteller adds `visit` (the Savant, the Artist)."""
     name = {'type': 'string', 'enum': list(names)}
     fields = {
         'say': {'type': 'string'},
@@ -31,6 +32,13 @@ def player_schema(names, script=None):
         if 'slayer_shot' not in script.public_actions:
             del fields['slayer_shot']
         if script.claimable:  # a public day ability anyone can claim (the Gossip's statement)
-            fields['ability'] = _nullable(_obj({'character': {'type': 'string', 'enum': list(script.claimable)},
-                                                'target': _nullable(name), 'text': {'type': 'string'}}))
+            use = {'character': {'type': 'string', 'enum': list(script.claimable)}, 'target': _nullable(name),
+                   'text': {'type': 'string'}}
+            if getattr(script, 'guessable', None):  # one that takes guesses of players' characters (the Juggler's)
+                use['guesses'] = {'type': 'array', 'items': _obj({'player': name, 'character': {
+                    'type': 'string', 'enum': list(script.all)}})}
+            fields['ability'] = _nullable(_obj(use))
+        if getattr(script, 'visitable', None):  # a private visit to the Storyteller (the Savant, the Artist)
+            fields['visit'] = _nullable(_obj({'character': {'type': 'string', 'enum': list(script.visitable)},
+                                              'text': {'type': 'string'}}))
     return _obj(fields)

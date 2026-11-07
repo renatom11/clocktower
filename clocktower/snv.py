@@ -5,8 +5,9 @@ the entry takes, and why (docs/snv-rulings.md lists them for review).
 """
 from __future__ import annotations
 from itertools import combinations, product
+import re
 
-from .characters import CHARACTERS, Choose, Demon, Minion, Townsfolk, kind
+from .characters import CHARACTERS, SETUPS, Choose, Demon, Minion, Outsider, Townsfolk, kind, rules, settle
 from .state import POLICY, Choice, State, judged
 
 
@@ -29,6 +30,29 @@ def failed(game, p, ability, why):
     """p's ability would have acted but p is drunk or poisoned: an abnormal result for the Mathematician."""
     if game.g.impaired(p):
         game.abnormal(p, ability, why)
+
+
+# Once-per-game abilities are spent per player, not per character (Grimoire.spend), since two players can have one: a
+# Philosopher who gained it, and the original player, drunk. A player who becomes the character later starts fresh.
+def used(g, p, name):
+    return name in g.notes.get('Used', {}).get(p.name, ())
+
+
+def use(g, p, name):
+    g.notes.setdefault('Used', {}).setdefault(p.name, []).append(name)
+
+
+def fresh(g, p, name):
+    left = [x for x in g.notes.get('Used', {}).get(p.name, ()) if x != name]
+    if p.name in g.notes.get('Used', {}):
+        g.notes['Used'][p.name] = left
+
+
+def holders(g, night, name):
+    """The living players with `name`'s ability (their own, or one gained: the Philosopher's) who chose tonight at its
+    step, with their first choice: several can have it (the Philosopher, and the original player made drunk)."""
+    return [(p, (night.chosen[p.name] or [None])[0]) for p in g.players
+            if p.alive and name in g.abilities(p) and p.name in night.chosen]
 
 
 # ---- Minions ---------------------------------------------------------------------------------------------------
@@ -334,6 +358,16 @@ class Vigormortis(Killer):
         side = choice.sides.get((value['players'] or [None])[0], 1)
         g.notes.setdefault('Vigormortis', {}).setdefault(me.name, {})[target.name] = side
 
+    def hand_over(self, g, old, new):
+        # the kept abilities and their poison belong to the Vigormortis character, not its player: charmed by the
+        # Snake Charmer (or swapped by the Barber), the new Vigormortis keeps its dead Minions (batch 3's ruling)
+        keep = [s for s in g.states if s.kind == 'has ability' and s.source == old.name]
+        g.states = [s for s in g.states if not any(s is k for k in keep)]
+        sides = g.notes.get('Vigormortis', {}).pop(old.name, None)
+        if sides:
+            g.notes['Vigormortis'].setdefault(new.name, {}).update(sides)
+        return keep
+
     def ongoing(self, g, me):
         # each kept Minion poisons the nearest Townsfolk on the side the Storyteller chose, recomputed (so one
         # Townsfolk per Minion is always poisoned); all of it ends when the Vigormortis loses its ability. A dead
@@ -540,10 +574,13 @@ class SnakeCharmer(Townsfolk):
                                  'with them, and they are then poisoned.')
 
     async def resolve_night(self, game, night):
+        for sc, t in holders(game.g, night, self.name):  # a Philosopher-Snake Charmer too
+            await self.charm(game, sc, t)
+
+    async def charm(self, game, sc, t):
         g = game.g
-        sc, t = night.choice_of(g, self.name)
-        if not t or not g[t].is_demon or g[t] is sc:
-            return  # not the Demon: nothing happens (themself included)
+        if not t or not g[t].is_demon or g[t] is sc or self.name not in g.abilities(sc):
+            return  # not the Demon: nothing happens (themself included); or no longer a Snake Charmer tonight
         d = g[t]
         if not g.works(sc, self.name):
             failed(game, sc, self.name, 'charmed the Demon')  # the wiki's poisoned Snake Charmer
@@ -701,17 +738,20 @@ class Seamstress(Townsfolk):
                                  'alignment, or choose no one to keep your ability for a later night.')
 
     def night_spec(self, game, me, night):
-        return None if game.g.spent_ability(self.name) else self.night_choice
+        return None if used(game.g, me, self.name) else self.night_choice
 
     async def resolve_night(self, game, night):
         g = game.g
-        se, _ = night.choice_of(g, self.name)
-        pair = night.chosen.get(se.name, []) if se else []
-        if len(pair) != 2:
-            return  # declined (one player named counts as declining: a reading)
-        g.spend(self.name)  # used up even if drunk or poisoned: not woken again
-        await learn(game, se, self.name, seamstress_choice(g, se, pair),
-                    lambda v: f'{pair[0]} and {pair[1]} are {"" if v["yes"] else "NOT "}the same alignment.')
+        for se, _ in holders(g, night, self.name):  # a Philosopher-Seamstress too, each once
+            pair = night.chosen.get(se.name, [])
+            if len(pair) != 2 or used(g, se, self.name):
+                continue  # declined (one player named counts as declining: a reading)
+            use(g, se, self.name)  # used up even if drunk or poisoned: not woken again
+            await learn(game, se, self.name, seamstress_choice(g, se, pair),
+                        lambda v: f'{pair[0]} and {pair[1]} are {"" if v["yes"] else "NOT "}the same alignment.')
+
+    def becomes(self, game, me):
+        fresh(game.g, me, self.name)  # a new Seamstress's ability is fresh (the Barber's almanac)
 
 
 def sage_choice(g, p, demon):
@@ -762,6 +802,509 @@ class Sage(Townsfolk):
                     *sorted(v['players'], key=lambda x: g[x].seat)))
 
 
+# ---- Townsfolk (batch 3: the Savant, the Philosopher, the Artist, the Juggler) ---------------------------------
+
+def has(g, p, name):
+    """Whether p has `name`'s ability (their own, or one gained) or believes they are it."""
+    return p.shown == name or name in g.abilities(p)
+
+
+def plural(n, one, many):
+    return f'{n} {one if n == 1 else many}'
+
+
+def register(values):
+    """A registration set's one answer, or None if it could go either way (none can on Sects & Violets)."""
+    return next(iter(values)) if len(values) == 1 else None
+
+
+def savant_statements(g, p):
+    """The statements the Savant may hear today, each {'form', 'text', 'true', 'about': the players it is about}, built
+    from templates and checked by code against the Grimoire and its records (alignment, seats, drunkenness and
+    poison, night choices, characters in play, Outsider counts, evil neighbours, abnormal information, votes and
+    nominations, the dead). A statement whose truth depends on how someone registers either way is left out. False
+    ones never contradict what the setup's public counts allow (the Outsider counts are those some legal setup has);
+    statements about the Savant's own character are left out."""
+    out, names = [], [q.name for q in g.players]
+    n, alive = len(g.players), [q for q in g.players if q.alive]
+    evil = {q.name: register(g.registers_evil(q, p)) for q in g.players}
+
+    def add(form, text, true, about=()):
+        if true is not None:
+            out.append({'form': form, 'text': text, 'true': bool(true), 'about': tuple(about)})
+    pairs = {tuple(sorted((names[i], names[(i + 1) % n]))) for i in range(n)}
+    pairs |= {tuple(sorted((p.name, x))) for x in names if x != p.name}
+    for a, b in sorted(pairs, key=lambda ab: (g[ab[0]].seat, g[ab[1]].seat)):
+        same = None if None in (evil[a], evil[b]) else evil[a] == evil[b]
+        add('alignment', f'{a} and {b} are the same alignment.', same, (a, b))
+    demons = [q for q in g.players if register({kind(c) == 'Demon' for c in g.registers_as(q, p)})]
+    for x in alive:
+        for k in (1, 2):
+            near = any(d is not x and steps_between(g, x, d) <= k for d in demons)
+            add('demon_near', f'The Demon sits within {plural(k, "seat", "seats")} of {x.name} (and is not '
+                f'{x.name}).', near, (x.name,))
+    impaired = sum(1 for q in alive if g.impaired(q))
+    for k in range(4):
+        add('impaired', f'Exactly {plural(k, "living player is", "living players are")} drunk or poisoned.',
+            impaired == k)
+    for x in alive:
+        chosen = any(x.name in t for night in g.night_choices.values() for who, t in night.items() if who != x.name)
+        add('chosen', f"{x.name} has been chosen at night by another player's ability.", chosen, (x.name,))
+    own = {p.shown, *g.abilities(p)}
+    for c in g.script.all:
+        if c not in own:
+            add('in_play', f'There is a {c} in play.', any(q.character == c for q in g.players))
+    base = SETUPS[n][1]
+    shifts = {0} | {rules(c).outsiders for c in g.script.all} | {d for c in g.script.all
+                                                                 for d in rules(c).outsider_choices}
+    outsiders = sum(1 for q in g.players if kind(q.character) == 'Outsider')
+    for k in sorted({base + d for d in shifts if 0 <= base + d <= len(g.script.outsiders)}):
+        add('outsiders', f'There {"is" if k == 1 else "are"} exactly {plural(k, "Outsider", "Outsiders")} in play.',
+            outsiders == k)
+    nb = g.neighbours(p)
+    if None not in (evil[q.name] for q in nb):
+        count = sum(evil[q.name] for q in nb)
+        for k in range(len(nb) + 1):
+            add('neighbours', f'Exactly {k} of your living neighbours {"is" if k == 1 else "are"} evil.', count == k,
+                tuple(q.name for q in nb))
+    for x in alive:
+        if x is not p:
+            add('evil', f'{x.name} is evil.', evil[x.name], (x.name,))
+    adjacent = any(kind(g.players[i].character) == 'Minion' and g.players[(i + 1) % n] in demons
+                   or g.players[i] in demons and kind(g.players[(i + 1) % n].character) == 'Minion' for i in range(n))
+    add('minion_near', 'A Minion sits next to the Demon (the dead count).', adjacent)
+    if g.day >= 2:
+        false = any(a['phase'] == 'night' and a['day'] == g.day and a['why'] == 'false information'
+                    for a in g.abnormal)
+        add('true_info', 'Everyone who got information from their ability last night got true information.',
+            not false)
+        add('voted', 'A Demon voted yesterday.', demon_voted(g, g.day - 1))
+        add('nominated', 'A Minion nominated yesterday.', minion_nominated(g, g.day - 1))
+        dead = [q for q in g.players if not q.appears_alive]
+        if dead and None not in (evil[q.name] for q in dead):
+            count = sum(evil[q.name] for q in dead)
+            for k in range(len(dead) + 1):
+                add('dead', f'Exactly {plural(k, "dead player is", "dead players are")} evil.', count == k)
+    return out
+
+
+def savant_choice(g, p):
+    """The Savant's two statements: one true and one false (Grimoire.unreliable: a drunk or poisoned Savant may hear
+    any two; under the Vortox two false). The scripted Storyteller's scoring rule: the true statement's form is chosen
+    uniformly among the forms with a true statement (so the many pair statements don't crowd out the rest), then a
+    statement of that form by weight: 2 if it is about living players only (or no player), 1 otherwise; a true
+    statement that names the Demon ("X is evil" for the Demon) is never picked, nor anything the Savant heard before.
+    The false one has the same form when it can (POLICY 'savant_same_kind'), else any form, by the same weights, and
+    never contradicts the setup's public counts. A misinformed Savant hears two false statements ('savant_both_false')
+    or two true ones. A judge may rank the pairs instead."""
+    stmts = savant_statements(g, p)
+    told = set(g.notes.get('Savant told', {}).get(p.name, ()))
+    true = {s['text']: s['true'] for s in stmts}
+    t_all, f_all = [s for s in stmts if s['true']], [s for s in stmts if not s['true']]
+    impaired, falsified = g.impaired(p), g.falsified(p, 'Savant')
+    if falsified and len(f_all) >= 2:
+        values = [[a['text'], b['text']] for a, b in combinations(f_all, 2)]
+    elif impaired or falsified:
+        values = [[a['text'], b['text']] for a, b in combinations(stmts, 2)]
+    else:
+        values = [[a['text'], b['text']] for a in t_all for b in f_all]
+    if not values:
+        return None
+
+    def reveals(s):
+        return s['form'] == 'evil' and g[s['about'][0]].is_demon
+
+    def weight(s):
+        return 2 if all(g[x].alive for x in s['about']) else 1
+
+    def pick(r, pool, form=None, avoid=()):
+        pool = [s for s in pool if s['text'] not in avoid] or pool
+        fresh_ = [s for s in pool if s['text'] not in told] or pool
+        forms = sorted({s['form'] for s in fresh_})
+        form = form if form in forms else r.choice(forms)
+        within = [s for s in fresh_ if s['form'] == form]
+        return r.choices(within, [weight(s) for s in within])[0]
+
+    def style(r):
+        if falsified or (impaired and g.misinformed(p, r)):
+            pool = f_all if (falsified or r.random() < POLICY['savant_both_false']) and len(f_all) >= 2 else t_all
+            if len(pool) < 2:
+                pool = stmts
+            a = pick(r, pool)
+            return {'statements': [a['text'], pick(r, pool, a['form'], {a['text']})['text']]}
+        a = pick(r, [s for s in t_all if not reveals(s)] or t_all)
+        same = r.random() < POLICY['savant_same_kind']
+        return {'statements': [a['text'], pick(r, f_all, a['form'] if same else None)['text']]}
+
+    choice = Choice(f'Savant:{p.name}', [{'statements': v} for v in values], lambda r: None)
+    choice.style = lambda r: (lambda v: v if choice.legal(v) else {'statements': r.choice(values)})(style(r))
+    one_true = lambda v: sum(true[x] for x in v['statements']) == 1
+    return info(choice, g, p, 'Savant', f'{p.name} (Savant) visits you: which two statements do they hear, one true '
+                'and one false? Keep them helpful and related to the game, as a Townsfolk ability would give, and '
+                'avoid saying who exactly the Demon is.', one_true, impaired or falsified, rules_opinion=False)
+
+
+class Savant(Townsfolk):
+    name = 'Savant'
+    ability = ability(name)
+    info = True
+    visit = True
+
+    async def visited(self, game, me, text):
+        # each day (the engine allows one visit a day), alive; a Philosopher-Savant too
+        g = game.g
+        if not (me.alive and has(g, me, self.name)):
+            return False
+        choice = savant_choice(g, me)
+        if choice is None:
+            game.inform(me, f'Day {game.day} — Savant: the Storyteller has nothing to tell you today.')
+            return True
+        a, b = sorted((await game.decide_judged(choice))['statements'])
+        g.notes.setdefault('Savant told', {}).setdefault(me.name, []).extend([a, b])
+        game.inform(me, f'Day {game.day} — Savant: the Storyteller tells you two things, one true and one false '
+                        f'(you are not told which): "{a}" and "{b}" (Seats are counted round the circle, the dead '
+                        'included.)')
+        return True
+
+
+class Philosopher(Townsfolk):
+    name = 'Philosopher'
+    ability = ability(name)
+    derives = True
+    night_choice = Choose(players=0, character=True, optional=True, kinds=('Townsfolk', 'Outsider'),
+                          prompt='Once per game: choose a good character (`character`) to gain their ability from now '
+                                 'on (you stay the Philosopher; if that character is in play, its player is drunk), or '
+                                 'null to keep your ability for a later night.')
+
+    def night_spec(self, game, me, night):
+        return None if used(game.g, me, self.name) else self.night_choice
+
+    async def resolve_night(self, game, night):
+        g = game.g
+        for p in [q for q in g.players if q.alive and self.name in g.abilities(q)]:
+            c = night.characters.get(p.name)
+            if not c or used(g, p, self.name) or p.name not in night.chosen:
+                continue
+            use(g, p, self.name)  # spent even if drunk or poisoned
+            if not g.works(p, self.name):
+                failed(game, p, self.name, 'gained no ability')
+                continue
+            if c in g.abilities(p):
+                continue  # their own ability (the Philosopher's): nothing more
+            # they gain the ability, not the character: they wake at its step from tonight (Game.wake), a "you start
+            # knowing" one acts now (its `becomes`), and the in-play player of it is drunk while the Philosopher has
+            # their own ability (Philosopher.ongoing)
+            p.extra.append(c)
+            game.emit('gains', {'player': p.name, 'character': c}, 'audit')
+            game.woken(p)
+            game.inform(p, f'Night {night.n} — Philosopher: you now have the {c}\'s ability: {rules(c).ability} '
+                           '(You are still the Philosopher.)')
+            await settle(rules(c).becomes(game, p))
+
+    def becomes(self, game, me):
+        fresh(game.g, me, self.name)
+
+    def ongoing(self, g, me):
+        # the in-play player of each gained character is drunk, recomputed (one made that character later is drunk
+        # too), while the Philosopher has their own ability: sober again if the Philosopher dies, is drunk or poisoned
+        if not me.extra or not g.works(me, self.name):
+            return []
+        return [State('drunk', q.name, source=me.name, until=None) for c in me.extra for q in g.players
+                if q is not me and q.character == c]
+
+
+QUESTION = re.compile(r'^(?:storyteller,?\s*|so,?\s*|ok,?\s*)?(?:is it true that|tell me (?:if|whether)|i ask:?)\s+')
+
+
+def artist_truth(g, asker, text):
+    """The honest answer to a yes/no question of a simple form the code can check against the Grimoire now, or None:
+    "Is X the Y / a Townsfolk / evil?", "Am I ...?", "Is the Demon X?", "Is the Demon X, Y or Z?" (also "one of",
+    "among", "X or Y the Demon?"), "Are X and Y the same alignment (on the same team)?", "Is there a Y in play?", "Is
+    the Y in play?" (X a player or "I"/"me", Y a character on the script). Anything else is the Storyteller's to
+    answer (a judge), or "I don't know"."""
+    from .bmr import gossip_truth
+    s = ' '.join((text or '').lower().replace('’', "'").split()).strip(' ?.!"\'')
+    s = QUESTION.sub('', s)
+    names = {x.lower(): x for x in g.by_name}
+    alt = '|'.join(re.escape(x) for x in sorted(names, key=len, reverse=True))
+    player = rf'(?:{alt}|i|me)'
+
+    def who(x):
+        return asker if x in ('i', 'me') else g[names[x]]
+
+    def listed(part):
+        items = [x.strip() for x in re.split(r',\s*(?:and\s+|or\s+)?|\s+(?:or|and)\s+', part) if x.strip()]
+        items = [re.sub(r'^either\s+', '', x) for x in items]
+        return [who(x) for x in items] if items and all(x in names or x in ('i', 'me') for x in items) else None
+
+    def any_demon(players):
+        sets = [{kind(c) == 'Demon' for c in g.registers_as(q, asker)} for q in players]
+        if any(True in x and len(x) == 1 for x in sets):
+            return True
+        return False if all(x == {False} for x in sets) else None
+    m = re.fullmatch(rf'(?:are|is) ({player}) and ({player}) (?:the same alignment|on the same team|of the same '
+                     r'alignment|both good or both evil)', s)
+    if m:
+        a, b = (register(g.registers_evil(who(x), asker)) for x in m.groups())
+        return None if None in (a, b) else a == b
+    m = re.fullmatch(r'is the demon (?:one of |among |either )?(.+)', s)
+    if m and listed(m.group(1)):
+        return any_demon(listed(m.group(1)))
+    m = re.fullmatch(r'(?:is|are) (?:either )?(.+?) (?:the|a) demon', s)
+    if m and listed(m.group(1)) and len(listed(m.group(1))) > 1:
+        return any_demon(listed(m.group(1)))
+    m = re.fullmatch(r'is there (.+)', s)
+    if m:
+        s = 'there is ' + m.group(1)
+    m = re.fullmatch(rf'(?:is|am) ({player}) (.+)', s)
+    if m:
+        s = f'{"i" if m.group(1) in ("i", "me") else m.group(1)} is {m.group(2)}'
+    m = re.fullmatch(r'is ((?:the |a |an )?.+) in play', s)
+    if m:
+        s = f'{m.group(1)} is in play'
+    return gossip_truth(g, asker, s)
+
+
+def artist_choice(g, p, text):
+    """The Storyteller's answer to the Artist's question: a question the code can check (artist_truth) is answered
+    honestly, or misinformed the opposite (drunk or poisoned: usually; the Vortox: always); any other goes to the
+    judge (yes, no, or "I don't know": nothing), and the scripted Storyteller, which can't read it, says "I don't
+    know"."""
+    true = artist_truth(g, p, text)
+    if true is not None:
+        return yes_no(g, p, 'Artist', true, f'{p.name} (Artist) privately asks you: "{text}". The answer (yes: true)?')
+    falsified = g.falsified(p, 'Artist')
+    question = (f'{p.name} (Artist) privately asks you: "{text}". Answer honestly: yes (true), no (false), or "I '
+                'don\'t know" (nothing) if it is subjective, about the future or intentions, not something you know, '
+                'or not a yes/no question (the almanac: "Are we winning?" gets "I don\'t know").'
+                + (' They are drunk or poisoned: you may answer falsely.' if g.impaired(p) else '')
+                + (' The Vortox is in play: if you can answer, answer falsely.' if falsified else ''))
+    return judged(Choice(f'Artist:{p.name}', [{'yes': True}, {'yes': False}, {'yes': None}], lambda r: {'yes': None}),
+                  'artist', question, recipient=p.name, impaired=g.impaired(p))
+
+
+class Artist(Townsfolk):
+    name = 'Artist'
+    ability = ability(name)
+    info = True
+    visit = True
+
+    async def visited(self, game, me, text):
+        g = game.g
+        if not (me.alive and has(g, me, self.name)):
+            return False
+        if used(g, me, self.name):
+            game.inform(me, f'Day {game.day} — Artist: you have already asked your one question.')
+            return True
+        if not (text or '').strip():  # (the almanac: prompt them to ask; the ability isn't used)
+            game.inform(me, f'Day {game.day} — Artist: ask your yes/no question in `text` when you visit. Your '
+                            'ability is not used.')
+            return True
+        use(g, me, self.name)
+        v = (await game.decide_judged(artist_choice(g, me, text)))['yes']
+        answer = {True: 'Yes.', False: 'No.', None: "I don't know."}[v]
+        game.inform(me, f'Day {game.day} — Artist: you asked "{text}" The Storyteller answers: {answer}')
+        return True
+
+    def becomes(self, game, me):
+        fresh(game.g, me, self.name)
+
+
+def juggler_choice(g, p, record):
+    """How many of the Juggler's guesses were correct when made (CORRECT reminders). Misinformed: one off."""
+    true, most = record['correct'], record['guesses']
+    impaired = g.unreliable(p, 'Juggler')
+    values = list(range(0, most + 1)) if impaired else [true]
+
+    def style(r):
+        if impaired and g.misinformed(p, r):
+            return {'number': r.choice([x for x in (true - 1, true + 1) if 0 <= x <= most] or values)}
+        return {'number': true}
+    return info(Choice(f'Juggler:{p.name}', [{'number': x} for x in values], style), g, p, 'Juggler',
+                f'{p.name} (Juggler) guessed {record["guesses"]} characters yesterday: how many correct do they learn?',
+                lambda v: v['number'] == true, impaired)
+
+
+class Juggler(Townsfolk):
+    name = 'Juggler'
+    ability = ability(name)
+    info = True
+    public_action = 'ability'  # the guesses, through the shared `ability` field (its `guesses`)
+    public_guesses = 5
+
+    @staticmethod
+    def first_day(g, p):
+        return g.notes.get('Juggler day', {}).get(p.name, 1)
+
+    def act_publicly(self, game, actor, target, text=None, guesses=None):
+        # anyone may claim it; only a living Juggler's first guesses on their first day as the Juggler count, drunk
+        # or not (counted now, against the true characters: the CORRECT reminders); no guesses is not a use
+        g, p = game.g, game.g[actor]
+        if not (p.alive and has(g, p, self.name) and guesses) or self.first_day(g, p) != game.day:
+            return False
+        if p.name in g.notes.get('Juggler', {}):
+            return False
+        correct = sum(1 for x in guesses if g[x['player']].character == x['character'])
+        g.notes.setdefault('Juggler', {})[p.name] = {'day': game.day, 'guesses': len(guesses), 'correct': correct}
+        return False
+
+    def becomes(self, game, me):
+        # "your 1st day" is their first day as the Juggler (the almanac's Savant made the Juggler on night 4)
+        g = game.g
+        g.notes.setdefault('Juggler day', {})[me.name] = game.day
+        g.notes.get('Juggler', {}).pop(me.name, None)
+
+    async def resolve_night(self, game, night):
+        g = game.g
+        for p in believers(g, self.name):  # alive: if they are killed first, they learn nothing
+            record = g.notes.get('Juggler', {}).get(p.name)
+            if record and record['day'] == night.n - 1:
+                await learn(game, p, self.name, juggler_choice(g, p, record),
+                            lambda v: f'{plural(v["number"], "of your guesses was", "of your guesses were")} '
+                                      'correct.')
+
+
+# ---- Outsiders -------------------------------------------------------------------------------------------------
+
+class Mutant(Outsider):
+    name = 'Mutant'
+    ability = ability(name)
+
+    async def moment(self, game, me, when):
+        # judged when the day's talk is done (before nominations), and at dusk on what was said since (nominations
+        # and defenses), if nobody was executed today; must=False: they must NOT try to convince anyone they are an
+        # Outsider (any Outsider). Only while a living, sober and healthy Mutant
+        g = game.g
+        if when not in ('nominations', 'dusk') or not g.works(me, self.name):
+            return
+        marks = g.notes.setdefault('Mutant judged', {})
+        if when == 'nominations':
+            marks[me.name] = (game.day, len(game.events))
+            await game.judge_madness(me, 'Outsider', must=False)
+        elif marks.get(me.name, (None,))[0] == game.day:
+            await game.judge_madness(me, 'Outsider', must=False, after=marks[me.name][1])
+
+
+def sweetheart_choice(g, sh):
+    """Who is drunk from now on: any other player. The scripted style follows the almanac: a living good Townsfolk
+    (POLICY 'sweetheart_townsfolk'), else any other living player."""
+    others = [q.name for q in g.players if q is not sh]
+
+    def style(r):
+        good = [x for x in others if g[x].alive and not g[x].evil and townsfolk(g[x])]
+        alive = [x for x in others if g[x].alive] or others
+        return {'players': [r.choice(good if good and r.random() < POLICY['sweetheart_townsfolk'] else alive)]}
+    return judged(Choice(f'Sweetheart:{sh.name}', [{'players': [x]} for x in others], style), 'sweetheart_drunk',
+                  f'{sh.name}, the Sweetheart, has died: which player is drunk from now on? The almanac: almost always '
+                  'a Townsfolk, which hurts good; if evil is winning convincingly, an Outsider, a Minion or even the '
+                  'Demon.', about=sh.name, recipient=sh.name)
+
+
+class Sweetheart(Outsider):
+    name = 'Sweetheart'
+    ability = ability(name)
+
+    def on_death(self, game, me, dead, cause, alive_before):
+        # any death; a drunk or poisoned Sweetheart's death is wasted (their sobriety as they die decides)
+        g = game.g
+        if dead is not me or me.alive or g.impaired(me) or self.name not in g.abilities(me):
+            return
+        done = g.notes.setdefault('Sweetheart', [])
+        if me.name not in done:
+            done.append(me.name)
+            game.later(lambda game: self.drunk(game, me))
+
+    async def drunk(self, game, me):
+        g = game.g
+        t = (await game.decide_judged(sweetheart_choice(g, me)))['players'][0]
+        g.add(State('drunk', t, source=me.name, until=None))  # for the rest of the game, whatever happens to them
+
+
+def barber_demon_choice(g, demons):
+    """Which living Demon makes the Barber's swap, when there are several: the Storyteller's (uniform)."""
+    names = [d.name for d in demons]
+    return judged(Choice('Barber Demon', [{'players': [x]} for x in names], lambda r: {'players': [r.choice(names)]}),
+                  'barber_demon', f'The Barber died: which living Demon ({", ".join(names)}) may swap two players\' '
+                                  'characters tonight?')
+
+
+class Barber(Outsider):
+    name = 'Barber'
+    ability = ability(name)
+
+    def on_death(self, game, me, dead, cause, alive_before):
+        # haircuts tonight: the night of a death by day is the coming one; a drunk or poisoned Barber's death is
+        # wasted; a player who dies and then becomes the Barber gives none (they did not die as the Barber)
+        g = game.g
+        if dead is me and not me.alive and self.name in g.abilities(me) and not g.impaired(me):
+            g.notes['Haircuts'] = game.day if game.tonight is not None else game.day + 1
+
+    async def resolve_night(self, game, night):
+        g = game.g
+        if g.notes.get('Haircuts') != night.n:
+            return
+        demons = [q for q in g.players if q.alive and q.is_demon]
+        if not demons:
+            return
+        d = demons[0] if len(demons) == 1 else g[(await game.decide_judged(barber_demon_choice(g, demons)))[
+            'players'][0]]
+        options = [q.name for q in g.players if not (q.is_demon and q is not d)]
+        req = game.request('night', f'Night {night.n} — the Barber has died. As the Demon you may choose 2 players '
+                                    '(alive or dead, yourself too, but not another Demon) to swap characters: their '
+                                    'alignments stay, and each learns their new character. Put them in `targets`, or '
+                                    '[] to swap no one.', night.n, n_targets=2, options=options, min_targets=0)
+        chosen = game.targets(d.name, await game.ask(d.name, req), req)
+        game.woken(d)
+        game.emit('night_choice', {'player': d.name, 'role': self.name, 'targets': chosen}, 'audit')
+        if len(chosen) == 2:  # one player named is declining (a reading, as for the Seamstress)
+            await game.swap(g[chosen[0]], g[chosen[1]])
+
+
+class Klutz(Outsider):
+    name = 'Klutz'
+    ability = ability(name)
+    public_action = 'ability'  # anyone may claim to choose (a bluff); the real Klutz is asked when they learn they died
+
+    def act_publicly(self, game, actor, target, text=None):
+        return False
+
+    def on_death(self, game, me, dead, cause, alive_before):
+        if dead is not me or me.alive or self.name not in game.g.abilities(me):
+            return
+        if game.tonight is not None:  # they learn it at dawn
+            game.g.notes.setdefault('Klutz at dawn', []).append(me.name)
+        else:  # executed or killed by day: at once
+            game.later(lambda game: self.choose(game, me))
+
+    def moment(self, game, me, when):
+        due = game.g.notes.get('Klutz at dawn', [])
+        if when == 'dawn' and me.name in due:
+            due.remove(me.name)
+            game.later(lambda game: self.choose(game, me))
+
+    async def choose(self, game, me):
+        """The public choice: required, asked again until they name an alive player (never chosen for them). Their
+        sobriety now decides; the Vortox does not touch it (not information). An evil Klutz who chooses an evil player
+        makes good win (the almanac)."""
+        g = game.g
+        options = [p.name for p in g.players if p.appears_alive]
+        if not options or g.winner:
+            return
+        req = game.request('death_choice', f'Day {game.day}: you have died. Klutz: publicly choose an alive player '
+                                           '(`targets`): if they are evil, your team loses.', game.day, n_targets=1,
+                           options=options)
+        t = game.targets(me.name, await game.insist(me.name, req, await game.ask(me.name, req)), req)[0]
+        game.emit('ability', {'player': me.name, 'character': self.name, 'target': t})
+        if not g[t].evil:
+            return
+        if g.impaired(me) or self.name not in g.abilities(me):
+            failed(game, me, self.name, 'chose an evil player')
+            return
+        g.winner = 'good' if me.evil else 'evil'
+        g.reason = f'{me.name}, the Klutz, chose {t}, who is evil: the {"evil" if me.evil else "good"} team loses.'
+
+
 CHARACTERS.update({c.name: c() for c in [Witch, Cerenovus, PitHag, EvilTwin, FangGu, Vigormortis, NoDashii, Vortox,
                                          Clockmaker, Dreamer, SnakeCharmer, Mathematician, Flowergirl, TownCrier,
-                                         Oracle, Seamstress, Sage]})
+                                         Oracle, Seamstress, Sage, Savant, Philosopher, Artist, Juggler, Mutant,
+                                         Sweetheart, Barber, Klutz]})
