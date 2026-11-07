@@ -366,6 +366,12 @@ class Character:
         """At `character`'s step tonight, the Storyteller uses `character`'s ability, gained through `me`'s (the
         Plague Doctor's): Game.night calls this for each ability in g.notes['Storyteller abilities']."""
 
+    extra_nominees = ()     # nominees beyond the players this character brings to its scripts: 'Storyteller' (the
+    #                         Atheist's; Script.nominees; batch 6)
+
+    async def nominee_executed(self, game, nominee):
+        """With `extra_nominees`: `nominee`, not a player, is today's execution (Game.nominations)."""
+
     def card(self):
         return f'{self.name} ({self.kind}, {"evil" if self.evil else "good"} team): {self.ability}'
 
@@ -856,6 +862,8 @@ class Script:
         self.all = self.townsfolk + self.outsiders + self.minions + self.demons
         self.good = self.townsfolk + self.outsiders
         self.first_night, self.other_nights = first_night, other_nights
+        # nominees who are not players, and the character whose rule brings them (batch 6: the Atheist's Storyteller)
+        self.nominees = {x: n for n in self.all for x in rules(n).extra_nominees}
         steps = [rules(n) for n in self.all if rules(n).setup_order is not None]
         self.setup_steps = sorted(steps, key=lambda c: c.setup_order)
         self.public_actions = {rules(n).public_action: rules(n) for n in self.all

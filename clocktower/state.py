@@ -652,6 +652,8 @@ class Grimoire:
         information Choice offers every value then, as for an impaired player. A gifted ability (the Boffin's) goes by
         its giver's sobriety."""
         gifted = self.gift_impaired(p, ability)
+        if self.notes.get('Storyteller lies'):  # (batch 6: the Atheist's Storyteller may break the rules)
+            return True
         return (self.impaired(p) if gifted is None else gifted) or self.falsified(p, ability)
 
     def safe_from_demon(self, p):
@@ -790,6 +792,8 @@ class Grimoire:
             return not self.truthful[p.name]
         if self.falsified(p):  # always false, without a draw (the Vortox)
             return True
+        if self.notes.get('Storyteller lies') and not self.impaired(p):  # (batch 6: the Atheist's rule-breaking)
+            return r.random() < POLICY['atheist_lie']
         # drunk or poisoned (in Trouble Brewing only the Poisoner impairs a player who isn't the Drunk)
         return self.impaired(p) and r.random() < POLICY['poisoned_false']
 

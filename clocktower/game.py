@@ -1035,6 +1035,8 @@ class Game:
         return len(g.death_log) > deaths and bool(g.check_victory())
 
     def vote_order(self, nominee):
+        if nominee not in self.names:  # (batch 6: a nominee who is not a player: clockwise from the nominator)
+            nominee = self.g.nominations[-1]['nominator']
         i = self.names.index(nominee)
         return [self.names[(i + k) % len(self.names)] for k in range(1, len(self.names) + 1)]
 
@@ -1178,6 +1180,7 @@ class Game:
         while not g.winner:
             eligible = [p.name for p in g.players if nominators.get(p.name, 0) < self.nomination_limit(p)]
             options = [x for x in self.names if x not in nominees]
+            options += [x for x in g.script.nominees if x not in nominees]  # (batch 6: the Atheist's Storyteller)
             if not eligible or not options:
                 break
             status = (f'{block} is on the block with {top} votes.' if block else
@@ -1206,6 +1209,19 @@ class Game:
             self.emit('nomination', {'nominator': nominator, 'nominee': nominee, 'text': accusation})
             g.nominations.append({'day': n, 'nominator': nominator, 'nominee': nominee,
                                   'character': g[nominator].character})  # the nominator's, as they nominated
+            if nominee not in g.by_name:  # (batch 6: not a player, the Atheist's Storyteller: the nominator's
+                if await self.nomination_judged(nominator, nominee):  # abilities react, none of a nominee's)
+                    return
+                self.emit('text', {'text': f'The {nominee} does not defend themself.'})
+                order = list(self.names)
+                self.rng.shuffle(order)
+                await self.turns(n, order, 'comment', f'Day {n}, comments on the nomination of the {nominee}',
+                                 'Say something to the town before the vote, or nothing (don\'t just announce your '
+                                 'vote). No whispering now.', WORDS['comment'])
+                if g.winner:
+                    return
+                block, top = await self.vote(nominee, block, top)
+                continue
             if await self.virgin_judged(nominator, nominee):
                 return
             if await self.nomination_judged(nominator, nominee):
@@ -1226,7 +1242,10 @@ class Game:
                 return
         if g.winner:
             return
-        if block:
+        if block and block not in g.by_name:  # (batch 6: the Atheist's Storyteller)
+            self.executed_today = True
+            await rules(g.script.nominees[block]).nominee_executed(self, block)
+        elif block:
             await self.execution(block)
             await self.run_pending()
         else:

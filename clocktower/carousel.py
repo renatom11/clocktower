@@ -414,7 +414,9 @@ class Golem(Outsider):
         if not g.works(me, self.name):
             snv.failed(game, me, self.name, 'the nominee lived')
             return
-        t = g[nominee]
+        t = g.by_name.get(nominee)
+        if t is None:  # (batch 6: the Atheist's Storyteller is no player: their one nomination, and nobody dies)
+            return
         demon = {kind(c) == 'Demon' for c in g.registers_as(t, me)}
         if len(demon) > 1:
             demon = {(await game.decide_judged(golem_choice(g, me, t)))['yes']}

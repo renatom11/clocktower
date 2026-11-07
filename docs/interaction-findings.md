@@ -64,7 +64,24 @@ keeps their own character and carries the token.
 
 ### Atheist
 
-(Not built yet.)
+3,000 games (1,500 with the Atheist forced into play, 1,500 uniform from seed 9310000, the Atheist in play in 119).
+The first passes found four faults in the new code, fixed before the commit (B28 to B31). After the fixes: none in the
+forced run, and 3 in the uniform one (the known U1, in games without the Atheist).
+
+B28. **Fixed before the commit.** **Too few bluffs.** At 15 players on a script with 17 good characters an all-good deal
+leaves two out of play, and the bluffs draw crashed (`crash`, 125 in 1,500 forced). Such a draw is drawn again (151).
+
+B29. **Fixed before the commit.** **An Atheist game with a real evil player.** With the Bounty Hunter's evil Townsfolk
+the setup step treated the evil team as real and set nothing up: no Minion for the Investigator (`crash`), no Demon and
+no rule holding the end (`missed-win`). The Atheist's rules now apply whenever it is dealt.
+
+B30. **Fixed before the commit.** **The Golem nominating the Storyteller** was not its one nomination (`once-twice`): the
+nominator's abilities now react to a nomination of the Storyteller (154).
+
+B31. **Fixed before the commit.** **The Atheist turned into an Outsider at setup** (an Alchemist-Baron's extra
+Outsiders, before its setup step), leaving a game with no Demon and no rule to say so (`missed-win`). Its setup step runs
+first, and the end is held as the deal's rule (152). Two remaining players are evil's win through that rule too (it once
+read as good's, "The Demon is dead").
 
 ### Wizard
 

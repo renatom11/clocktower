@@ -22,7 +22,8 @@ def player_schema(names, script=None):
     fields = {
         'say': {'type': 'string'},
         'whispers': {'type': 'array', 'items': _obj({'to': {'type': 'array', 'items': name}, 'text': {'type': 'string'}})},
-        'nominate': _nullable(name),
+        'nominate': _nullable({'type': 'string', 'enum': list(names) + list(getattr(script, 'nominees', None) or ())}
+                              if getattr(script, 'nominees', None) else name),  # (batch 6: the Atheist's Storyteller)
         'vote': _nullable({'type': 'boolean'}),
         'targets': {'type': 'array', 'items': name},
         'slayer_shot': _nullable(name),

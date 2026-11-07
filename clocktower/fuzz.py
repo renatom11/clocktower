@@ -467,7 +467,7 @@ class Monitor:
         if not (p.alive or g.keeps_ability(p)) and not dead_ok:
             self.flag('dead-acts', f'dead {p.name} ({p.character}) was given {role} information', [p.character, role])
         gifted = g.gift_impaired(p, role)  # (a Demon's ability through the Boffin's: the Boffin's sobriety counts)
-        healthy = has and not (g.impaired(p) if gifted is None else gifted)
+        healthy = has and not (g.impaired(p) if gifted is None else gifted) and not g.notes.get('Storyteller lies')
         falsified = g.falsified(p, role)
         truth = choice.truth(value) if choice.truth else None
         shown = json.dumps({k: v for k, v in value.items() if v not in (None, [])})

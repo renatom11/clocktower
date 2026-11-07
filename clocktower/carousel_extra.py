@@ -345,7 +345,162 @@ for _other, _where in (('Hatter', 'carousel_extra.LilMonsta.becomes'),
 
 
 # ---- Atheist -----------------------------------------------------------------------------------------------------
+# "The Storyteller can break the game rules, and if executed, good wins, even if you are dead. [No evil characters]"
+# The honest version (a Storyteller free to break any rule) cannot be run by an engine, so the Storyteller breaks
+# them in a bounded set of ways the engine can execute: a fake evil team it keeps to itself, information that follows
+# that fake Grimoire (Grimoire.unreliable and misinformed, while g.notes['Storyteller lies'] is set), and night deaths
+# as if a Demon killed. Anyone may nominate the Storyteller on its scripts (Character.extra_nominees, Game.nominations).
+# docs/carousel-rulings.md, batch 6, Atheist.
+from .characters import Townsfolk as _Townsfolk, kind as _kind_at  # noqa: E402
+from .state import POLICY as _POLICY_at, SETUPS as _SETUPS_at, Choice as _Choice_at, judged as _judged_at  # noqa: E402
 
+ATHEIST = 'Atheist'
+STORYTELLER = 'Storyteller'
+_POLICY_at.update({  # (Carousel, batch 6: the Atheist. Default, for review.)
+    'atheist_lie': 0.9,   # with the Atheist in play, a piece of information follows the fake Grimoire (else the truth)
+    'atheist_kill': 0.85,  # each night*, the Storyteller kills a player as a Demon would (else nobody)
+})
+
+
+def fake_team_choice(g, n):
+    """The fake evil team the Atheist's Storyteller plays to: a Demon of the script and as many Minions as the table
+    has, among the players but the Atheist (the Storyteller's call; the scripted style draws them at random)."""
+    pool = [q.name for q in g.players if q.character != ATHEIST]
+    mn = _SETUPS_at[len(g.players)][2]
+
+    def style(r):
+        team = r.sample(pool, min(len(pool), mn + 1))
+        return {'players': team, 'character': r.choice(g.script.demons)}
+    values = [{'players': team, 'character': d} for team in _combos(pool, min(len(pool), mn + 1)) for d in
+              g.script.demons]
+    return _judged_at(_Choice_at(f'{ATHEIST} fake team', values, style), 'atheist_fake_team',
+                      'The Atheist is in play and there is no evil team: which players does the Storyteller treat as '
+                      'the evil team (the first, the Demon of the character named), for the information it gives?')
+
+
+def _combos(pool, k):
+    # ordered pairs would explode; the first player is the fake Demon, the rest in any order: the first of each
+    # combination may be any of it (k <= 4 players from at most 15: at most 15 * C(14, 3) = 5,460 values)
+    from itertools import combinations
+    out = []
+    for first in pool:
+        for rest in combinations([x for x in pool if x != first], k - 1):
+            out.append([first, *rest])
+    return out
+
+
+def atheist_victim_choice(g, n):
+    """Who the Atheist's Storyteller kills tonight, as a Demon would: a living player not safe from the Demon, or
+    nobody (the scripted style kills on POLICY 'atheist_kill', a player outside the fake evil team)."""
+    rec = g.notes.get(ATHEIST) or {}
+    fake = set(rec.get('team') or ())
+    alive = [q.name for q in g.players if q.alive and not g.safe(q, 'demon')]
+
+    def style(r):
+        pool = [x for x in alive if x not in fake] or alive
+        if pool and r.random() < _POLICY_at['atheist_kill']:
+            return {'players': [r.choice(pool)]}
+        return {'players': []}
+    return _judged_at(_Choice_at(f'{ATHEIST}:{n}', [{'players': [x]} for x in alive] + [{'players': []}], style),
+                      'atheist_victim', f'Night {n}: the Atheist is in play: does the Storyteller kill a player, as a '
+                      'Demon would (none for nobody)?')
+
+
+class Atheist(_Townsfolk):
+    name = ATHEIST
+    ability = ability(name)
+    deals = True
+    setup_order = -5  # first of all: before any setup change can turn the Atheist into another character (an
+    #                   Alchemist-Baron's extra Outsiders), the game is the Atheist's
+    extra_nominees = (STORYTELLER,)
+
+    # ---- the deal: no evil characters ------------------------------------------------------------------------------
+    def deal_error(self, characters, script):
+        if self.name not in characters:
+            return None
+        evil = [c for c in characters if _kind_at(c) in ('Minion', 'Demon')]
+        return f'no evil characters with the Atheist in play: {", ".join(evil)}' if evil else ''
+
+    def redeal(self, rng, characters, players, script):
+        # every Minion's and the Demon's seat goes to a Townsfolk not in play (an Outsider if none is left); the
+        # Outsiders are the table's, as without setup modifiers (no Minion is in play to change them): a reading
+        if self.name not in characters:
+            return characters
+        tf, os_, mn = _SETUPS_at[players]
+        towns = [c for c in characters if _kind_at(c) == 'Townsfolk']
+        outs = [c for c in characters if _kind_at(c) == 'Outsider'][:os_]
+        spare_o = [c for c in script.outsiders if c not in outs]
+        while len(outs) < os_ and spare_o:
+            outs.append(spare_o.pop(rng.randrange(len(spare_o))))
+        spare_t = [c for c in script.townsfolk if c not in towns]
+        while len(towns) + len(outs) < players and spare_t:
+            towns.append(spare_t.pop(rng.randrange(len(spare_t))))
+        while len(towns) + len(outs) < players and spare_o:
+            outs.append(spare_o.pop(rng.randrange(len(spare_o))))
+        if len(towns) + len(outs) < players or ('Drunk' in outs and set(script.townsfolk) <= set(towns)) or len(
+                script.good) - players < 3:
+            return None  # (draw again: no Drunk without a Townsfolk to believe in, no deal without three bluffs)
+        return towns + outs
+
+    def rule_text(self, script):
+        return [f'The Atheist is on this script: anyone may nominate the Storyteller (nominate "{STORYTELLER}"), and '
+                'everyone votes as on a player. If the Storyteller is executed, good wins if the Atheist is in play '
+                '(alive or dead), and evil wins if not. With the Atheist in play there are no evil characters, and '
+                'the Storyteller may break the rules: give information as if there were an evil team, and kill '
+                'players at night; if nobody executes the Storyteller, evil wins when two players remain.']
+
+    # ---- the game ---------------------------------------------------------------------------------------------
+    async def setup(self, game):
+        g = game.g
+        if not any(q.character == self.name for q in g.players):
+            return  # (a Drunk who believes it: the evil team is real)
+        v = await game.decide_judged(fake_team_choice(g, 0))
+        team = list(v['players'])
+        g.notes[self.name] = {'team': team, 'demon': team[0] if team else None, 'as': v['character']}
+        g.notes['Storyteller lies'] = True
+        g.reminders.append(f'The Atheist is in play: the Storyteller\'s fake evil team is {", ".join(team)} '
+                           f'({team[0]} as the {v["character"]}).' if team else 'The Atheist is in play.')
+        for q in g.players:  # every player's information comes from the one fake Grimoire (Grimoire.decoy)
+            others = [x for x in team if x != q.name]
+            if others:
+                g.decoys[q.name] = (others[0], set(others))
+
+    @staticmethod
+    def game_on(g):
+        return bool(g.notes.get(ATHEIST))
+
+    def overrides_end(self, g, me, winner, reason):
+        # no Demon is no win: the game goes on until the Storyteller is executed or two players remain (evil's win,
+        # though there is no evil team: good never found the Storyteller out). Asked with `me` None (as the deal's
+        # character, Grimoire.check_victory), so it holds even if the Atheist's player became another character
+        if me is not None or not self.game_on(g):
+            return None
+        if reason == 'The Demon is dead.' and g.alive_count() > 2:
+            return False
+        if reason in ('The Demon is dead.', 'Only two players remain alive.'):
+            return 'evil', ('Only two players remain alive, and good never executed the Storyteller (the Atheist was '
+                            'in play: there was no evil team).')
+        return None
+
+    async def end_of_night(self, game, me, night):
+        # the night's deaths, as a Demon's would be: once a night (for the first Atheist), not the first night
+        g = game.g
+        if night.first or not self.game_on(g) or me is not next(q for q in g.players if q.character == self.name):
+            return
+        v = await game.decide_judged(atheist_victim_choice(g, night.n))
+        if v['players']:
+            game.attempt_kill(g[v['players'][0]], 'storyteller', None, night)
+
+    async def nominee_executed(self, game, nominee):
+        g = game.g
+        game.emit('execution', {'player': nominee, 'died': True})
+        if any(q.character == self.name for q in g.players):
+            g.winner, g.reason = 'good', 'The Storyteller was executed, and the Atheist is in play.'
+        else:
+            g.winner, g.reason = 'evil', 'The Storyteller was executed, and the Atheist is not in play.'
+
+
+CHARACTERS[ATHEIST] = Atheist()
 # ---- end of Atheist ----------------------------------------------------------------------------------------------
 
 

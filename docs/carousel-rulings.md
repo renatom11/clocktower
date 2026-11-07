@@ -1127,7 +1127,54 @@ no heuristic for its calls (the scripted style decides).
 
 ### Atheist
 
-(Not built yet.)
+Built (section "Atheist" of `carousel_extra.py`; tests `tests/test_carousel_atheist.py`; notes
+`data/storyteller/extra-atheist.md`; script `carousel-9`). Its one official jinx is with Riot (Riot's subsection). With
+it the Carousel Script Collection's Anonymous Dishonesty and The Midnight Oasis play end to end. The honest version of
+its ability, a Storyteller free to break any rule, cannot be run by an engine; this is the closest reading it can run,
+a bounded set of rule breaks (ruling 153), for the owner to widen or narrow.
+
+151. **The deal.** The Atheist is a Townsfolk drawn as any other. When it is drawn, every Minion's and the Demon's seat
+     goes to a Townsfolk not in play (an Outsider when none is left), and the Outsiders are the table's, as if no setup
+     modifier were in play (none of the evil characters that would bring one is). A draw that leaves fewer than three
+     good characters out of play for the bluffs, or a Drunk with no Townsfolk to believe in, is drawn again. A deal with
+     the Atheist and an evil character is refused. A Drunk who believes they are the Atheist changes nothing: the evil
+     team is real. An evil Townsfolk (the Bounty Hunter's) is a good character with an evil player: allowed.
+152. **No Demon is no win.** With the Atheist in play the game goes on with no Demon, until the Storyteller is executed
+     or two players remain; two remaining is evil's win ("good never executed the Storyteller"), though nobody is
+     evil. This holds as the deal's rule (asked with nobody holding it), so an Atheist turned into another character at
+     setup (an Alchemist-Baron's extra Outsiders) still has no Demon; the Atheist's setup step runs first of all.
+153. **The rules the Storyteller breaks** (the bounded set): (a) before the first night it picks a fake evil team, a
+     Demon of the script and the table's number of Minions among the players but the Atheist (a judged call; the
+     scripted style draws them), written on the Grimoire for the Storyteller alone; (b) every piece of information may
+     be anything (`Grimoire.unreliable` while `g.notes['Storyteller lies']`), and the scripted style gives what the
+     fake Grimoire would show 90% of the time (POLICY `atheist_lie`, default, for review), else the truth; every
+     player's false world is that one fake team (`Grimoire.decoy`), so the lies agree with each other; (c) each night
+     but the first, a player may die as if a Demon killed: a judged call among the living players not safe from the
+     Demon (the Monk's, the Soldier's), or nobody; the scripted style kills 85% of nights (POLICY `atheist_kill`,
+     default, for review), outside the fake team. Nothing else is broken: abilities work, the fake team's members are
+     good, and executing the fake Demon does nothing special. Options: more breaks (telling a player they are evil,
+     faking a Demon's death and a win, nominations that fail), or fewer (truth only, so the Atheist shows at once).
+154. **Nominating the Storyteller.** On any script with the Atheist (in play or not) anyone may nominate the
+     Storyteller (`nominate: "Storyteller"`, in the schema and the nomination prompt's options; `Script.nominees`), once
+     a day as any nominee. The nominator's abilities react as to any nomination (a cursed nominator dies; it is the
+     Golem's one nomination, and nobody dies of it); no nominee's ability does, nobody defends, the comments and the vote
+     run as for a player (clockwise from the nominator), and the Storyteller can be put on the block, tie or be
+     replaced. Executed at the end of the day, the Storyteller ends the game: good wins if the Atheist is in play,
+     alive or dead ("even if you are dead"), and evil wins if not (a reading of the How to Run; option: no effect when
+     the Atheist is not in play). The custom prompt says so (`Character.rule_text`).
+155. **Core changes**, each a no-op on every script without the Atheist: the Storyteller's lies in
+     `Grimoire.unreliable` and `misinformed`; `Character.extra_nominees` and `nominee_executed`, `Script.nominees`, the
+     schema's nominee list, and `Game.nominations` and `vote_order` for a nominee who is not a player; the Golem's
+     nomination of a nominee who is not a player. The fuzzer does not check information given under the lies as a
+     working ability's.
+156. **The synthetic script** (`clocktower/data/scripts/carousel-9.json`, "Carousel test 9"): the Atheist with the
+     Washerwoman, Investigator, Empath, Fortune Teller, Undertaker, Chef, Monk, Soldier, Slayer, Virgin, Mathematician
+     and Ravenkeeper; the Drunk, Recluse, Saint and Butler; the Poisoner, Spy, Baron and Scarlet Woman; the Imp and Fang
+     Gu. Every size from 5 to 15 deals (with and without the Atheist). Fingerprints:
+     `tests/data/fingerprints-carousel-9.json`.
+
+New weights: `atheist_lie` 0.9, `atheist_kill` 0.85 (added to POLICY by the section). The rules judge has no heuristic
+for its calls.
 
 ### Wizard
 
