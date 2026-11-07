@@ -18,8 +18,9 @@ weights are in `state.POLICY` under "Sects & Violets", marked "default, for revi
    example; with `public`, only what was said aloud.** Options: (a) as now; (b) never whispers, for any judge; (c) a
    seeded share of whispers "overheard" (the audit's SNV-17), so a private confession is a risk rather than certain
    death. The consequence to note: under the default, the wiki's Mutant advice ("come out secretly to one or two
-   players you trust") is always fatal, and the S&V player prompt (not written yet) must say what the Storyteller
-   hears. Reports to the Storyteller ("snitching") need a player-to-Storyteller channel, which does not exist yet.
+   players you trust") is always fatal, and the S&V player prompt must say what the Storyteller hears (*since
+   written, in batch 3: ruling 48*). Reports to the Storyteller ("snitching") need a player-to-Storyteller channel
+   (*since built: visits, ruling 36*).
 2. **Madness: the rule the scripted Storyteller and the rules judge apply** (`state.madness_broken`). Told to be
    mad about being a character (the Cerenovus): they broke it unless they claimed it aloud, the latest claim heard
    from them is it, and they never said they are not it or that they are mad ("I am mad", "the Cerenovus picked
@@ -175,9 +176,9 @@ counts.
     (by character: a good Demon too) swaps characters and alignments (`Game.swap`; two evil stay evil), both told at
     once; the old Demon is then **poisoned for the rest of the game, even through later character changes** (a
     reading of "permanently"). Option: the poison ends if they stop being the Snake Charmer. The new Demon learns
-    no Minions and acts tonight (the Demons' steps come later). **Not handled**: a Vigormortis charmed: its dead
-    Minions lose their abilities (they were kept through the old player). Option: the kept abilities follow the
-    Vigormortis to its new player. A Philosopher-Snake Charmer is for batch 3.
+    no Minions and acts tonight (the Demons' steps come later). A Vigormortis charmed: its dead Minions' kept
+    abilities and poison follow it to the new player (*fixed in batch 3: ruling 34*). A Philosopher-Snake Charmer
+    is handled in batch 3.
 29. **The Mathematician** misinformed: a number one or two off the truth (small numbers are usual). Under the
     Vortox any number but the truth.
 30. **The Flowergirl and the Town Crier**: yes or no about the day just past, not on the first night; misinformed,
