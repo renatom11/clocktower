@@ -260,9 +260,10 @@ implemented.
     stays dead (and good wins). Options: let a drunk Summoner's choice stand; refuse dead players.
 32. **The Summoner's jinxes.** Courtier ("If the living Summoner has no ability, the Storyteller has the Summoner
     ability"): the Storyteller summons in their place, usually the player and Demon the Summoner chose (80%,
-    `summoner_st_honours`), else a good player and any Demon. Pukka: on the second night the Summoner may summon a
-    Pukka (only a Pukka; naming no one, or another Demon, waits for the third night). Zombuul: a dead player summoned
-    into the Zombuul is alive, registering as dead, with its first death spent. Pit-Hag and Hatter: a summon that
+    `summoner_st_honours`), else a good player and any Demon on the script, even one already in play (open, like
+    the Summoner's own summon: finding U7). Pukka: on the second night the Summoner may summon a Pukka (only
+    a Pukka; naming no one, or another Demon, waits for the third night). Zombuul: a dead player summoned into the
+    Zombuul is alive, registering as dead, with its first death spent. Pit-Hag and Hatter: a summon that
     makes a second living Demon makes tonight's deaths the Storyteller's, as the Pit-Hag's (`arbitrary_deaths_choice`,
     "Summoner deaths"). Clockmaker: the Summoner counts as the Demon (the distance to the nearest other Minion; none
     if there is no other).
@@ -563,8 +564,9 @@ eighteen official jinxes between them and built characters are all implemented. 
     Harpy is drunk or poisoned: no penalty then). Judged once, as the day's talk ends and before nominations (as the
     Cerenovus's). The scripted floor: they broke it unless, aloud that day, they said the second player is evil (a
     sentence naming them with "evil", "Demon", "Minion" or "Imp") or nominated them, and never called them good or
-    said they were mad (a judge weighs effort). Broken: the Storyteller may kill nobody (0.2), the first (0.6 of the
-    rest), the second, or both (0.2). Option: judge at dusk, over the whole day.
+    said they were mad (a judge weighs effort). Broken: the Storyteller kills nobody 20% of the time, the first player
+    48%, the second 16% and both 16% (`harpy_kill` 0.8; then `harpy_both` 0.2 and `harpy_first` 0.6 of that, the
+    rest the second; with one of the two dead, the living one). Option: judge at dusk, over the whole day.
 76. **The Boffin.** At the Boffin's step on the first night the Storyteller picks a good character not in play from
     those the engine runs for a Demon who has them (the Washerwoman, Librarian, Investigator, Chef, Empath,
     Undertaker, Monk, Noble, Village Idiot and Goon); the Demon and the Boffin are told. The Demon has it while the
@@ -854,7 +856,7 @@ Amnesiac, Mezepheles and Yaggababble are batch 5; the Wizard, Legion, Riot, Athe
      being seen.
 114. **The Wraith's jinxes.** Alchemist: an Alchemist-Wraith has no ability, a Wraith is in play, and after each
      execution the living Alchemist may publicly guess a living player as the Wraith; right, the Demon must choose
-     them that night (as its Spy and Widow jinxes: ruling 77). Magician: after each execution the living Magician may
+     them that night (as its Spy and Widow jinxes: ruling 72). Magician: after each execution the living Magician may
      guess the same way (not while the Vizier takes the Magician's ability). Plague Doctor: if the Storyteller would
      gain the Wraith's ability, a living Minion gains it and learns this.
 115. **The Vizier's announcement and protection.** "All players know you are the Vizier": every player's introduction
