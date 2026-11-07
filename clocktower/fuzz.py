@@ -926,6 +926,7 @@ def sage(m, p, ctx, v):
     g = m.g
     death = next((d for d in reversed(g.death_log) if d['player'] == p.name and d['cause'] == 'demon'), None)
     killer = death and death['source']
+    killer = ctx.get('chosen_by') or killer  # (batch 6: a Sage who learns alive, chosen by the Demon: Riot's jinx)
     if p.alive and g.script.jinxed('Leviathan', 'Sage'):  # the jinx: chosen by the Leviathan, they learn it alive
         killer = next((q.name for q in sorted(g.players, key=lambda q: not q.alive) if q.character == 'Leviathan'),
                       killer)  # (the living one: a Scarlet Woman's new Leviathan, not the dead one)

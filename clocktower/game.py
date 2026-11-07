@@ -1174,6 +1174,9 @@ class Game:
         as when hands go up together); then the accusation, the defense, one round of comments from
         everyone, and the clockwise vote."""
         g, n = self.g, self.day
+        for c in g.script.all:  # (batch 6: a character that runs the day's nominations, Riot's riot; none elsewhere)
+            if rules(c).runs_nominations and await rules(c).run_nominations(self):
+                return
         self.phase = 'nominations'
         self.emit('nominations_open', {})
         nominators, nominees = {}, set()

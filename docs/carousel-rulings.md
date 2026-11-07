@@ -1265,4 +1265,46 @@ The rules judge has no heuristic for its calls.
 
 ### Riot
 
-(Not built yet.)
+Built (section "Riot" of `carousel_extra.py`; tests `tests/test_carousel_riot.py`; notes `data/storyteller/extra-riot.md`;
+script `carousel-12`). Its twelve official jinxes are implemented: eleven with built characters, and the Atheist's,
+declared only while the Atheist is built (so either can be reverted). With it the Carousel Script Collection's Quick
+Maths plays end to end. The text built is the official data's ("On day 3, Minions become Riot & nominees die but
+nominate an alive player immediately. This must happen."); its jinxes speak of a nightly choice it does not have, read
+below.
+
+170. **Before day 3.** Riot is dealt as any Demon, with its Minions, and kills nobody at night. Days 1 and 2 play as
+     usual; executing Riot then is good's win.
+171. **"Minions become Riot".** At Riot's step on the third night (its reminder: "If it is night 3, you may wake the
+     Minions"), every living Minion becomes Riot and is told; the dead stay as they are. Several players are then Riot
+     (`Character.duplicates`), all Demons: good wins when every Riot is dead.
+172. **The riot.** Day 3's nominations are Riot's (`Character.runs_nominations`, a core hook nothing else sets): announced
+     when they open; anyone who may nominate may start it; if nobody does, "this must happen": the first living Riot
+     must. Each nominee is executed at once, without a vote (an execution in every way: the Saint, the Tea Lady, the
+     Fool, the Pacifist, the Mastermind apply), then must nominate an alive player not nominated today; a nominee who
+     names nobody legal has it named by the Storyteller (a judged call; "must"). The nominator's abilities react to
+     each nomination as usual (the Witch's curse). It ends when the game does, or when the nominee has nobody to name
+     (or may not nominate again: a Golem who has), and then the day goes on. Later days are as usual. Option: the newer
+     text's "After day 3, evil wins".
+173. **The jinxes.** Exorcist, Innkeeper, Monk, Soldier: if a Riot nominates, and so executes, the player a working one
+     chose last night (the Soldier: a working Soldier), good wins at once. Grandmother: with a living Riot, the
+     Grandchild dying by execution is evil's win. King: with Riot in play and a player dead, a King whose own rule did
+     not tell them tonight learns an alive character at Riot's step (after the King's). Mayor: before each riot
+     nomination a living, working Mayor is asked whether to stop the riot: yes ends the game, good's win with one Riot
+     alive, else evil's. Atheist (while built): the Storyteller may be nominated in the riot; players vote as usual,
+     and the Storyteller on the block is executed (the Atheist's rule, ruling 154); if not, the nominator nominates
+     again. Banshee, Farmer, Ravenkeeper, Sage: with any of them on the script, each night but the first the first
+     living Riot chooses an alive player it has not chosen before; a good, working one of these characters uses their
+     ability without dying (the Farmer makes a good player a Farmer; the Ravenkeeper chooses a player and learns their
+     character; the Sage learns Riot is one of two players), and a chosen Banshee dies as the Demon's kill (and so
+     gains its ability). Others chosen: nothing.
+174. **Core changes**, each a no-op on every script without Riot: `Character.runs_nominations` and `run_nominations`
+     (`Game.nominations` asks the script's characters first); the fuzzer's Sage oracle reads a Sage told by a choice
+     rather than a death.
+175. **The synthetic script** (`clocktower/data/scripts/carousel-12.json`, "Carousel test 12"): Riot, the only Demon;
+     the Banshee, Exorcist, Farmer, Grandmother, Innkeeper, King, Mayor, Monk, Ravenkeeper, Sage, Soldier, Fortune
+     Teller and Empath; the Drunk, Recluse, Saint and Butler; the Poisoner, Spy, Scarlet Woman and Baron. Every jinx of
+     Riot's with a character built before batch 6 is on it (not the Atheist's: never two batch 6 characters on one
+     script), and every size from 5 to 15 deals. Fingerprints: `tests/data/fingerprints-carousel-12.json`. Every game
+     ends by day 3.
+
+No new weights. The rules judge has no heuristic for its calls.

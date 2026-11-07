@@ -969,5 +969,238 @@ for _other in ('Engineer', 'Hatter', 'Minstrel', 'Politician', 'Preacher', 'Summ
 
 
 # ---- Riot --------------------------------------------------------------------------------------------------------
+# "On day 3, Minions become Riot & nominees die but nominate an alive player immediately. This must happen."
+# Riot kills nobody at night. At its step on the third night the living Minions become Riot; on day 3 it runs the day's
+# nominations (Character.runs_nominations, a core hook nothing else sets): each nominee is executed at once, without a
+# vote, and must nominate an alive player at once, until the game ends or nobody is left to nominate.
+# docs/carousel-rulings.md, batch 6, Riot.
+from . import carousel as _c1_rt, snv as _snv_rt  # noqa: E402
+from .characters import Demon as _Demon_rt, jinx as _jinx_rt, kind as _kind_rt  # noqa: E402
 
+RIOT = 'Riot'
+RIOT_DAY = 3
+RIOT_NIGHT_JINXES = ('Banshee', 'Farmer', 'Ravenkeeper', 'Sage')  # "Each night*, Riot chooses an alive good player"
+RIOT_PROTECTED = ('Exorcist', 'Innkeeper', 'Monk')  # "If Riot nominates and executes the [one they chose], good wins"
+
+
+def riots(g):
+    return [q for q in g.players if q.alive and q.character == RIOT]
+
+
+def riot_nominee_choice(g, nominator, options, why):
+    """Whom `nominator` nominates when they give no legal nomination (the riot "must happen"): the Storyteller's
+    judged call, among the alive players they may nominate."""
+    return _c1_rt.player_choice(f'{RIOT} nominee:{nominator}', 'riot_nominee', f'{nominator} {why} but gave no legal '
+                             'nomination: whom does the riot make them nominate?', options,
+                             lambda r: {'players': [r.choice(options)]}, about=nominator)
+
+
+class Riot(_Demon_rt):
+    name = RIOT
+    ability = ability(name)
+    runs_nominations = True
+    duplicates = 15  # ("Minions become Riot": as many as there are)
+
+    def rule_text(self, script):
+        return ['Riot: on day 3 the Minions become Riot, and the day\'s nominations are a riot: each nominee is '
+                'executed at once, without a vote, and must at once nominate an alive player who has not been '
+                'nominated today; it goes on until the game ends or nobody is left to nominate.']
+
+    # ---- the nights ------------------------------------------------------------------------------------------
+    @staticmethod
+    def night_jinxed(g):
+        return [c for c in RIOT_NIGHT_JINXES if g.script.jinxed(RIOT, c)]
+
+    async def resolve_night(self, game, night):
+        g = game.g
+        alive = riots(g)
+        if not alive:
+            return
+        if night.n == RIOT_DAY:  # "On day 3, Minions become Riot" (the living ones, told tonight: the reminder)
+            minions = [q for q in g.players if q.alive and _kind_rt(q.character) == 'Minion']
+            if minions:
+                await game.changes([(q, self.name, None) for q in minions])
+        if not night.first and self.night_jinxed(g):
+            await self.choose_good(game, night, alive[0])
+        await self.king_jinx(game, night)
+
+    async def choose_good(self, game, night, riot):
+        # the Banshee, Farmer, Ravenkeeper and Sage jinxes: "Each night*, Riot chooses an alive good player
+        # (different to previous nights)": the first living Riot chooses; a chosen one of those characters, with
+        # their ability, uses it (the Banshee dies and gains it, as the Demon's kill)
+        g = game.g
+        before = g.notes.setdefault('Riot chose', [])
+        options = [q.name for q in g.players if q.alive and q is not riot and q.name not in before]
+        if not options:
+            return
+        req = game.request('night', f'Night {night.n} — Riot: choose an alive good player you have not chosen '
+                                    'before. Put your choice in `targets`.', night.n, n_targets=1, options=options,
+                           min_targets=1)
+        a = await game.insist(riot.name, req, await game.ask(riot.name, req))
+        t = g[game.targets(riot.name, a, req)[0]]
+        before.append(t.name)
+        game.woken(riot)
+        game.emit('night_choice', {'player': riot.name, 'role': self.name, 'targets': [t.name]}, 'audit')
+        if t.evil or not g.works(riot, self.name):
+            return
+        if t.character == 'Banshee' and 'Banshee' in self.night_jinxed(g):
+            await game.attempt_kill_judged(t, 'demon', riot, night)
+        elif t.character == 'Farmer' and 'Farmer' in self.night_jinxed(g) and g.works(t, 'Farmer'):
+            from .carousel3 import farm
+            await farm(game, t)
+        elif t.character == 'Ravenkeeper' and 'Ravenkeeper' in self.night_jinxed(g) and g.works(t, 'Ravenkeeper'):
+            from .state import character_choice
+            req = game.request('ravenkeeper', f'Night {night.n}: Riot chose you. Ravenkeeper: choose a player to learn '
+                                              'their character (`targets`).', night.n, n_targets=1,
+                               options=game.names)
+            x = game.targets(t.name, await game.ask(t.name, req), req)[0]
+            await game.tell(t, 'Ravenkeeper', character_choice(g, t, 'Ravenkeeper', x), x)
+        elif t.character == 'Sage' and 'Sage' in self.night_jinxed(g) and g.works(t, 'Sage'):
+            choice = _snv_rt.sage_choice(g, t, riot.name)
+            if choice:
+                choice.context['chosen_by'] = riot.name  # (alive, chosen rather than killed: for the fuzzer)
+                await _snv_rt.learn(game, t, 'Sage', choice, lambda v: 'the Demon who chose you is {} or {}.'.format(
+                    *sorted(v['players'], key=lambda x: g[x].seat)))
+
+    async def king_jinx(self, game, night):
+        # the King jinx: "If Riot is in play, and at least 1 player is dead, the King learns an alive character each
+        # night" (Riot's step is after the King's: told here when the King's own rule did not tell them)
+        g = game.g
+        king = _rules_rt('King') if 'King' in CHARACTERS else None
+        if not king or not g.script.jinxed(RIOT, 'King') or king.due(g) or all(q.appears_alive for q in g.players):
+            return
+        from .carousel4 import king_choice
+        for p in _snv_rt.believers(g, 'King'):
+            await _snv_rt.learn(game, p, 'King', king_choice(g, p), lambda v: f'the {v["character"]} is alive.')
+
+    # ---- day 3: the riot ---------------------------------------------------------------------------------------
+    async def run_nominations(self, game):
+        g = game.g
+        if game.day != RIOT_DAY or not riots(g) or g.notes.get('Riot done'):
+            return False
+        g.notes['Riot done'] = True
+        game.phase = 'nominations'
+        game.emit('nominations_open', {})
+        game.emit('text', {'text': 'It is day 3, and Riot is in play: the nominations are a riot. Each nominee is '
+                                   'executed at once, without a vote, and must nominate an alive player at once.'})
+        nominated = set()
+        nominator, nominee = await self.first_nomination(game)
+        while nominator and nominee and not g.winner:
+            if await self.mayor_stops(game):
+                return True
+            nominated.add(nominee)
+            game.emit('nomination', {'nominator': nominator, 'nominee': nominee, 'text': ''})
+            g.nominations.append({'day': game.day, 'nominator': nominator, 'nominee': nominee,
+                                  'character': g[nominator].character})
+            if await game.nomination_judged(nominator, nominee) or g.winner:
+                return True
+            if nominee not in g.by_name:  # the Atheist jinx: the Storyteller nominated, players vote
+                if await self.storyteller_riot(game, nominator, nominee):
+                    return True
+                nominee = await self.next_nomination(game, nominator, nominated, 'was nominated by the riot')
+                continue
+            if self.protected_win(game, nominator, nominee):
+                return True
+            await game.execution(nominee)
+            await game.run_pending()
+            if g.check_victory():
+                return True
+            nominator, nominee = nominee, await self.next_nomination(game, nominee, nominated, 'was nominated')
+        return True
+
+    async def first_nomination(self, game):
+        # anyone may start it (the usual nominations call); if nobody does, "This must happen": a living Riot must
+        g = game.g
+        names = [q.name for q in g.players if q.alive and game.nomination_limit(q) > 0]
+        nominees = getattr(g.script, 'nominees', {})  # (the Atheist's, while it is built)
+        options = [q.name for q in g.players if q.alive] + list(nominees)
+        acts = await game.ask_many({x: game.request('nominate', f'Day {game.day}, the riot. Nominate a player (set '
+                                                                 '`nominate`): they are executed at once.', game.day,
+                                                    options=options) for x in names})
+        noms = [(x, acts[x].get('nominate')) for x in names if acts[x].get('nominate') in options]
+        if noms:
+            return game.rng.choice(noms)
+        r = riots(g)[0]
+        return r.name, await self.next_nomination(game, r.name, set(), 'must start the riot', starter=True)
+
+    async def next_nomination(self, game, who, nominated, why, starter=False):
+        """The player `who` must nominate now: an alive player not nominated today (the Storyteller nominee, with the
+        Atheist jinx). None when nobody is left (the riot ends)."""
+        g = game.g
+        options = [q.name for q in g.players if q.alive and q.name not in nominated]
+        nominees = getattr(g.script, 'nominees', {})  # (the Atheist's, while it is built)
+        options += [x for x in nominees if x not in nominated and g.script.jinxed(RIOT, nominees[x])]
+        if not [x for x in options if x in g.by_name] or g.winner:
+            return None
+        if 0 in [_rules_rt(c).nomination_limit(g, g[who]) for c in g.abilities(g[who])]:
+            return None  # (one who may not nominate again, a Golem who has: the riot ends with them, a reading)
+        req = game.request('nominate', f'Day {game.day}, the riot: you {why}, and must nominate an alive player at '
+                                       'once (set `nominate`).', game.day, options=options)
+        a = await game.ask(who, req)
+        if a.get('nominate') in options:
+            return a['nominate']
+        names = [x for x in options if x in g.by_name]
+        return (await game.decide_judged(riot_nominee_choice(g, who, names, why)))['players'][0]
+
+    def protected_win(self, game, nominator, nominee):
+        # the Exorcist, Innkeeper, Monk and Soldier jinxes: "If Riot nominates and executes the [Exorcist-chosen,
+        # Innkeeper-protected, Monk-protected] player [the Soldier], good wins": a Riot nominator, the choice of a
+        # working one of them last night
+        g = game.g
+        if g[nominator].character != RIOT:
+            return False
+        last = g.night_choices.get(game.day, {})
+        hit = [c for c in RIOT_PROTECTED if g.script.jinxed(RIOT, c) and any(
+            q.character == c and g.works(q, c) and nominee in last.get(q.name, ()) for q in g.players)]
+        if g.script.jinxed(RIOT, 'Soldier') and g[nominee].character == 'Soldier' and g.works(g[nominee], 'Soldier'):
+            hit.append('Soldier')
+        if not hit:
+            return False
+        game.emit('execution', {'player': nominee, 'died': False, 'survived': True})
+        g.winner, g.reason = 'good', f'Riot nominated {nominee} ({", ".join(hit)}), and good wins.'
+        return True
+
+    async def mayor_stops(self, game):
+        # the Mayor jinx: "The Mayor may choose to stop the riot. If they do so when only 1 Riot is alive, good wins.
+        # Otherwise, evil wins": asked before each riot nomination, a living Mayor with a working ability
+        g = game.g
+        if not g.script.jinxed(RIOT, 'Mayor'):
+            return False
+        for m in [q for q in g.players if q.alive and q.character == 'Mayor' and g.works(q, 'Mayor')]:
+            if await ask_yes(game, m, game.day, f'Day {game.day}, the riot — Mayor: do you stop the riot now (`vote` '
+                                                'true)? If only one Riot is alive, good wins; otherwise evil wins.'):
+                one = len(riots(g)) == 1
+                game.emit('text', {'text': f'{m.name}, the Mayor, stops the riot.'})
+                g.winner, g.reason = ('good', 'The Mayor stopped the riot with one Riot alive.') if one else (
+                    'evil', 'The Mayor stopped the riot with more than one Riot alive.')
+                return True
+        return False
+
+    async def storyteller_riot(self, game, nominator, nominee):
+        # the Atheist jinx: "During a riot, if the Storyteller is nominated, players vote. If they are "about to die",
+        # the game ends. If not, they nominate again"
+        g = game.g
+        block, _ = await game.vote(nominee, None, 0)
+        if block:
+            await _rules_rt(g.script.nominees[nominee]).nominee_executed(game, nominee)
+            return True
+        return False
+
+    def on_death(self, game, me, dead, cause, alive_before):
+        # the Grandmother jinx: "If Riot is in play and the Grandchild dies by execution, evil wins" (in play: a
+        # living Riot; once, for the first)
+        g = game.g
+        if cause == 'execution' and dead.name == g.notes.get('Grandchild') and g.script.jinxed(RIOT, 'Grandmother') \
+                and not g.winner and riots(g) and me is riots(g)[0]:
+            g.winner, g.reason = 'evil', f'{dead.name}, the Grandchild, was executed with Riot in play.'
+
+from .characters import rules as _rules_rt  # noqa: E402
+CHARACTERS[RIOT] = Riot()
+for _other in ('Banshee', 'Exorcist', 'Farmer', 'Grandmother', 'Innkeeper', 'King', 'Mayor', 'Monk', 'Ravenkeeper',
+               'Sage', 'Soldier'):
+    _jinx_rt(RIOT, _other, 'carousel_extra.Riot')
+    JINXES.append((RIOT, _other))
+if built('Atheist'):  # (the jinx between two batch 6 characters: either may be reverted)
+    _jinx_rt(RIOT, 'Atheist', 'carousel_extra.Riot.storyteller_riot')
+    JINXES.append((RIOT, 'Atheist'))
 # ---- end of Riot -------------------------------------------------------------------------------------------------

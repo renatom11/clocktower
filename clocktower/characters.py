@@ -91,6 +91,8 @@ class Character:
     always_drunk = False     # has no ability and doesn't know it (the Drunk)
     wakes_at_own_step = False  # woken at this character's own step, as the character they believe they are, and
     #                            not at that character's (the Lunatic, as their Demon, before the real one wakes)
+    runs_nominations = False  # it may run a day's nominations in place of the usual ones (`run_nominations`: Riot's
+    #                           riot on day 3, batch 6)
     picks_in_turn = False    # its night step reports each player it chose (Game.pick) as it acts on them, since a
     #                          pick can stop the later ones (the Shabaloth choosing the Goon first)
     derives = False          # its ability puts states in force that are worked out from the Grimoire whenever they
@@ -364,6 +366,11 @@ class Character:
         nomination or a win the sheet's text alone does not explain); [] for none, so other scripts' prompts are
         unchanged."""
         return []
+
+    async def run_nominations(self, game):
+        """With `runs_nominations`: run today's nominations in place of the usual ones and return True, or return
+        False to leave them as usual (Game.nominations)."""
+        return False
 
     async def storyteller_step(self, game, night, character):
         """At `character`'s step tonight, the Storyteller uses `character`'s ability, gained through `me`'s (the

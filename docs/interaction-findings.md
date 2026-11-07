@@ -114,7 +114,26 @@ tables (a majority of two at five), or the Noble and Knight learn nothing.
 
 ### Riot
 
-(Not built yet.)
+3,000 games (1,500 with Riot forced into play, 1,500 uniform from seed 9340000). The first passes found three faults in
+the new code, fixed before the commit (B35 to B37), and one older interaction recorded for the owner (U16). After the
+fixes: 2 violations in the forced run (U16; a known U1) and 4 in the uniform one, none in a riot (U14 twice, a Summoner
+summoning a second Zombuul, and a Kazali's count read after the Engineer made Legion: every evil player became Legion,
+as its jinx says, which the fuzzer's Kazali check does not expect).
+
+B35. **Fixed before the commit.** **Several Riot read as an error.** The Minions becoming Riot made several living Riot,
+which the coherence check (one player a character) flagged in nearly every forced game; Riot may be held by several.
+
+B36. **Fixed before the commit.** **A Golem nominating twice in the riot** (as its starter or as a nominee): a player who
+may not nominate again does not start it, and as a nominee ends it (172).
+
+B37. **Fixed before the commit.** **The Sage told while alive** by the Riot jinx read as false to the fuzzer (it looked
+for the Demon's kill); the information names its chooser, and the Sage oracle reads it.
+
+U16. **A Marionette who took an Alchemist's seat keeps the Alchemist's gained ability.** Alchemist + Marionette: the
+Marionette's seat swap beside the Demon swaps characters but not the abilities gained at setup, so the Marionette player
+also holds the Alchemist's Minion ability and is woken for it (`once-rewoken`, 1 in 1,500 games; not Riot's). Repro:
+`python -m clocktower fuzz repro --seed 9000806 --players 10 --judge scripted --chars savant,exorcist,alchemist,engineer,flowergirl,slayer,empath,fisherman,knight,lycanthrope,innkeeper,magician,farmer,plaguedoctor,recluse,mutant,snitch,pithag,psychopath,marionette,poisoner,riot,ojo,legion,nodashii --setup innkeeper,pithag,flowergirl,empath,riot,alchemist,marionette,farmer,lycanthrope,fisherman`.
+Suggested fix (batch 2's code, not changed here): the seat swap moves `extra` with the character.
 
 ## The sixth runs (2026-11-07, all 133 built characters: batch 5 added)
 
