@@ -16,8 +16,9 @@ each dawn and dusk (Monitor):
   one computed here from the Grimoire (only the characters whose text says they "might register" may register
   otherwise); information the Vortox falsifies must be false; Storyteller choices whose legal values a text fixes
   ('choice': the Widow's knower, the Grandchild, the Faux Paw and the Farmer's heir are good; the Boffin's gift and
-  the Alchemist's Minion are not in play, unless a jinx allows it) are checked too, and a working Zealot's vote
-  ('zealot'); the Lycanthrope's Faux Paw registers as evil to the oracles;
+  the Alchemist's Minion are not in play, unless a jinx allows it; the Huntsman's Damsel becomes a Townsfolk not in
+  play; the Cult Leader takes an alive neighbour's alignment) are checked too, and a working Zealot's vote ('zealot');
+  the Lycanthrope's Faux Paw registers as evil to the oracles;
 - dead players' abilities ('dead-acts'): the dead don't wake, learn, kill or place states unless they keep their
   ability (the Vigormortis's Minions) or their ability says it works on or after death (DEAD_OK);
 - once-per-game abilities ('once-twice'): a player-character instance (a new character or a return to life starts a
@@ -27,11 +28,15 @@ each dawn and dusk (Monitor):
   the same character (beyond the Village Idiot's three and the Farmer's heirs), states naming real players, no
   state outliving the source it ends with, no ability held beyond the character's unless an ability gave it (a
   'gains' event: the Philosopher, Pixie, Cannibal, Plague Doctor, Alchemist, Boffin);
-- the setup's structure ('setup'): the Marionette neighbours the Demon; a Kazali has made the table's Minions by
-  the first dawn; and announcements the texts require ('announcement': the Leviathan is in play; whom the
+- the setup's structure ('setup'): the Marionette neighbours the Demon; the evil characters sit in a line with the
+  Lord of Typhon in the middle; a Kazali has made the table's Minions by the first dawn; and announcements the texts
+  require ('announcement': the Leviathan is in play; whom the
   Al-Hadikhia chose, at dawn);
 - the end ('missed-win', 'false-win', 'continued-past-win'): no play once there is a winner, no standard win
-  declared without its condition, no dawn or dusk with a standard win condition met and nothing to delay it;
+  declared without its condition, no dawn or dusk with a standard win condition met and nothing to delay it; a right
+  guess by a working Alsaahir, and a cult vote every good player joined with a working Cult Leader, win at once, and
+  neither win is declared otherwise;
+- the Lleech ('lleech'): a working Lleech never dies while its host lives (but to the Assassin), and dies with it;
 - crashes and loops ('crash', 'loop', 'timeout'): every exception, more than STEP_CAP seat requests, or a game over
   TIME_CAP seconds.
 
@@ -226,7 +231,9 @@ class FuzzGame(Game):
 
     def kill(self, p, cause, source=None, final=False):
         self.fz.killing(p, cause, source)
-        return super().kill(p, cause, source, final)
+        died = super().kill(p, cause, source, final)
+        self.fz.killed(p)
+        return died
 
     async def run_pending(self):
         await super().run_pending()
@@ -270,6 +277,12 @@ class Monitor:
         self.died_at = {}            # player -> the step at which they died
         self.announced = set()       # public announcements the texts require, made: 'Leviathan'
         self.unannounced = []        # Al-Hadikhia choices not yet announced ("all players learn who")
+        self.guessed = set()         # (Alsaahir, day): a guess heard today ("Each day")
+        self.expect_win = None       # a win a text makes at once, not yet declared: (who, why) (the Alsaahir's, the
+        #                              cult's)
+        self.wins_seen = set()       # the wins of that kind the texts made: 'Alsaahir', 'cult'
+        self.lost_at = {}            # dead player -> the step at which the player keeping their ability died (a
+        #                              Harpy's two deaths, decided together, the first of them the Vigormortis: U10)
 
     # ---- recording ----------------------------------------------------------------------------------------------
     def flag(self, type_, detail, chars=(), advisory=False):
@@ -335,11 +348,45 @@ class Monitor:
             p = g[data['player']]
             if data.get('character') in g.abilities(p):
                 self.acted.add(data['character'])
+            if kind_ == 'ability' and data.get('character') == 'Alsaahir':
+                self.alsaahir(p, data.get('guesses') or [])
+        elif kind_ == 'cult_vote':  # "If all good players choose to join your cult, your team wins"
+            leader = g[data['leader']]
+            joined = set(data['joined'])
+            if all(q.name in joined for q in g.players if not q.evil) and leader.alive \
+                    and g.works(leader, 'Cult Leader'):
+                self.expect_win = ('cult', f'every good player joined {leader.name}\'s cult')
+                self.wins_seen.add('cult')
+
+    def alsaahir(self, p, guesses):
+        """A guess by a living player with the Alsaahir's ability, once a day: right (every Minion as a Minion, every
+        Demon as a Demon, and nobody else, by the Grimoire), with the ability working, good must win at once."""
+        g = self.g
+        if not (p.alive and 'Alsaahir' in g.abilities(p) and guesses) or (p.name, self.game.day) in self.guessed:
+            return
+        self.guessed.add((p.name, self.game.day))
+        named = {x['player']: kind(x['character']) for x in guesses if kind(x['character']) in ('Minion', 'Demon')}
+        truth = {q.name: kind(q.character) for q in g.players if kind(q.character) in ('Minion', 'Demon')}
+        if named == truth and truth and g.works(p, 'Alsaahir'):
+            self.expect_win = ('Alsaahir', f'{p.name} (Alsaahir) guessed every Minion and Demon')
+            self.wins_seen.add('Alsaahir')
 
     def check_setup(self, seats):
-        """The setup's structure the texts fix: the Marionette neighbours the Demon ("You neighbour the Demon")."""
+        """The setup's structure the texts fix: the Marionette neighbours the Demon ("You neighbour the Demon"); the
+        evil characters sit in a line with the Lord of Typhon in the middle."""
         n = len(seats)
+        evil = [kind(x['character']) in ('Minion', 'Demon') for x in seats]
         for i, s in enumerate(seats):
+            if s['character'] == 'Lord of Typhon':
+                sides = []
+                for step in (-1, 1):
+                    k = 0
+                    while k < n - 1 and evil[(i + step * (k + 1)) % n]:
+                        k += 1
+                    sides.append(k)
+                if min(sides) < 1 or abs(sides[0] - sides[1]) > 1 or sum(sides) + 1 != sum(evil):
+                    self.flag('setup', f'the evil characters are not in a line with the Lord of Typhon ({s["name"]}) '
+                                       f'in the middle', ['Lord of Typhon'])
             if s['character'] == 'Marionette' and any(kind(x['character']) == 'Demon' for x in seats):
                 near = {seats[(i - 1) % n]['character'], seats[(i + 1) % n]['character']}
                 if not any(kind(c) == 'Demon' for c in near):
@@ -451,6 +498,14 @@ class Monitor:
 
     def killing(self, p, cause, source):
         g = self.g
+        for s in g.states:  # (the dead players whose ability p keeps lose it now)
+            if s.kind == 'has ability' and s.source == p.name:
+                self.lost_at[s.target] = (self.game.day, self.step_name)
+        h = g.notes.get('Lleech host', {}).get(p.name) if p.character == 'Lleech' else None
+        if h and p.alive and g[h].alive and g.works(p, 'Lleech') and p.name not in g.notes.get('Lleech lost', ()) \
+                and cause != 'assassin':  # "You die if & only if they are dead" (the Assassin's kill goes through)
+            self.flag('lleech', f'{p.name} (Lleech) died ({cause}) while its host {h} lives', ['Lleech', CAUSES.get(
+                cause, cause)])
         if not p.alive:
             self.flag('coherence', f'{p.name} ({p.character}), already dead, killed again ({cause})', [p.character])
         if cause == 'execution':
@@ -459,12 +514,22 @@ class Monitor:
         c = source.character if source is not None and cause == 'demon' else CAUSES.get(cause)
         if c:
             self.acted.add(c)
-        same_step = self.died_at.get(source.name) == (self.game.day, self.step_name) if source is not None else False
+        same_step = source is not None and (self.game.day, self.step_name) in (
+            self.died_at.get(source.name), self.lost_at.get(source.name))
         if source is not None and source is not p and not (source.alive or g.keeps_ability(source)) and not same_step:
             # (one who died at this very step acted with its deaths at once: the Al-Hadikhia choosing itself)
             if c not in DEAD_OK and cause not in STORYTELLER_DEATHS and not DEAD_OK & set(g.abilities(source)):
                 self.flag('dead-acts', f'{p.name} killed ({cause}) by dead {source.name} ({source.character})',
                           [source.character, p.character])
+
+    def killed(self, p):
+        """After a death: a Lleech whose host it was, alive with a working ability (and not the Mastermind jinx's),
+        has died with them."""
+        g = self.g
+        for q in g.players:
+            if q.character == 'Lleech' and q.alive and g.notes.get('Lleech host', {}).get(q.name) == p.name \
+                    and not p.alive and g.works(q, 'Lleech') and q.name not in g.notes.get('Lleech lost', ()):
+                self.flag('lleech', f'{q.name} (Lleech) lives on after its host {p.name} died', ['Lleech'])
 
     # ---- every step -------------------------------------------------------------------------------------------------
     def step(self, where):
@@ -515,6 +580,9 @@ class Monitor:
                 self.epoch[r['player']] += 1
                 self.acted.add(r.get('source'))
             self.revived = len(g.revivals)
+        if self.expect_win and not g.winner:
+            self.flag('missed-win', f'{self.expect_win[1]}, and no winner', [self.expect_win[0]])
+        self.expect_win = None
         if g.winner and not self.won_checked:
             self.won_checked = True
             self.check_win()
@@ -604,6 +672,10 @@ class Monitor:
             self.flag('false-win', 'good won "The Demon is dead." with a Demon alive', self.context_chars())
         if g.reason == 'Only two players remain alive.' and alive > 2:
             self.flag('false-win', f'evil won "Only two players remain" with {alive} alive', self.context_chars())
+        for who, mark in (('Alsaahir', 'the Alsaahir, publicly guessed'), ('cult', 'joined the cult')):
+            if mark in (g.reason or '') and who not in self.wins_seen:
+                self.flag('false-win', f'{g.winner} won ({g.reason}) without the condition', [who if who != 'cult'
+                                                                                               else 'Cult Leader'])
 
     def passive_in_play(self):
         """Characters in play with no night choice, no information of their own, no public action and no visit (the
@@ -904,13 +976,34 @@ def village_idiot(m, p, ctx, v):
         f'{"evil" if v["yes"] else "good"}'
 
 
+def knight(m, p, ctx, v):
+    g = m.g
+    xs = v['players']
+    if len(set(xs)) != 2 or p.name in xs:
+        return f'shown {xs}'
+    demons = [x for x in xs if kind(g[x].character) == 'Demon']
+    return f'{demons[0]} is the {g[demons[0]].character}' if demons else None
+
+
+def king(m, p, ctx, v):
+    g = m.g
+    alive = [q for q in g.players if q.appears_alive and q is not p] or [p]
+    return None if any(could_be(q, v['character']) for q in alive) else f'no living player is the {v["character"]}'
+
+
+def choirboy(m, p, ctx, v):
+    x = m.g[v['players'][0]]
+    return None if x.is_demon else f'{x.name} is the {x.character}'
+
+
 ORACLES = {'Washerwoman': _pair('Townsfolk'), 'Librarian': _pair('Outsider'), 'Investigator': _pair('Minion'),
            'Chef': chef, 'Empath': empath, 'Fortune Teller': fortune_teller, 'Undertaker': undertaker,
            'Ravenkeeper': ravenkeeper, 'Clockmaker': clockmaker, 'Dreamer': dreamer, 'Seamstress': seamstress,
            'Oracle': oracle, 'Flowergirl': flowergirl, 'Town Crier': town_crier, 'Sage': sage,
            'Grandmother': grandmother, 'Godfather': godfather, 'Steward': steward, 'Nightwatchman': nightwatchman,
            'Shugenja': shugenja, 'Balloonist': balloonist, 'Pixie': pixie, 'Fisherman': fisherman,
-           'High Priestess': high_priestess, 'General': general, 'Noble': noble, 'Village Idiot': village_idiot}
+           'High Priestess': high_priestess, 'General': general, 'Noble': noble, 'Village Idiot': village_idiot,
+           'Knight': knight, 'King': king, 'Choirboy': choirboy}
 
 
 def widow_knower(m, ctx, v):
@@ -950,9 +1043,30 @@ def alchemist_minion(m, ctx, v):
     return f'the {c} is in play' if in_play and not g.script.jinxed('Alchemist', c) else None
 
 
+def huntsman_townsfolk(m, ctx, v):
+    c, g = v['character'], m.g
+    if kind(c) != 'Townsfolk':
+        return f'the Damsel becomes the {c}'
+    return f'the {c} is in play' if any(c in (q.character, q.shown) for q in g.players) else None
+
+
+def typhon_minion(m, ctx, v):
+    c, g = v['character'], m.g
+    return None if kind(c) == 'Minion' and c not in {q.character for q in g.players} else f'made the {c}'
+
+
+def cult_leader_alignment(m, ctx, v):
+    p = m.g[ctx['recipient']]
+    sides = {q.alignment for q in neighbours(m.g, p)}
+    side = 'evil' if v['yes'] else 'good'
+    return None if side in sides else f'{p.name} (Cult Leader) takes {side}, which no alive neighbour is'
+
+
 # Storyteller choices that are not information but whose legal values the text fixes: {call: check}
 CHOICE_CHECKS = {'widow_knower': widow_knower, 'grandchild': grandchild, 'faux_paw': faux_paw,
-                 'farmer_heir': farmer_heir, 'boffin_ability': boffin_ability, 'alchemist_minion': alchemist_minion}
+                 'farmer_heir': farmer_heir, 'boffin_ability': boffin_ability, 'alchemist_minion': alchemist_minion,
+                 'huntsman_townsfolk': huntsman_townsfolk, 'typhon_minion': typhon_minion,
+                 'cult_leader_alignment': cult_leader_alignment}
 
 
 # ---- one game -------------------------------------------------------------------------------------------------

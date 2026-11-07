@@ -123,6 +123,34 @@ class FuzzTests(unittest.TestCase):
         self.assertIsNone(fuzz.faux_paw(m, {}, {'players': ['Drew']}))
         self.assertIsNotNone(fuzz.faux_paw(m, {}, {'players': ['Casey']}))
 
+    def test_the_batch_3b_checks(self):
+        script = fuzz.make_script(['Knight', 'King', 'Choirboy', 'Alsaahir', 'Cult Leader', 'Huntsman', 'Chef', 'Monk',
+                                   'Mayor', 'Soldier', 'Damsel', 'Poisoner', 'Spy', 'Imp', 'Lord of Typhon', 'Lleech'])
+        g = self.game(['Knight', 'King', 'Imp', 'Monk', 'Choirboy', 'Poisoner', 'Soldier'], script)
+        m, kn = g.fz, g.g['Alex']
+        self.assertIsNone(fuzz.knight(m, kn, {}, {'players': ['Blair', 'Drew']}))
+        self.assertIsNotNone(fuzz.knight(m, kn, {}, {'players': ['Blair', 'Casey']}))
+        self.assertIsNotNone(fuzz.knight(m, kn, {}, {'players': ['Alex', 'Drew']}))
+        self.assertIsNone(fuzz.king(m, g.g['Blair'], {}, {'character': 'Monk'}))
+        self.assertIsNotNone(fuzz.king(m, g.g['Blair'], {}, {'character': 'Chef'}))
+        self.assertIsNone(fuzz.choirboy(m, g.g['Ellis'], {}, {'players': ['Casey']}))
+        self.assertIsNotNone(fuzz.choirboy(m, g.g['Ellis'], {}, {'players': ['Drew']}))
+        self.assertIsNotNone(fuzz.huntsman_townsfolk(m, {}, {'character': 'Monk'}))
+        self.assertIsNone(fuzz.huntsman_townsfolk(m, {}, {'character': 'Chef'}))
+        # a right guess by a working Alsaahir must win at once
+        g = self.game(['Alsaahir', 'King', 'Imp', 'Monk', 'Chef', 'Poisoner', 'Soldier'], script)
+        g.emit('ability', {'player': 'Alex', 'character': 'Alsaahir',
+                           'guesses': [{'player': 'Casey', 'character': 'Imp'},
+                                       {'player': 'Frankie', 'character': 'Spy'}]})
+        g.fz.step('test')
+        self.assertEqual([v['type'] for v in g.fz.violations], ['missed-win'])
+        # the Lord of Typhon in the middle of a line of evil characters
+        g = self.game(['Knight', 'Spy', 'Lord of Typhon', 'Poisoner', 'Chef', 'Monk', 'Soldier'], script)
+        self.assertEqual(g.fz.violations, [])
+        g.fz.check_setup([{'name': n, 'character': c} for n, c in zip(
+            'ABCDEFG', ['Spy', 'Knight', 'Lord of Typhon', 'Poisoner', 'Chef', 'Monk', 'Soldier'])])
+        self.assertEqual([v['type'] for v in g.fz.violations], ['setup'])
+
     def test_extra_abilities_need_a_gains_event(self):
         g = self.game(['Empath', 'Chef', 'Imp', 'Soldier', 'Monk', 'Mayor', 'Poisoner'])
         g.g['Alex'].extra.append('Monk')

@@ -23,3 +23,8 @@ characters are on it and every table size from 5 to 15 can be dealt. Its games a
 Acrobat, Lycanthrope, Alchemist, Zealot, Organ Grinder, Noble, Farmer, Harpy, Boffin, Boomdandy, Fearmonger, Xaan)
 with built characters chosen so that all eighteen official jinxes between them and built characters are on it and
 every table size from 5 to 15 can be dealt. Its games are protocol `custom-carousel-4`.
+
+`carousel-5.json` ("Carousel test 5") is the fifth: the nine experimental characters of batch 3b (Alsaahir, Huntsman,
+Snitch, Knight, Choirboy, King, Cult Leader, Lord of Typhon, Lleech) with built characters chosen so that all eight
+official jinxes between them and built characters are on it and every table size from 5 to 15 can be dealt. Its games
+are protocol `custom-carousel-5`.

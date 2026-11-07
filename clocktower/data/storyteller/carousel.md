@@ -258,3 +258,54 @@ loses at once. With the Plague Doctor, a living Minion receives this ability and
 X is the number of Outsiders in play; in a dealt game with none, add one. On night X, from the Xaan's step until the
 next dusk, every Townsfolk is poisoned, as long as the Xaan lives and is sober. A drunk or poisoned Xaan on night X
 does nothing, and the night does not come again.
+
+## Alsaahir
+Once a day the Alsaahir may say aloud which players they think are the Minions and which the Demon (each named with a
+Minion's or a Demon's character; only the type counts). If the list matches the Grimoire exactly, every Minion and
+every Demon, the dead ones included, and nobody else, good wins on the spot. A drunk or poisoned Alsaahir's right list
+wins nothing, and a dead one has no ability.
+
+## Huntsman
+A real Huntsman brings the Damsel into the game at setup, in an Outsider's seat if one was dealt, otherwise a
+Townsfolk's. Once per game, on any night, the Huntsman may point at a living player; whoever they choose, the ability is
+spent. If it is the Damsel and the Huntsman is sober, wake her and give her a Townsfolk character nobody has: she stays
+on her team. A Marionette who thinks they are the Huntsman comes with a Damsel too.
+
+## Snitch
+On the first night wake each Minion who knows they are a Minion and show them three good characters nobody has, their
+own bluffs; they need not match the Demon's. A drunk or poisoned Snitch gives the Minions nothing.
+
+## Knight
+On the first night show the Knight two other players, neither of whom is the Demon. A Recluse may be shown. A drunk or
+poisoned Knight, or one under the Vortox, may be shown the Demon.
+
+## Choirboy
+A real Choirboy brings the King into the game at setup, in a Townsfolk's seat. If the Demon's attack kills the King
+(a Mayor's bounce onto the King counts), wake the Choirboy that night and point to the Demon. Any other death of the King
+tells them nothing; a drunk or poisoned Choirboy may be pointed at anyone.
+
+## King
+On the first night wake the Demon and point out the King; a player who becomes a Demon later learns it too. Each night,
+once the dead are at least as many as the living, show the King the character of one living player. With the Leviathan
+in play, the King learns this from the first death on. A drunk or poisoned King may be shown a character nobody alive
+has.
+
+## Cult Leader
+Each night the Cult Leader takes the alignment of one of their living neighbours, your choice when the two differ; wake
+them only if it changes. By day they may call a cult vote, once a day: everyone, dead or alive, decides with eyes closed
+whether to join. If every good player joined, the Cult Leader's team wins at once; otherwise announce only that the vote
+is over. A drunk or poisoned Cult Leader changes nothing and wins nothing. A Demon who has this ability through the
+Boffin, or an evil player the Pit-Hag made the Cult Leader, never turns good by it.
+
+## Lord of Typhon
+One extra Minion is dealt in a Townsfolk's seat, and the evil players sit together in a row with the Lord of Typhon in
+the middle, a Minion on each side; you may also add or remove an Outsider, usually removing one or leaving them be.
+From the second night it kills like any Demon. With the Summoner, a summoned Lord of Typhon must sit next to a Minion
+(pick such a player if the Summoner did not), and its other neighbour becomes an evil Minion.
+
+## Lleech
+On the first night the Lleech picks another player as its host: the host is poisoned for the rest of the game while
+the Lleech is sober. After that it kills each night. While the host lives, nothing kills a sober Lleech (an execution
+fails), except the Assassin; when the host dies, however it happens, the Lleech dies with them. A drunk or poisoned
+Lleech can die normally and does not die with its host. Jinxes: a Slayer shooting the host kills the host; with the
+Mastermind alive, a host executed leaves the Lleech alive but without its ability; never with the Heretic.

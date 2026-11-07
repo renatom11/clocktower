@@ -613,3 +613,124 @@ New weights: `idiot_extra_one` 0.35, `idiot_extra_two` 0.25, `lycanthrope_misreg
 `harpy_first` 0.6, `harpy_both` 0.2, `boomdandy_keep_demon` 0.9, `plague_boomdandy_minion` 0.8. The rules judge has
 no heuristic of its own for the new calls (the scripted style decides, or its balance for the yes/no ones that help
 a team).
+
+## Batch 3b: nine experimental characters
+
+The Alsaahir, Huntsman, Snitch, Knight, Choirboy, King, Cult Leader, Lord of Typhon and Lleech
+(`clocktower/carousel4.py`, loaded after carousel3; tests in `tests/test_carousel3b.py`, Storyteller's notes in
+`clocktower/data/storyteller/carousel.md`). With the Lleech, the World Championship's Buyer's Remorse plays end to end.
+The eight official jinxes between them and built characters are all implemented, the Boffin's with the Cult Leader
+(left pending by batch 3) among them. None of the nine needed a design the brief keeps for the owner: the Cult
+Leader's cult vote is a separate yes/no, not a change to the execution vote.
+
+### Townsfolk
+
+82. **The Alsaahir.** The guess is a public use of the `ability` field whose `guesses` name players, each with a
+    Minion or a Demon character on the script: only the type counts ("X is the Poisoner" guesses X a Minion), and a
+    guess naming a good character is ignored. It is right when the players named as Minions are exactly the players
+    whose character is a Minion, and likewise for the Demons, the dead included, by the Grimoire's truth (no
+    misregistration: a Spy is a Minion, a Recluse is not; option: let a misregistering player count either way, a
+    judged call). One guess a day per Alsaahir, alive (a dead one has no ability); a right guess with a working
+    ability wins for good at once, a drunk or poisoned one's is an abnormal result. Anyone may claim one, as with any
+    public ability; a player who claims it with no guesses is told how to name them.
+83. **The Huntsman.** "[+the Damsel]": in a dealt game, if the Damsel is on the script and not in play, she takes the
+    seat of a dealt Outsider (so the counts hold), or, with none, of a Townsfolk (one more Outsider), never a Drunk,
+    a Lunatic or a character whose own setup step has run; only for a real Huntsman (a Drunk who believes they are one
+    adds none: a setup modifier belongs to the character in play), and a forced setup keeps its characters. Option:
+    always in a Townsfolk's seat. "Once per game, at night": any night, the first included; choosing no one keeps it;
+    choosing any living player spends it (a drunk Huntsman's too, and a Drunk's who believes they are one, so they
+    are not woken again). A working Huntsman's chosen Damsel becomes a Townsfolk on the script that nobody has or
+    believes they have and that has no setup step (the Storyteller's choice), keeping her alignment, and is told; the
+    Huntsman is not told.
+84. **The Marionette/Huntsman jinx.** A Marionette who believes they are the Huntsman brings the Damsel at setup, as a
+    real Huntsman does (the Huntsman's setup step runs after the Marionette's).
+85. **The Knight.** On their first night (or when they become one), two other players neither of whom registers only
+    as the Demon (a Recluse may be shown). Drunk, poisoned or under the Vortox: any two, misinformed with the Demon
+    among them.
+86. **The King.** "The Demon knows you are the King": on the first night, every Demon in play learns which player is a
+    real King (a Drunk's King has no ability: no Demon is told); a player who becomes a Demon later through a reported
+    change (the Pit-Hag's, the Summoner's, a Fang Gu's jump) or a new King learns it then. The Imp's starpass does not
+    pass it on (the engine reports no change there: an option). "If the dead equal or outnumber the living": by the
+    town's view, counted at the King's step each night (the first night too, harmlessly). "1 alive character": the
+    character a living player other than the King can register as (the King's own when nobody else lives: finding
+    B15). With the Leviathan in play (its jinx), from the first death on. Drunk, poisoned or under the Vortox: any
+    character on the script, misinformed with one nobody alive has.
+87. **The Choirboy.** "[+the King]": in a dealt game, if the King is on the script and not in play, a Townsfolk (not
+    one whose setup step has run, and after the Village Idiot's extras) becomes the King; only for a real Choirboy.
+    "If the Demon kills the King": a Demon's attack (cause `demon`, a Mayor's bounce onto the King too) kills the
+    player who is the King; that night the Choirboy, alive, learns the Demon who attacked (or the Demon now, if the
+    attacker is no longer one). The King's execution or any other death tells nothing. Drunk, poisoned or under the
+    Vortox: any player, misinformed with another.
+88. **The Cult Leader's alignment.** Each night, the first included, a Cult Leader with a working ability takes the
+    alignment of one of their alive neighbours (the town's view): the Storyteller's choice when the two differ (POLICY
+    `cult_leader_evil` 0.5, default, for review), and they are woken and told only when it changes. A drunk or
+    poisoned one changes nothing.
+89. **The cult vote.** "If all good players choose to join your cult": by day, on a public turn, any player may call a
+    cult vote through the `ability` field (a bluff's vote is held the same way, so it looks the same); one a day, the
+    first call. Every player, alive or dead, is asked in private (`decide`, eyes closed) whether to join. If every good
+    player (by alignment at the vote, the dead included) joined and the caller is alive with a working Cult Leader's
+    ability, the caller's team wins at once; otherwise the Storyteller announces only that the vote is over (no count,
+    no names). Options: only the living count; the vote is open (hands raised); several calls a day.
+90. **The Cult Leader's jinxes.** Boffin: the Boffin may give the Demon the Cult Leader's ability; it never turns that
+    Demon good (its cult vote can win for evil). Pit-Hag: an evil player the Pit-Hag makes the Cult Leader never turns
+    good by it; a good player made it later is free (as the Goon's and Politician's jinxes).
+
+### Outsiders
+
+91. **The Snitch.** On the first night only, at the Snitch's step, while a player with the ability (a Philosopher's,
+    a Demon's through the Boffin) is sober and healthy: each Minion who knows they are one (not a Marionette) is shown
+    three good characters nobody has or believes they have, chosen for each Minion as the Demon's bluffs are (they may
+    differ from the Demon's and from each other). A drunk or poisoned Snitch gives nothing. A Minion made later gets
+    none.
+
+### Demons
+
+92. **The Lord of Typhon's setup.** "+1 Minion": one Minion more than the table's, in a Townsfolk's seat
+    (`Character.extra_minions`; `state.random_setup` draws it after the Demon, so scripts without the Lord of Typhon
+    draw exactly as before). The extra is never the Summoner or the Kazali's kind (no Demon, no Minions), nor a Minion
+    whose modifier is the Storyteller's choice (the Godfather), and leaves at least two Townsfolk; a script with too
+    few Minions or Townsfolk is not dealt the Lord of Typhon. "Evil characters are in a line. You are in the middle":
+    the dealt tokens are moved before anyone is told their character (as the Marionette's seat is), in a forced setup
+    too: the Minions take the seats beside the Lord of Typhon, a side each, the sides differing by at most one (the
+    Storyteller picks the longer side), and the players there take the Minions' seats. The first night's "show the
+    neighbours they are Minions" is then the ordinary evil information. "-? to +? Outsiders": in a dealt game, as dealt
+    (POLICY `typhon_outsiders_same` 0.6), else one fewer (`typhon_outsiders_fewer` 0.75, to offset the extra Minion),
+    else one more, keeping two Townsfolk (finding B17); `setup_error` accepts any number of Outsiders with it, as with
+    the Kazali. Options: more than one Outsider either way.
+93. **The Summoner/Lord of Typhon jinx.** A Lord of Typhon summoned onto a player who neighbours no Minion goes instead
+    to a player the Storyteller picks (usually a good one) who does; then its other neighbour, if not a Minion, becomes
+    an evil Minion on the script not in play (the Storyteller's, never the Marionette), and is told.
+94. **The Lleech's host.** "You start by choosing a player": on the first night, another player (not themself),
+    whatever the Lleech's sobriety; the host is poisoned for the rest of the game while the Lleech has its ability,
+    paused while the Lleech is drunk or poisoned (as the Poisoner's poison). A Lleech made later (the Pit-Hag's, a
+    Scarlet Woman's takeover) has no host: on its next night it chooses one instead of killing (a reading). A swap
+    (the Snake Charmer's, the Barber's) moves the host with the character. Each other night it kills.
+95. **"You die if & only if they are dead."** While the host lives and the Lleech's ability works, nothing kills the
+    Lleech (an execution fails, the Slayer's shot, its own choice, the Pit-Hag's arbitrary deaths), except the
+    Assassin, whose kill goes through everything. When the host dies, by any cause, a Lleech with a working ability
+    dies at once (announced at dawn, or at once by day). A drunk or poisoned Lleech can die normally and does not die
+    with its host; once its host is dead it is an ordinary Demon.
+96. **The Lleech's jinxes.** Slayer: a Slayer's shot at the host kills the host (and so the Lleech). Mastermind: a host
+    executed while a Mastermind lives leaves the Lleech alive with no ability (no kill, no poison, and no protection:
+    it can then be executed). Heretic: only one of the two in play (Script.clash), and a Summoner who names the Lleech
+    with the Heretic in play summons another Demon on the script, the Storyteller's choice (finding B16).
+97. **The Boffin's new abilities.** The Boffin may now give the Demon the Knight's, the Snitch's or the Cult Leader's
+    ability (each runs for a Demon who has it). Not the Alsaahir's (a Demon's right guess would win for good), the
+    Huntsman's (it hunts a Damsel the Demon's team would rather keep), the King's or the Choirboy's (about the Demon
+    itself).
+
+### Core changes and playability
+
+98. **Core changes**, each a no-op on the base scripts (their fingerprints are identical, and so are carousel-1 to
+    carousel-4's): a Demon's setup modifier for extra Minions (`Character.extra_minions`, in `state.random_setup` and
+    `setup_error`); the Slayer's shot at a Lleech's host (the jinx, in `characters.Slayer`); the Pit-Hag's lock for an
+    evil Cult Leader (in `snv.PitHag`); the Summoner's Lord of Typhon jinx and its substitute for a Demon that cannot be
+    in play (in `carousel.Summoner`).
+99. **The fifth synthetic script** (`clocktower/data/scripts/carousel-5.json`, "Carousel test 5"): the nine, with the
+    Slayer, Empath, Chef, Washerwoman, Monk, Undertaker and Fortune Teller; the Damsel, Heretic, Drunk and Recluse; the
+    Boffin, Pit-Hag, Mastermind, Marionette, Summoner, Poisoner and Spy; the Leviathan and the Imp. All eight batch 3b
+    jinxes are on it, and every size from 5 to 15 deals. Its replay fingerprints are
+    `tests/data/fingerprints-carousel-5.json`.
+
+New weights: `cult_leader_evil` 0.5, `typhon_outsiders_same` 0.6, `typhon_outsiders_fewer` 0.75. The rules judge has
+no heuristic of its own for the new calls (the scripted style decides).

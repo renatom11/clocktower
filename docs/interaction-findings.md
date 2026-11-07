@@ -1,7 +1,7 @@
 # Interaction findings: what the fuzzer found
 
-`clocktower/fuzz.py` plays random-bot games on random scripts drawn from every built character (today 113: the
-Trouble Brewing, BMR and S&V characters and the experimental ones of carousel.py to carousel3.py; each script has
+`clocktower/fuzz.py` plays random-bot games on random scripts drawn from every built character (today 122: the
+Trouble Brewing, BMR and S&V characters and the experimental ones of carousel.py to carousel4.py; each script has
 13 Townsfolk, 4 Outsiders, 4 Minions, 4 Demons, loaded as custom script JSON, so the night order and jinxes are the
 official ones),
 under the scripted Storyteller and the rules judge alternately, and checks invariants after every night step, every
@@ -20,6 +20,26 @@ How to rerun (about 80 games a second on four cores):
 
 Each run writes `summary.md` (violations grouped, with a first example and its repro; advisories; pair coverage; the
 information checked), `violations.jsonl` (every violation with its repro) and `coverage.json`.
+
+## The fourth runs (2026-11-07, all 122 built characters: batch 3b added)
+
+The pool now holds batch 3b's nine (carousel4.py). New checks: independent oracles for the Knight (two other
+players, neither a Demon), the King (a character some living player can be, the King's own when nobody else lives)
+and the Choirboy (the player shown is a Demon); a right guess by a working Alsaahir (every Minion and Demon, by type,
+as the Grimoire has them) and a cult vote every good player joined with a working Cult Leader must win at once, and
+neither win may be declared otherwise; a working Lleech never dies while its host lives (but to the Assassin) and
+dies with it ('lleech'); the evil characters sit in a line with the Lord of Typhon in the middle ('setup'); the
+Huntsman's Damsel becomes a Townsfolk not in play, the Cult Leader takes an alive neighbour's alignment, and the
+summoned Lord of Typhon's neighbour a Minion not in play ('choice'). A death decided with others whose first one ends
+the source's kept ability is not a dead player acting (U10).
+
+10,000 games: 7,000 uniform (same seeds as before) and 3,000 `--target-uncovered`, plus 3,600 games with one of the
+nine forced into play (`--force`, 400 each). A first pass found three engine faults in the new code, B15 to B17
+below, all fixed, and one unruled interaction, U10. After the fixes: 6 violations in the uniform run (U8 x3, U1 x2,
+U7) and 4 in the targeted one (U2 x2, U8, U1), all known; one in the forced runs (U1). All 7,381 pairs of the 122
+characters were in play together but 4, and 7,342 with both acting, after the targeted run. Decisions checked in the
+uniform run include the Knight's 591, the King's 307 and the Choirboy's 10 (each by its oracle too) and 1,155 Cult
+Leader alignments.
 
 ## The third runs (2026-11-07, all 113 built characters: batch 3 added)
 
@@ -250,6 +270,23 @@ At 7 players with the Marionette the only Minion, the Summoner jinx's [No Demon]
 Marionette waits for the summoned Demon), and the Investigator had nothing true to show (crash). The Summoner is now
 offered to the Alchemist only with an evil player other than the Demon and a Marionette (ruling 72).
 
+B15. **Fixed (batch 3b commit; found by the targeted run).** **The King with nobody else alive.** The Lleech killed its
+own host, the Spy, and died with it, leaving the King alone among the living; the King's choice had no true value, so
+any character was offered and a healthy King was told "the Mutant is alive" (`engine-truth`, `oracle`). Repro (before):
+`python -m clocktower fuzz repro --seed 9002193 --players 10 --judge rules --chars monk,grandmother,king,noble,professor,cultleader,magician,preacher,washerwoman,seamstress,tealady,nightwatchman,knight,saint,damsel,mutant,lunatic,scarletwoman,baron,poisoner,spy,lleech,pukka,nodashii,alhadikhia --setup lleech,monk,king,scarletwoman,nightwatchman,grandmother,washerwoman,magician,spy,tealady`.
+Fix: with no other living player, the alive character is the King's own (ruling 86).
+
+B16. **Fixed (batch 3b commit; found by pair coverage).** **The Summoner summons a Lleech with the Heretic in play.**
+"Only 1 jinxed character can be in play" was kept at setup, by the Pit-Hag, the tea party and the Kazali, but not by
+the Summoner, who could name the Lleech (the Heretic's only jinxed Demon); pair coverage showed the two in play
+together once in 7,000 games. Fix: the Storyteller summons another Demon on the script instead (ruling 96; a no-op
+on carousel-1 to carousel-4, whose Heretic has no jinxed Demon).
+
+B17. **Fixed (batch 3b commit; found by the uniform run).** **The Lord of Typhon could leave a lone Washerwoman (U4).**
+At five players its extra Minion leaves two Townsfolk; adding an Outsider ("-? to +?") left one, and a Washerwoman
+alone had nothing true to show (the U4 crash). Repro (before): `python -m clocktower fuzz repro --seed 9000312 --players 5 --judge scripted --chars washerwoman,shugenja,innkeeper,grandmother,exorcist,highpriestess,undertaker,mayor,fortuneteller,soldier,cultleader,fool,poppygrower,barber,sweetheart,puzzlemaster,golem,boffin,godfather,scarletwoman,witch,alhadikhia,ojo,lleech,lordoftyphon`.
+Fix: the Lord of Typhon's setup keeps two Townsfolk (ruling 92). U4 itself is unchanged.
+
 ## Unruled interactions (the engine does something defensible; a ruling would settle it)
 
 U1. **The Undertaker learns the executed player's character after it changed.** Undertaker + Pit-Hag or Barber (also
@@ -348,6 +385,16 @@ The scripted Storyteller (and the judge's default) now picks a Faux Paw that lea
 exists, but a judge may still choose otherwise, and a Recluse can do the same. Suggested ruling: the Storyteller must
 not make the Noble's information impossible (the Faux Paw is theirs to choose). Option: show any three (the
 almanac's habit for information with no true answer).
+
+U10. **A Harpy kept by the Vigormortis kills the second player after the first was the Vigormortis.** Harpy +
+Vigormortis (forced runs: 1 in 3,600 games). The Vigormortis killed the Harpy, who keeps her ability; the Harpy's
+madness was broken and the Storyteller chose that both players die; the first was the Vigormortis, so the Harpy lost
+her ability, and the second died anyway (the fuzzer called it a dead player acting). Repro: `python -m clocktower fuzz repro --seed 9102199 --players 12 --judge rules --chars huntsman,alsaahir,courtier,poppygrower,fortuneteller,savant,cultleader,fool,librarian,ravenkeeper,investigator,gambler,villageidiot,goon,plaguedoctor,golem,zealot,cerenovus,harpy,godfather,witch,zombuul,alhadikhia,lleech,vigormortis --setup harpy,cultleader,librarian,godfather,huntsman,fortuneteller,golem,fool,plaguedoctor,vigormortis,ravenkeeper,poppygrower`.
+The engine takes the two deaths as one decision, made while the Harpy had her ability, which is defensible ("one or
+both might die" is one penalty); stopping after the first would also change five recorded carousel-4 games, so it
+is left as is, and the fuzzer now counts a death decided at the step that ended the source's kept ability as made
+with it. Suggested ruling: keep it (both die together). Option: stop at the first death that ends the game or the
+ability.
 
 ## Advisories (counted, not violations)
 

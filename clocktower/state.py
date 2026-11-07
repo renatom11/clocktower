@@ -115,6 +115,15 @@ def setup_error(characters, script=TB):
     no_demon = any(rules(c).no_demon for c in characters)  # the Summoner's [No Demon]: a Townsfolk in its place
     if no_demon and counts['Demon']:
         return f'no Demon with the {next(c for c in characters if rules(c).no_demon)} in play'
+    extra = sum(rules(c).extra_minions for c in characters)  # (custom scripts: the Lord of Typhon's +1 Minion and
+    if extra:  # its "-? to +? Outsiders": any number of Outsiders, the Storyteller's)
+        mn = SETUPS[n][2] + extra
+        if counts['Demon'] != 1 or counts['Minion'] != mn:
+            which = next(c for c in characters if rules(c).extra_minions)
+            return f'need exactly {mn} Minions and one Demon ({which} in play)'
+        if counts['Townsfolk'] < 1:
+            return 'need Townsfolk and Outsiders in every seat but the Minions\' and Demon\'s'
+        return None
     if counts['Demon'] != 1 and not no_demon:
         return 'need exactly one ' + (script.demons[0] if len(script.demons) == 1 else 'Demon')
     sizes = [team_sizes(n, d, floor=True) for d in sorted(setup_changes(characters))]
@@ -164,7 +173,19 @@ def _random_setup(rng, minion, players, script):
             t, o, _ = team_sizes(players, setup_change(demon), floor=True)
             return 0 <= t + mn <= len(script.townsfolk) and 0 <= o <= len(script.outsiders)
         t, o, _ = team_sizes(players, change + setup_change(demon), floor=True)
-        return 0 <= t + no_demon <= len(script.townsfolk) and 0 <= o <= len(script.outsiders)
+        extra = rules(demon[0]).extra_minions if demon else 0  # (the Lord of Typhon: Minions in Townsfolk seats)
+        if extra and len(extras(demon[0])) < extra:
+            return False
+        return 0 <= t + no_demon - extra <= len(script.townsfolk) and 0 <= o <= len(script.outsiders)
+
+    def extras(demon):  # the Minions a Demon's extra Minions may be: not dealt, and keeping the setup dealable
+        k = rules(demon).extra_minions
+
+        def ok(m):
+            t, o, _ = team_sizes(players, change + setup_change([demon, m]), floor=True)
+            return 2 <= t - k and t + no_demon - k <= len(script.townsfolk) and 0 <= o <= len(script.outsiders)
+        return [m for m in script.minions if m not in minions and not rules(m).no_demon and not rules(m).no_minions
+                and not rules(m).outsider_choices and ok(m)]
     # a Demon whose modifier can't be dealt with these Minions is not chosen (the Fang Gu's extra Outsider with the
     # Baron's two, beyond a script's Outsiders); on the base scripts every Demon always fits, so draws are unchanged
     demons = [d for d in script.demons if fits([d])] or script.demons
@@ -174,6 +195,10 @@ def _random_setup(rng, minion, players, script):
                          'too few Townsfolk or Outsiders on the script')
     if demon and rules(demon[0]).no_minions:  # the Kazali chooses its Minions on the first night: none are dealt
         minions, change, no_demon = [], 0, mn
+    extra = rules(demon[0]).extra_minions if demon else 0
+    if extra:  # (the Lord of Typhon's +1 Minion, in a Townsfolk's seat)
+        more = rng.sample(extras(demon[0]), extra)
+        minions, change, no_demon = minions + more, change + setup_change(more), no_demon - extra
     change += setup_change(demon)  # a Demon's modifier (the Fang Gu's +1, the Vigormortis's -1)
     tf, os_, _ = team_sizes(players, change, floor=True)
     return rng.sample(script.townsfolk, tf + no_demon) + rng.sample(script.outsiders, os_) + minions + demon
@@ -309,6 +334,10 @@ POLICY = {
     'harpy_both': 0.2,              # or both
     'boomdandy_keep_demon': 0.9,    # the Demon is among the Boomdandy's three survivors (else any three)
     'plague_boomdandy_minion': 0.8,  # the Plague Doctor jinx: the new Boomdandy is a living Minion (else anyone)
+    # batch 3b (docs/carousel-rulings.md). Default, for review.
+    'cult_leader_evil': 0.5,        # a Cult Leader between a good and an evil alive neighbour turns (or stays) evil
+    'typhon_outsiders_same': 0.6,   # the Lord of Typhon's Outsiders stay as dealt,
+    'typhon_outsiders_fewer': 0.75,  # else one fewer (to offset the extra Minion; else one more)
     # the Storyteller judge (judge.py, when one is chosen; never in TB's protocol v17): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
@@ -1236,5 +1265,7 @@ from . import snv  # noqa: E402  (after bmr: Sects & Violets, clocktower/snv.py)
 from . import carousel  # noqa: E402  (after snv: the experimental characters and jinxes, clocktower/carousel.py)
 from . import carousel2  # noqa: E402  (after carousel: batch 2 of the experimental characters)
 from . import carousel3  # noqa: E402  (after carousel2: batch 3 of the experimental characters)
+from . import carousel4  # noqa: E402  (after carousel3: batch 3b of the experimental characters)
 
-BMR, SNV, CAROUSEL = bmr, snv, (carousel, carousel2, carousel3)  # (a use, so pyflakes sees the imports are wanted)
+# (a use, so pyflakes sees the imports are wanted)
+BMR, SNV, CAROUSEL = bmr, snv, (carousel, carousel2, carousel3, carousel4)

@@ -801,7 +801,28 @@ class Summoner(Minion):
                     return
                 v = await game.decide_judged(summon_choice(g, s, target, c, demons))
                 target, c = v['players'][0], v['character']
+            if c and g.script.clash({q.character for q in g.players if q.name != target} | {c}):
+                # (batch 3b) a Demon whose jinx with a character in play lets only one be in play (the Heretic's with
+                # the Lleech): the Storyteller summons another Demon on the script instead (a reading)
+                others = [d for d in demons if not g.script.clash({q.character for q in g.players
+                                                                    if q.name != target} | {d})]
+                if not others:
+                    g.notes['Summoned'] = 'failed'
+                    return
+                c = (await game.decide_judged(judged(Choice(f'Summoner clash:{s.name}',
+                                                            [{'character': d} for d in others],
+                                                            lambda r: {'character': r.choice(others)}),
+                                                     'summon_demon', f'The Summoner ({s.name}) chose the {c}, which '
+                                                     'cannot be in play with a character in play: which Demon comes '
+                                                     'instead?', recipient=s.name)))['character']
+            typhon = c == 'Lord of Typhon' and g.script.jinxed(self.name, c)
+            if typhon:  # the jinx (batch 3b): the Lord of Typhon must neighbour a Minion
+                from .carousel4 import typhon_summoned
+                target = await typhon_summoned(game, s, target)
             await self.summon(game, s, g[target], c, night)
+            if typhon:  # and its other neighbour becomes an evil Minion
+                from .carousel4 import typhon_neighbour
+                await typhon_neighbour(game, g[target])
             return
         if night.n == 3 and not g.notes.get('Summoned'):
             g.notes['Summoned'] = 'failed'

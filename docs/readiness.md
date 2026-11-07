@@ -101,10 +101,28 @@ marked for the owner's review (docs/snv-rulings.md).
   checks on the Faux Paw, the Farmer's heir, the Boffin's and Alchemist's picks and the Zealot's vote
   (docs/interaction-findings.md, the third runs).
 
+**Built in batch 3b** (docs/carousel-rulings.md, 82-99):
+- **Nine experimental characters** in `clocktower/carousel4.py`: the Alsaahir, Huntsman, Snitch, Knight, Choirboy,
+  King, Cult Leader, Lord of Typhon and Lleech, with Storyteller's notes and the eight official jinxes between them and
+  built characters (the Boffin's with the Cult Leader, pending since batch 3, among them). Core changes, all no-ops
+  elsewhere: a Demon's extra Minions at setup (`Character.extra_minions`: the Lord of Typhon's +1, its line of evil
+  seats made by moving the dealt tokens), the Slayer's shot at the Lleech's host, the Pit-Hag's lock on an evil Cult
+  Leader, the Summoner's Lord of Typhon jinx and its substitute Demon when the one named cannot be in play. The Cult
+  Leader's cult vote is a secret yes/no asked of every player (`decide`), not a change to the execution vote; the
+  Alsaahir's guess uses the public `ability` move's `guesses`.
+- **One more corpus script plays end to end**: the World Championship's buyersremorse (Buyer's Remorse), 2,200
+  random-bot games under each Storyteller mode with no crash; the earlier ones still play. No Carousel Script
+  Collection script is completed by this batch: whosecult (Who's Cult Is It Anyway) now needs only Lil' Monsta, and
+  irrationalbehaviour, phantomdetectives, quickmaths, witchhunt and trainedkiller still need others.
+- **The synthetic `carousel-5`** (the nine and all eight jinxes) plays 2,200 games with no crash and has replay
+  fingerprints. The fuzzer draws the new characters, with oracles for the Knight, the King and the Choirboy and checks
+  on the Alsaahir's and the cult's wins, the Lleech's life link and the Lord of Typhon's line
+  (docs/interaction-findings.md, the fourth runs).
+
 **Still open:**
-- **The experimental characters** (25 more Townsfolk, Outsiders, Minions and Demons in the official data's carousel
-  edition): later batches. Across both corpora the scripts need the Amnesiac (10), Alsaahir and Huntsman (5) most;
-  Lil' Monsta waits for the owner's design (ruling 65).
+- **The experimental characters** (16 more Townsfolk, Outsiders, Minions and Demons in the official data's carousel
+  edition): later batches. Across both corpora the scripts need the Amnesiac (10) most; Lil' Monsta waits for the
+  owner's design (ruling 65).
 - **Jinxes** with experimental characters: each with its character. They take about eight forms (bans, setup
   changes, registration and visibility overrides, replacement abilities, alignment locks, kill rulings).
 - **No Demon or several** (the Legion, the Riot, the Atheist): victory checks and evil's first-night information.

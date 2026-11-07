@@ -106,6 +106,8 @@ class Character:
     moment_unheld = False    # its `moment` runs (with `me` None) even when no player has the ability: a public duty
     #                          that outlives its holder (the Al-Hadikhia's dawn announcement of last night's choice)
     duplicates = 1           # how many players may have it at once (the Village Idiot's [+0 to +2 Village Idiots]: 3)
+    extra_minions = 0        # setup modifier (a Demon's): Minions dealt beyond the table's, in Townsfolk seats (the
+    #                          Lord of Typhon's +1)
 
     @property
     def evil(self):
@@ -481,6 +483,10 @@ class Slayer(Townsfolk):
         g.spend(self.name)
         if g.is_poisoned(s) or not t.alive:
             return False
+        if g.script.jinxed('Lleech', self.name) and any(  # the jinx (custom scripts): the Lleech's host dies
+                q.alive and q.character == 'Lleech' and g.notes.get('Lleech host', {}).get(q.name) == t.name
+                for q in g.players):
+            return True
         registers = {kind(c) == 'Demon' for c in g.registers_as(t)}
         if len(registers) > 1:  # a misregistering target (the Recluse) may or may not die
             return (await game.decide_judged(state.slayer_choice(g, s, t)))['yes']

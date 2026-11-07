@@ -490,7 +490,7 @@ class Harpy(Minion):
 
 
 BOFFIN_USABLE = ('Washerwoman', 'Librarian', 'Investigator', 'Chef', 'Empath', 'Undertaker', 'Monk', 'Noble',
-                 'Village Idiot', 'Goon')
+                 'Village Idiot', 'Goon', 'Knight', 'Snitch', 'Cult Leader')  # (the last three: batch 3b)
 
 
 def boffin_options(g):
