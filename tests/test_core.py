@@ -113,7 +113,55 @@ class Keeper(ch.Minion):
         return False if me.alive and winner == 'good' else None
 
 
-TEST = [Guard, Jester, Ghoul, Plain, Henchman, Picker, Hunter, Crier, Avenger, Fixer, Keeper]
+class Miasma(ch.Townsfolk):
+    """Poisons the nearest Test Plain clockwise (alive or dead), worked out whenever asked."""
+    name = 'Test Miasma'
+    derives = True
+
+    def ongoing(self, g, me):
+        if not g.works(me, self.name):
+            return []
+        q = g.nearest(me, 1, lambda q: q.character == 'Test Plain')
+        return [State('poisoned', q.name, source=me.name, until=None)] if q else []
+
+
+class Liar(ch.Minion):
+    """Every Townsfolk's information is false while they live."""
+    name = 'Test Liar'
+    falsifies_info = True
+
+    def falsifies(self, g, me, recipient, ability):
+        return ch.kind(ability) == 'Townsfolk' and g.works(me, self.name)
+
+
+class Hexer(ch.Minion):
+    """Whoever nominates the Hexer dies; executing the Test Guard wins for evil."""
+    name = 'Test Hexer'
+
+    def nomination(self, game, me, nominator, nominee):
+        if nominee == me.name and game.g.works(me, self.name):
+            game.ability_kill(game.g[nominator], 'hexer', me)
+
+    def execution(self, game, me, executed):
+        return ('evil', 'the Guard was executed') if executed.character == 'Test Guard' else None
+
+
+BECAME = []
+
+
+class Changeling(ch.Outsider):
+    """Records when a player becomes it, and every change it sees."""
+    name = 'Test Changeling'
+
+    def becomes(self, game, me):
+        BECAME.append(('becomes', me.name))
+
+    async def changed(self, game, me, other):
+        BECAME.append(('changed', me.name, other.name))
+
+
+TEST = [Guard, Jester, Ghoul, Plain, Henchman, Picker, Hunter, Crier, Avenger, Fixer, Keeper, Miasma, Liar, Hexer,
+        Changeling]
 
 
 class Silent:
@@ -350,6 +398,144 @@ class CoreTests(unittest.TestCase):
             path = Path(d) / 'j.json'
             path.write_text(json.dumps(['washerwoman', 'spy', 'poisoner', 'imp', 'scarletwoman', 'recluse']))
             self.assertEqual(ch.Script(path).jinxes, {})
+
+
+
+class SectsAndVioletsCoreTests(unittest.TestCase):
+    """The core Sects & Violets needs: character changes in bulk, dead players keeping their ability, states worked
+    out on demand, falsified information, abilities triggered by any nomination or execution, and madness."""
+    game, setup = CoreTests.game, CoreTests.setup
+
+    @classmethod
+    def setUpClass(cls):
+        CoreTests.setUpClass.__func__(cls)
+
+    @classmethod
+    def tearDownClass(cls):
+        CoreTests.tearDownClass.__func__(cls)
+
+    def told(self, g, name):
+        return [e['data']['text'] for e in g.events if e['to'] == [name] and e['kind'] == 'info']
+
+    def test_a_change_is_told_at_once_gives_a_fresh_ability_and_runs_the_hooks(self):
+        g = self.setup(['Test Plain', 'Test Plain', 'Test Changeling', 'Test Henchman', 'Test Ghoul'])
+        BECAME.clear()
+        g.g.spend('Test Crier')  # an earlier holder used it
+        g.g.add(State('poisoned', A, source=B, ends_with_source=True))
+        run(g.change(g.g[B], character='Test Crier'))
+        self.assertEqual(g.g[B].shown, 'Test Crier')
+        self.assertFalse(g.g.spent_ability('Test Crier'))
+        self.assertFalse(g.g.is_poisoned(g.g[A]))  # B's old ability's effects end
+        self.assertEqual(self.told(g, B), ['Day 1: you are now the Test Crier () and you are still good.'])
+        self.assertEqual(BECAME, [('changed', C, B)])
+        run(g.change(g.g[A], character='Test Changeling', alignment='evil'))
+        self.assertEqual(self.told(g, A), ['Day 1: you are now the Test Changeling () and you are now evil.'])
+        self.assertEqual(BECAME[1:], [('becomes', A), ('changed', A, A), ('changed', C, A)])
+        self.assertTrue(g.g[A].evil)
+        run(g.change(g.g[A], character='Test Changeling'))  # no change: nobody is told
+        self.assertEqual(len(self.told(g, A)), 1)
+
+    def test_a_swap_exchanges_characters_and_if_asked_alignments(self):
+        g = self.setup(['Test Plain', 'Test Crier', 'Test Plain', 'Test Henchman', 'Test Ghoul'])
+        run(g.swap(g.g[B], g.g[E], alignments=True))
+        self.assertEqual((g.g[B].character, g.g[B].alignment, g.g[E].character, g.g[E].alignment),
+                         ('Test Ghoul', 'evil', 'Test Crier', 'good'))
+        self.assertEqual(self.told(g, B), ['Day 1: you are now the Test Ghoul () and you are now evil.'])
+        run(g.swap(g.g[A], g.g[D]))
+        self.assertEqual((g.g[A].character, g.g[A].alignment), ('Test Henchman', 'good'))
+
+    def test_a_dead_player_can_keep_their_ability_wake_and_lose_it(self):
+        g = self.setup(['Test Plain', 'Test Plain', 'Test Plain', 'Test Hunter', 'Test Ghoul'])
+        hunter = g.g[D]
+        g.g.add(State('has ability', D, source=E, until=None, ends_with_source=True, while_source_works=True,
+                      about='Minion'))
+        g.kill(hunter, 'demon')
+        self.assertTrue(g.g.keeps_ability(hunter) and g.g.works(hunter, 'Test Hunter'))
+        self.assertIs(g.g.holder('Test Hunter'), hunter)
+        self.assertIsNone(g.g.with_character('Test Hunter'))
+        g.g.add(State('safe', A, source=D, until=None, ends_with_source=True))  # an effect of the kept ability
+        log = []
+        g.seats = {n: Answers({'targets': []}, log if n == D else []) for n in g.names}
+        g.script = g.g.script = ch.Script.of('test', [c.name for c in TEST], [], ['Test Hunter'])
+        run(g.night(2))
+        self.assertEqual([r.kind for r in log], ['night'])  # the dead Hunter wakes
+        g.g.poisoned = E  # the source loses its ability for now: so does the Hunter
+        self.assertFalse(g.g.works(hunter, 'Test Hunter'))
+        g.g.poisoned = None
+        g.g.spend('Test Ghoul')  # no apparent death: it really dies
+        g.kill(g.g[E], 'execution')  # gone for good, and its effects with it
+        self.assertFalse(g.g.keeps_ability(hunter))
+        self.assertFalse(g.g.safe(g.g[A], 'any'))
+
+    def test_a_kept_ability_ends_when_the_player_is_no_longer_what_it_was_kept_for(self):
+        g = self.setup(['Test Plain', 'Test Plain', 'Test Plain', 'Test Hunter', 'Test Ghoul'])
+        g.g.add(State('has ability', D, source=E, until=None, ends_with_source=True, about='Minion'))
+        g.kill(g.g[D], 'demon')
+        run(g.change(g.g[D], character='Test Henchman'))  # another Minion: kept
+        self.assertTrue(g.g.keeps_ability(g.g[D]))
+        run(g.change(g.g[D], character='Test Plain'))
+        self.assertFalse(g.g.keeps_ability(g.g[D]))
+
+    def test_a_derived_state_follows_the_grimoire_and_cannot_feed_itself(self):
+        g = self.setup(['Test Miasma', 'Test Guard', 'Test Plain', 'Test Plain', 'Test Ghoul'])
+        self.assertEqual([p.name for p in g.g.players if g.g.is_poisoned(p)], [C])
+        self.assertIn('POISONED', g.g.grimoire_text())
+        run(g.change(g.g[C], character='Test Jester'))
+        self.assertEqual(g.g.holders('poisoned'), [D])
+        g.g.add(State('drunk', A, source=E, until=None))
+        self.assertEqual(g.g.holders('poisoned'), [])
+        g.g.states.clear()
+        g.kill(g.g[A], 'demon')
+        self.assertEqual(g.g.holders('poisoned'), [])
+        self.assertEqual(ch.TB.derivers, [])
+
+    def test_falsified_information_offers_only_false_values(self):
+        from clocktower.state import Choice, judged, only_false
+        g = self.setup(['Test Plain', 'Test Plain', 'Test Plain', 'Test Liar', 'Test Ghoul'])
+
+        def info():
+            c = Choice('info', [{'number': n} for n in range(4)], lambda r: {'number': 1})
+            return judged(c, 'information', '?', recipient=A, truth=lambda v: v['number'] == 1)
+        self.assertTrue(g.g.falsified(g.g[A]))
+        self.assertFalse(g.g.falsified(g.g[D]))
+        for i in range(50):
+            g.st.rng = random.Random(i)
+            self.assertNotEqual(run(g.decide_judged(info()))['number'], 1)
+        self.assertEqual(only_false(info()).context['false_only'], True)
+        c = Choice('x', [{'number': 1}], lambda r: {'number': 1})
+        c.truth = lambda v: True
+        self.assertIs(only_false(c), c)  # nothing false to give: unchanged
+        g.kill(g.g[D], 'execution')
+        self.assertFalse(g.g.falsified(g.g[A]))
+        self.assertEqual(ch.TB.falsifiers, [])
+
+    def test_a_nomination_or_an_execution_can_trigger_another_players_ability(self):
+        g = self.setup(['Test Plain', 'Test Plain', 'Test Plain', 'Test Hexer', 'Test Ghoul', 'Test Guard'])
+        run(g.nomination_judged(B, D))
+        self.assertFalse(g.g[B].alive)
+        self.assertEqual([e['data']['player'] for e in g.events if e['kind'] == 'died'], [B])
+        run(g.nomination_judged(C, A))
+        self.assertTrue(g.g[C].alive)
+        g.execute(F)
+        self.assertEqual(g.g.winner, 'evil')
+
+    def test_madness_is_broken_by_claiming_what_a_player_must_not_be_mad_about(self):
+        from clocktower import judge
+        from clocktower.state import madness_broken
+        g = self.setup(['Test Plain', 'Test Jester', 'Test Plain', 'Test Henchman', 'Test Ghoul'])
+        g.emit('say', {'speaker': B, 'text': 'I am a Townsfolk, trust me.'})
+        ev = judge.madness_evidence(g, B, 'Outsider', 1)
+        self.assertFalse(madness_broken(ev, must=False))
+        g.emit('say', {'speaker': B, 'text': "Fine: I'm the Test Jester."})
+        ev = judge.madness_evidence(g, B, 'Outsider', 1)
+        self.assertTrue(madness_broken(ev, must=False))
+        self.assertFalse(judge.madness_evidence(g, B, 'Outsider', 2)['claimed'])  # only from day 2 on
+
+    def test_team_sizes_can_floor_a_removal_of_outsiders(self):
+        from clocktower.state import team_sizes
+        self.assertEqual(team_sizes(7, -1), (6, -1, 1))  # the old arithmetic, as Bad Moon Rising's dealing uses it
+        self.assertEqual(team_sizes(7, -1, floor=True), (5, 0, 1))
+        self.assertEqual(team_sizes(8, -1, floor=True), (6, 0, 1))
 
 
 if __name__ == '__main__':

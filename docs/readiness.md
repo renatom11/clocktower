@@ -22,16 +22,16 @@ dealt team's model after a team change.
 **New moves and mechanics**
 - **Visiting the Storyteller** (the Savant, the Artist): a private move, seen by the town as a visit, fakeable by
   anyone. Not built: no Bad Moon Rising character needed it.
-- **Madness** (the Cerenovus, the Mutant): a madness state, a judge that rules whether a player broke it (a rubric
-  from the madness guide; the evidence policy: whether the judge may use whispers, since hearing all makes a private
-  confession fatal), and an execution that ends the day early (a conflict with the fixed-length day, protocol v5).
-- **Character changes mid-game in bulk** (the Pit-Hag, the Barber, the Snake Charmer's swap, the Fang Gu's jump):
-  `change_character` exists; each needs the notices ("you are now ..."), new-instance rules (a new Demon), and the
-  night order after a change made earlier in the same night.
-- **The Vortox:** all Townsfolk information false; a hard "false values only" rule for misinformation, overriding
-  the scripted Storyteller's occasional true answer.
-- **Seat-based poison** (the No Dashii) and dead Minions keeping their abilities (the Vigormortis).
-- **New win conditions** (the Evil Twin, the Klutz, the Mutant): `overrides_end` and a public choice on death exist.
+- **Built in batch 1** (docs/snv-rulings.md): madness (a 'mad' state, `Game.judge_madness`: a judged "did they
+  break it?" with a scripted floor and an evidence policy, then a judged "might be executed"; a madness execution
+  before nominations is the day's), character changes in bulk with their notices (`Game.change`, `Game.swap`),
+  information that must be false (`Character.falsifies`: the Vortox), states worked out on demand (the No Dashii's
+  seat-based poison), dead players keeping their ability (the Vigormortis), and abilities triggered by any
+  nomination or execution (the Witch, the Evil Twin). The Demons and Minions use them.
+- **Madness still needs:** the S&V player prompt (what madness is, what the Storyteller hears), reports to the
+  Storyteller ("snitching"), and the Mutant's checkpoints.
+- **New win conditions** still to build: the Klutz and the Mutant (`overrides_end` and a public choice on death
+  exist).
 - **Day guesses** (the Juggler: up to five player-and-character guesses): the shared `ability` move needs a list form.
 - **Storyteller content:** Savant statements (templates checked by code against the Grimoire; the TheGrim Discord's
   Savant Generator is one reference) and the Artist's answers (a model turns the question into a checkable statement,

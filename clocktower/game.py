@@ -29,7 +29,8 @@ class Halted(RuntimeError):
 from . import probe
 from .prompts import dawn_narration
 from .render import render
-from .state import POLICY, Grimoire, bluffs_choice, info_text, norm, random_setup, setup_error
+from .state import (POLICY, Grimoire, bluffs_choice, info_text, madness_choice, madness_penalty_choice, norm,
+                    only_false, random_setup, setup_error)
 ALL_NAMES = ['Alex', 'Blair', 'Casey', 'Drew', 'Ellis', 'Frankie', 'Gray', 'Harper', 'Indigo', 'Jules', 'Kit',
              'Logan', 'Morgan', 'Noel', 'Oakley']
 NAMES = ALL_NAMES[:9]  # the default nine-player table
@@ -52,9 +53,9 @@ class Night:
         self.asleep = set()  # players who don't wake tonight to use their own ability (the Exorcist's Demon)
 
     def choice_of(self, g, character):
-        """(The living player who really is `character`, their first choice tonight or None: not woken, or they
-        chose no one)."""
-        p = g.with_character(character)
+        """(The living player who really is `character` (or a dead one keeping their ability: Grimoire.holder), their
+        first choice tonight or None: not woken, or they chose no one)."""
+        p = g.holder(character)
         return (p, (self.chosen[p.name] or [None])[0]) if p and p.name in self.chosen else (p, None)
 
     @staticmethod
@@ -230,6 +231,7 @@ class Game:
         """A decision that needs judgment (misinformation, misregistration, a statement's truth): the judge ranks
         the legal values and the code picks from the ranking with fixed weights (POLICY 'judge_top' for the first,
         'judge_second' for the second, otherwise the scripted style). With no judge, the same as decide()."""
+        choice = self.false_only(choice)
         if self.judge is None or choice.auto:  # exactly decide(): the same value and random draws
             return self.decide(choice)
         ranking, reason = await self.judge.rank(self, choice)
@@ -247,6 +249,59 @@ class Game:
                                 'judge': {'mode': self.judge.mode, 'ranked': [fmt(v) for v in ranking[:3]],
                                           'took': took, 'reason': reason}}, 'audit')
         return value
+
+    def false_only(self, choice):
+        """An information Choice whose recipient's information must be false (Grimoire.falsified: the Vortox) offers
+        only its false values (state.only_false), so no scripted draw or judge can give a true one. Any other Choice
+        is unchanged."""
+        ctx = choice.context or {}
+        p = self.g.by_name.get(ctx.get('recipient')) if self.g and ctx.get('call') == 'information' else None
+        if p is None or choice.truth is None or not self.g.falsified(p, ctx.get('ability')):
+            return choice
+        return only_false(choice)
+
+    # ---- character and alignment changes -------------------------------------------------------------
+    async def change(self, p, character=None, alignment=None):
+        """p becomes `character` and/or turns `alignment` (the Pit-Hag's change, the Fang Gu's jump): see changes()."""
+        await self.changes([(p, character, alignment)])
+
+    async def swap(self, a, b, alignments=False):
+        """a and b swap characters, and alignments too if `alignments` (the Snake Charmer's swap with the Demon; the
+        Barber's swaps keep alignments): see changes()."""
+        await self.changes([(a, b.character, b.alignment if alignments else None),
+                            (b, a.character, a.alignment if alignments else None)])
+
+    async def changes(self, changes):
+        """Each (player, character or None, alignment or None) happens at once; then each player who changed is told
+        in private, at once, what they are now ("You are now the X"; their alignment, changed or "still"). Being
+        told is not information: drunkenness, poison and the Vortox never touch it. Taking a new character ends the
+        old one's ongoing effects (Grimoire.change_character: a Demon that is no longer the Demon stops poisoning)
+        and gives its ability fresh, even a once-per-game one used before (the Barber's almanac); a new Demon learns
+        no Minions. Then the new character's `becomes` (a new Evil Twin's twin) and everyone's `changed` hooks run."""
+        g, done = self.g, []
+        for p, character, alignment in changes:
+            old = (p.character, p.alignment)
+            if character and character != p.character:
+                g.change_character(p, character)
+                g.spent.discard(character)
+                self.emit('becomes', {'player': p.name, 'character': character}, 'audit')
+            if alignment and alignment != p.alignment:
+                p.alignment = alignment
+                self.emit('alignment', {'player': p.name, 'alignment': alignment}, 'audit')
+            if (p.character, p.alignment) != old:
+                done.append((p, old))
+        when = f'Night {self.day}' if self.tonight is not None else f'Day {self.day}'
+        for p, (character, alignment) in done:
+            told = [f'you are now the {p.character} ({rules(p.character).ability})'] if p.character != character else []
+            told.append(f'you are now {p.alignment}' if p.alignment != alignment else f'you are still {p.alignment}')
+            self.inform(p, f'{when}: {" and ".join(told)}.')
+        for p, (character, _) in done:
+            if p.character != character:
+                await settle(rules(p.character).becomes(self, p))
+        for p, _ in done:
+            for q in g.players:
+                for c in g.abilities(q):
+                    await settle(rules(c).changed(self, q, p))
 
     # ---- setup -------------------------------------------------------------------------------
     async def setup(self):
@@ -402,6 +457,8 @@ class Game:
         kills even a player who only seems dead (the Assassin's: "even if for some reason they could not")."""
         if not target.alive or (target.seems_dead and cause != 'execution' and not unstoppable):
             return None
+        if cause == 'demon' and night is not None and self.demon_kills_stopped(night):
+            return None
         if self.prevent_death(target, cause, unstoppable):
             return None
         victim = target
@@ -411,6 +468,11 @@ class Game:
         if night is not None:
             night.deaths.append(victim)
         return victim
+
+    def demon_kills_stopped(self, night):
+        """Whether the Storyteller has ruled that the Demons' attacks kill nobody tonight (the Pit-Hag's arbitrary
+        deaths: "you can even wake the Demon, see who they choose to attack, and decide that no one dies")."""
+        return self.g.notes.get('Demon kills stopped') == night.n
 
     def attempt_kill(self, target, cause, source=None, night=None, unstoppable=False):
         """attempt_kill_judged, synchronously: for every kill but the Demon's (whose redirection the judge may
@@ -457,7 +519,9 @@ class Game:
         roles = {c for c in characters if rules(c).night_choice}
         tonight = g.script.first_night if night.first else g.script.other_nights
         requests, specs = {}, {}
-        for p in g.living():
+        for p in g.players:
+            if not (p.alive or g.keeps_ability(p)):  # the dead don't wake, unless they keep their ability (Vigormortis)
+                continue
             if rules(p.character).wakes_at_own_step:  # at their own step, as who they believe they are, if that
                 if p.character not in characters or not rules(p.shown).night_choice or p.shown not in tonight:
                     continue  # character has a step tonight (a Lunatic who believes they are the Zombuul)
@@ -486,7 +550,8 @@ class Game:
             requests[p.name] = Request('night', f'Night {night.n} — {p.shown}: {spec.prompt} {how}', night.n,
                                        n_targets=spec.players, options=options,
                                        min_targets=0 if spec.optional else spec.players,
-                                       characters=list(g.script.all) if spec.character else [])
+                                       characters=[c for c in g.script.all if not spec.kinds or kind(c) in spec.kinds]
+                                       if spec.character else [])
         acts = await self.ask_many(requests)
         for name, req in requests.items():
             if g.script.id != 'tb':  # a required choice is asked again, never made for the player (TB: v17's fill)
@@ -706,6 +771,10 @@ class Game:
         Pacifist's save; the town is not told why), and executing a dead player kills nobody. Either way it is
         today's execution."""
         g, p = self.g, self.g[name]
+        won = None  # another player's ability ends the game on this execution (the Evil Twin's good twin)
+        for q in g.players:
+            for c in g.abilities(q):
+                won = won or rules(c).execution(self, q, p)
         died = p.alive  # a player who only seems dead (the Zombuul) dies for real when executed again
         survived = died and self.prevent_death(p, 'execution')
         died = died and not survived
@@ -719,6 +788,8 @@ class Game:
             g.executed_death = name
             if ends:
                 g.winner, g.reason = ends
+        if won and not g.winner:
+            g.winner, g.reason = won
         g.check_victory()
 
     async def virgin_judged(self, nominator, nominee):
@@ -728,6 +799,16 @@ class Game:
 
     def virgin(self, nominator, nominee):
         return now(self.virgin_judged(nominator, nominee))
+
+    async def nomination_judged(self, nominator, nominee):
+        """Every ability reacts to the nomination (the Witch's curse kills the nominator; the nomination stands).
+        True if that ended the game."""
+        g = self.g
+        deaths = len(g.death_log)
+        for p in g.players:
+            for c in g.abilities(p):
+                await settle(rules(c).nomination(self, p, nominator, nominee))
+        return len(g.death_log) > deaths and bool(g.check_victory())
 
     def vote_order(self, nominee):
         i = self.names.index(nominee)
@@ -838,6 +919,8 @@ class Game:
             g.nominations.append({'day': n, 'nominator': nominator, 'nominee': nominee})
             if await self.virgin_judged(nominator, nominee):
                 return
+            if await self.nomination_judged(nominator, nominee):
+                return
             d = await self.ask(nominee, Request('defense', f'Day {n}: {"you have nominated yourself" if nominator == nominee else nominator + " has nominated you"}. '
                                                            'Give your defense in `say`.', n))
             self.emit('defense', {'nominee': nominee, 'text': clip(d.get('say'), WORDS['defense'])})
@@ -870,7 +953,10 @@ class Game:
                     return
         self.probe('nominations')
         await self.moment_judged('nominations')
-        await self.nominations()
+        if g.winner:
+            return
+        if not self.executed_today:  # a Storyteller's execution before nominations (madness) ends the day's
+            await self.nominations()
         if g.winner:
             return
         for p in g.players:  # end-of-day abilities (the Mayor's win)
@@ -880,6 +966,28 @@ class Game:
                 return
         await self.moment_judged('dusk')
         await self.run_pending()
+
+    async def judge_madness(self, p, about, must=True, since=None):
+        """The Storyteller judges whether `p` broke their madness about `about` (a character, or a type such as
+        'Outsider'; must=False: they must NOT be mad about it, as the Mutant) in what was said since day `since`
+        (default today), and if so whether to execute them ("might be executed"). Both are judged decisions
+        (state.madness_choice, madness_penalty_choice); the scripted Storyteller reads only what was said aloud
+        (judge.madness_evidence), a judge hears what its `--judge-hears` allows. Only one execution a day: none if
+        there was one today. A madness execution is announced, and is today's execution (before nominations, the
+        day's nominations don't open). Returns whether they were executed."""
+        from .judge import madness_evidence
+        g = self.g
+        if self.executed_today or g.winner:
+            return False
+        evidence = madness_evidence(self, p.name, about, self.day if since is None else since, 'public')
+        if not (await self.decide_judged(madness_choice(g, p, about, must, evidence)))['yes']:
+            return False
+        if not (await self.decide_judged(madness_penalty_choice(g, p, about)))['yes']:
+            return False
+        self.emit('text', {'text': f'The Storyteller declares that {p.name} is executed.'})
+        await self.execution(p.name)
+        await self.run_pending()
+        return True
 
     # ---- the whole game ------------------------------------------------------------------------
     # ---- checkpoints -----------------------------------------------------------------------

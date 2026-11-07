@@ -50,9 +50,11 @@ class Player:
 
 @dataclass
 class State:
-    """Something an ability put on a player: 'poisoned', 'drunk', 'safe' (from the Demon) or 'master' (a Butler's).
-    It ends at `until` (a dusk: 'night'), and, if `ends_with_source`, as soon as its source dies or stops being
-    the character that made it (a dead Poisoner's poison ends)."""
+    """Something an ability put on a player: 'poisoned', 'drunk', 'safe' (from the Demon), 'master' (a Butler's),
+    'cursed' (the Witch's), 'mad' (the Cerenovus's: `about` is the character they must be mad about being) or 'has
+    ability' (a dead player keeps their ability: the Vigormortis's Minions; `about` is the character or type they
+    keep it as). It ends at `until` (a dusk: 'night'), and, if `ends_with_source`, as soon as its source dies or stops
+    being the character that made it (a dead Poisoner's poison ends)."""
     kind: str
     target: str
     source: str | None = None
@@ -61,13 +63,17 @@ class State:
     ends_with_source: bool = False
     against: str = 'demon'      # for 'safe': the deaths it stops ('demon', 'execution' or 'any')
     while_source_works: bool = False  # in force only while its source is alive, sober and healthy (the Courtier)
+    about: str | None = None    # what a 'mad' or 'has ability' state is about (a character, or a character type)
 
 
-def team_sizes(n, outsiders=0):
+def team_sizes(n, outsiders=0, floor=False):
     """(Townsfolk, Outsiders, Minions) for n players, from the official table, with `outsiders` Townsfolk turned
-    into Outsiders by setup modifiers (True means the Baron's 2)."""
+    into Outsiders by setup modifiers (True means the Baron's 2). With `floor`, removing Outsiders where there are too
+    few removes only those there are, and adds no Townsfolk for the rest (the Vigormortis's rule)."""
     tf, os_, mn = SETUPS[n]
     d = 2 if outsiders is True else int(outsiders)
+    if floor and os_ + d < 0:
+        d = -os_
     return tf - d, os_ + d, mn
 
 
@@ -95,7 +101,7 @@ def setup_error(characters, script=TB):
     if bad: return f'not on the script: {bad}'
     counts = {k: sum(1 for c in characters if kind(c) == k) for k in ('Townsfolk', 'Outsider', 'Minion', 'Demon')}
     if counts['Demon'] != 1: return 'need exactly one ' + (script.demons[0] if len(script.demons) == 1 else 'Demon')
-    sizes = [team_sizes(n, d) for d in sorted(setup_changes(characters))]
+    sizes = [team_sizes(n, d, floor=True) for d in sorted(setup_changes(characters))]
     tf, os_, mn = sizes[0]
     if counts['Minion'] != mn: return f'need exactly {mn} Minion(s)'
     if (counts['Townsfolk'], counts['Outsider']) not in {(t, o) for t, o, _ in sizes}:
@@ -122,8 +128,9 @@ def random_setup(rng, minion=None, players=9, script=TB):
                 change += big if rng.random() < POLICY[key] else rng.choice([d for d in options if d != big])
             else:
                 change += rng.choice(options)
-    tf, os_, _ = team_sizes(players, change)
     demon = script.demons if len(script.demons) == 1 else [rng.choice(script.demons)]
+    change += setup_change(demon)  # a Demon's modifier (the Fang Gu's +1, the Vigormortis's -1)
+    tf, os_, _ = team_sizes(players, change, floor=True)
     return rng.sample(script.townsfolk, tf) + rng.sample(script.outsiders, os_) + minions + demon
 
 
@@ -195,6 +202,17 @@ POLICY = {
     'lunatic_same_demon': 0.8,      # the Lunatic believes they are the Demon in play (else another on the script)
     'lunatic_shows_demon': 0.5,     # the real Demon is among the Lunatic's "Minions" (else other players)
     'lunatic_bluff_in_play': 0.25,  # each of the Lunatic's three bluffs is a good character in play (else not)
+    # Sects & Violets
+    # whether a player who broke madness is executed. The almanac (Cerenovus): mad evil players "might be executed this
+    # way, but 'might' means you can choose not to, to prevent evil from winning by this strategy"; the rulebook: a
+    # player made mad "can end the game by being executed, because that's a player's choice". Default, for review.
+    'mad_execute_good': 0.9,        # a good player who broke madness is executed
+    'mad_execute_evil': 0.5,        # an evil one
+    # deaths tonight when the Pit-Hag makes a Demon (almanac How to Run). Default, for review.
+    'pithag_quiet': 0.8,            # a Demon made into another Demon: nobody dies tonight ("best ... no death")
+    'pithag_kill_old_demon': 0.8,   # a new evil Demon: the old Demon dies tonight ("best to kill the old Demon")
+    'pithag_final_kill': 0.8,       # a good Demon on the final night: the evil Demon dies ("kill either Demon")
+    'final_night_alive': 4,         # a night is the final one when this many players or fewer are alive at dusk
     # the Storyteller judge (judge.py, when one is chosen; never in TB's protocol v17): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
@@ -250,6 +268,7 @@ def judged(choice, call, question, about=None, recipient=None, impaired=False, t
 
 
 _PAUSING = set()  # states whose pause is being worked out (Grimoire.active), so a state can't loop on itself
+_DERIVING = set()  # (player, ability) whose derived states are being worked out (Grimoire.derived), likewise
 
 
 class Grimoire:
@@ -325,16 +344,60 @@ class Grimoire:
         _PAUSING.add(id(s))
         try:
             src = self[s.source]
-            return src.alive and not self.impaired(src)
+            return (src.alive or self.keeps_ability(src)) and not self.impaired(src)
         finally:
             _PAUSING.discard(id(s))
 
     def holders(self, kind_):
-        """Names of the players with a state of this kind, in the order the states were made."""
-        return [s.target for s in self.states if s.kind == kind_ and self.active(s)]
+        """Names of the players with a state of this kind, in the order the states were made (then those an ability
+        works out from the Grimoire: Grimoire.derived)."""
+        return ([s.target for s in self.states if s.kind == kind_ and self.active(s)]
+                + [s.target for s in self.derived() if s.kind == kind_])
 
     def has(self, p, kind_):
-        return any(s.kind == kind_ and s.target == p.name and self.active(s) for s in self.states)
+        return (any(s.kind == kind_ and s.target == p.name and self.active(s) for s in self.states)
+                or any(s.kind == kind_ and s.target == p.name for s in self.derived()))
+
+    def derived(self):
+        """The states abilities put in force now by working them out from the Grimoire (Character.ongoing: the No
+        Dashii's poisoned neighbours), so they follow every change of seat, character or sobriety at once. An ability
+        asked about while its own states are being worked out adds nothing (a No Dashii is not poisoned by its own
+        poison), as Grimoire.active does for a state that would pause itself."""
+        names = getattr(self.script, 'derivers', ())
+        if not names:
+            return []
+        out = []
+        for q in self.players:
+            for c in self.abilities(q):
+                if c in names and (q.name, c) not in _DERIVING:
+                    _DERIVING.add((q.name, c))
+                    try:
+                        out += rules(c).ongoing(self, q)
+                    finally:
+                        _DERIVING.discard((q.name, c))
+        return out
+
+    def keeps_ability(self, p):
+        """Whether p, dead, still has their ability: an ability keeps it for them (a 'has ability' state: the
+        Vigormortis's Minions) while they are still what it was kept for (a Minion: one who becomes a Townsfolk has no
+        ability)."""
+        return any(s.kind == 'has ability' and s.target == p.name and s.about in (p.character, kind(p.character))
+                   and self.active(s) for s in self.states)
+
+    def holder(self, character):
+        """The player who has `character`'s own ability now: alive, or dead and keeping it (Grimoire.keeps_ability)."""
+        return next((p for p in self.players if p.character == character and (p.alive or self.keeps_ability(p))),
+                    None)
+
+    def nearest(self, p, step, test=lambda q: True):
+        """The nearest player to p (not p) going one way round the circle (step 1: clockwise, -1: anticlockwise) who
+        passes `test`, alive or dead (the No Dashii's Townsfolk neighbours), or None."""
+        n = len(self.players)
+        for k in range(1, n):
+            q = self.players[(p.seat + step * k) % n]
+            if test(q):
+                return q
+        return None
 
     def _single(self, kind_, value, source=None, ends_with_source=False):
         self.states = [s for s in self.states if s.kind != kind_]
@@ -387,8 +450,24 @@ class Grimoire:
         return [p.character, *getattr(p, 'extra', [])]
 
     def works(self, p, character):
-        """p is alive, has `character`'s ability, and is neither drunk nor poisoned."""
-        return p.alive and character in self.abilities(p) and not self.impaired(p)
+        """p is alive (or dead and keeping their ability: the Vigormortis's Minions), has `character`'s ability, and
+        is neither drunk nor poisoned."""
+        return (p.alive or self.keeps_ability(p)) and character in self.abilities(p) and not self.impaired(p)
+
+    def falsified(self, p, ability=None):
+        """Whether the information p gets from `ability` (default: the character they believe they are) must be false,
+        whatever their sobriety: another player's ability falsifies it (Character.falsifies: the Vortox's)."""
+        names = getattr(self.script, 'falsifiers', ())
+        if not names:
+            return False
+        ability = ability or p.shown
+        return any(rules(c).falsifies(self, q, p, ability) for q in self.players for c in self.abilities(q)
+                   if c in names)
+
+    def unreliable(self, p, ability=None):
+        """Whether p's information may be false: they are drunk or poisoned, or it is falsified (the Vortox). An
+        information Choice offers every value then, as for an impaired player."""
+        return self.impaired(p) or self.falsified(p, ability)
 
     def safe_from_demon(self, p):
         """The Demon's attack can't kill p: their own ability (the Soldier) or protection (the Monk's)."""
@@ -428,7 +507,12 @@ class Grimoire:
         self._source_lost(p)
 
     def _source_lost(self, p):
+        kept = [s.target for s in self.states if s.kind == 'has ability' and s.source == p.name and s.ends_with_source]
         self.states = [s for s in self.states if not (s.ends_with_source and s.source == p.name)]
+        for name in kept:  # dead players who kept their ability through p's lose it, and its effects end
+            q = self[name]
+            if not q.alive and not self.keeps_ability(q):
+                self._source_lost(q)
 
     def neighbours(self, p):
         """Nearest living players clockwise and anticlockwise (excluding p). A Zombuul who seems dead is not an
@@ -504,10 +588,12 @@ class Grimoire:
     def misinformed(self, p, r):
         """Whether the scripted Storyteller gives this impaired player false information now. The
         Drunk's is decided once per game, so their story stays consistent either way."""
-        if p.character == 'Drunk':
+        if p.character == 'Drunk' and not self.falsified(p):
             if p.name not in self.truthful:
                 self.truthful[p.name] = r.random() < POLICY['drunk_truthful']
             return not self.truthful[p.name]
+        if self.falsified(p):  # always false, without a draw (the Vortox)
+            return True
         # drunk or poisoned (in Trouble Brewing only the Poisoner impairs a player who isn't the Drunk)
         return self.impaired(p) and r.random() < POLICY['poisoned_false']
 
@@ -546,7 +632,8 @@ class Grimoire:
     # ---- deaths and victory ----------------------------------------------------------
     def die(self, p):
         p.alive = False
-        self._source_lost(p)  # a dead Poisoner's poison ends
+        if not self.keeps_ability(p):  # a dead Poisoner's poison ends (not a Minion the Vigormortis killed)
+            self._source_lost(p)
 
     def check_victory(self):
         if self.winner: return self.winner
@@ -581,6 +668,11 @@ class Grimoire:
                      for s in self.states
                      if s.kind == 'safe' and s.target == p.name and s.against != 'demon' and self.active(s)]
             if p.seems_dead: tags.append('ALIVE, but registers as dead')
+            for s in self.states:  # Sects & Violets' states (none in Trouble Brewing or Bad Moon Rising)
+                if s.target == p.name and self.active(s) and s.kind in ('cursed', 'mad', 'has ability'):
+                    tags.append({'cursed': 'CURSED (dies if they nominate today)',
+                                 'mad': f'MAD about being the {s.about}',
+                                 'has ability': 'keeps their ability while dead'}[s.kind])
             if p.name == self.red_herring: tags.append("Fortune Teller's red herring")
             if self.has(p, 'master'): tags.append("Butler's master")
             team = 'evil' if p.evil else 'good'
@@ -664,7 +756,7 @@ def pair_choice(g, p, ability):
     s = g.script
     group = {'Washerwoman': s.townsfolk, 'Librarian': s.outsiders, 'Investigator': s.minions}[ability]
     others = [q.name for q in g.players if q is not p]
-    impaired = g.impaired(p)
+    impaired = g.unreliable(p, ability)
     values = [{'players': [a, b], 'character': c} for a, b in combinations(others, 2) for c in group
               if impaired or any(c in g.registers_as(g[x]) for x in (a, b))]
     if ability == 'Librarian' and (impaired or not any(g.registers_as(q) <= set(s.outsiders) for q in g.players)):
@@ -733,38 +825,40 @@ def chef_choice(g, p):
     possible = set()
     for combo in product(*[sorted(g.registers_evil(q)) for q in ring]):
         possible.add(sum(1 for i in range(len(ring)) if combo[i] and combo[(i + 1) % len(ring)]))
-    values = range(0, 5) if g.impaired(p) else sorted(possible)
+    impaired = g.unreliable(p, 'Chef')
+    values = range(0, 5) if impaired else sorted(possible)
 
     def style(r):
-        if g.impaired(p) and g.misinformed(p, r):
+        if impaired and g.misinformed(p, r):
             return {'number': g.false_result(p, r, lambda r: _pairs(ring, g.false_evil(p, r)), possible)}
         return {'number': _pairs(ring, g.sample_evil(r))}
     return judged(Choice(f'Chef:{p.name}', [{'number': x} for x in values], style), 'information',
                   f'How many pairs of evil players sitting next to each other does {p.name} (Chef) learn?',
-                  recipient=p.name, impaired=g.impaired(p), truth=lambda v: v['number'] in possible)
+                  recipient=p.name, impaired=impaired, truth=lambda v: v['number'] in possible)
 
 
 def empath_choice(g, p):
     nb = g.neighbours(p)
     possible = {sum(c) for c in product(*[sorted(g.registers_evil(q)) for q in nb])}
-    values = [0, 1, 2] if g.impaired(p) else sorted(possible)
+    impaired = g.unreliable(p, 'Empath')
+    values = [0, 1, 2] if impaired else sorted(possible)
 
     def style(r):
-        if g.impaired(p) and g.misinformed(p, r):
+        if impaired and g.misinformed(p, r):
             count = lambda r: sum(1 for q in nb if q.name in g.false_evil(p, r))
             return {'number': g.false_result(p, r, count, possible)}
         evil = g.sample_evil(r)
         return {'number': sum(1 for q in nb if q.name in evil)}
     return judged(Choice(f'Empath:{p.name}', [{'number': x} for x in values], style), 'information',
                   f'How many of their alive neighbours ({" and ".join(q.name for q in nb)}) does {p.name} (Empath) '
-                  'learn are evil?', recipient=p.name, impaired=g.impaired(p),
+                  'learn are evil?', recipient=p.name, impaired=impaired,
                   truth=lambda v: v['number'] in possible)
 
 
 def fortune_teller_choice(g, p, targets):
     ts = [g[t] for t in targets]
     possible = {any(c) for c in product(*[sorted(g.registers_demon_to_ft(q)) for q in ts])}
-    impaired = g.impaired(p)
+    impaired = g.unreliable(p, 'Fortune Teller')
     values = [True, False] if impaired else sorted(possible)
 
     def style(r):
@@ -787,7 +881,7 @@ def fortune_teller_choice(g, p, targets):
 def character_choice(g, p, ability, target):
     """Undertaker (executed player) and Ravenkeeper (chosen player)."""
     t = g[target]
-    impaired = g.impaired(p)
+    impaired = g.unreliable(p, ability)
     values = g.script.all if impaired else sorted(g.registers_as(t))
 
     def as_good(r):  # an evil player shown as a good character (usually a Demon bluff), never the recipient's
@@ -874,6 +968,66 @@ def mayor_choice(g, mayor, imp):
                   'player instead?', about=mayor.name, recipient=mayor.name)
 
 
+def only_false(choice):
+    """`choice` limited to the values a working ability could not give (`choice.truth`), for information that must be
+    false (the Vortox: "even if they are drunk or poisoned, it must be false"); the scripted style keeps its own picks
+    when they are false. Unchanged if every value is false already, or none is (a result with no false value: the
+    Storyteller has nothing false to give, so a true one stands)."""
+    false = [v for v in choice.values if not choice.truth(v)]
+    if not false or len(false) == len(choice.values):
+        return choice
+    keys = {_key(v) for v in false}
+
+    def style(r):
+        for _ in range(30):
+            v = norm(choice.style(r))
+            if _key(v) in keys:
+                return v
+        return r.choice(false)
+    out = Choice(choice.id, false, style)
+    out.truth, out.context = choice.truth, {**(choice.context or {}), 'false_only': True}
+    return out
+
+
+def madness_broken(evidence, must=True):
+    """Whether the evidence (judge.madness_evidence) shows a player broke their madness: told to be mad about being
+    `about` (must=True, the Cerenovus), they did not claim it aloud, or their latest claim heard was another
+    character, or they denied it or said they were mad; told not to be (must=False, the Mutant), they claimed it or
+    said they were mad. A floor for what no judgment is needed for (the rulebook: "If a player flat out says, 'I am
+    mad,' ... that counts"; simply staying quiet is not an effort to convince the group)."""
+    if evidence['confessed']:
+        return True
+    if not must:
+        return bool(evidence['claimed'])
+    return evidence['denied'] or not evidence['aloud'] or not evidence['latest_matches']
+
+
+def madness_choice(g, p, about, must, evidence):
+    """Whether `p` broke their madness about `about` (yes: they did). The scripted Storyteller goes by what was said
+    aloud (madness_broken on `evidence`, the public record); a judge weighs effort, hints and, if it hears them,
+    whispers."""
+    broke = madness_broken(evidence, must)
+    choice = Choice(f'Madness:{p.name}', [{'yes': True}, {'yes': False}], lambda r: {'yes': broke})
+    what = (f'mad about being the {about}: trying, sincerely, to convince the group they are the {about}' if must
+            else f'not mad about being {about}: not trying to convince anyone they are {about}')
+    return judged(choice, 'madness', f'{p.name} must be {what}. Today, did they break their madness (yes: they did, '
+                                     'and might be executed for it)? Judge their effort and intent, as with humour: a '
+                                     'claim with no effort behind it, a hint or wink, a private confession you heard, '
+                                     'or silence when asked all count against them.',
+                  about=p.name, recipient=p.name, mad_about=about, must=must, since=evidence['since'])
+
+
+def madness_penalty_choice(g, p, about):
+    """Whether the Storyteller executes `p`, who broke their madness ("might be executed"): usually for a good player
+    (it is their choice), less often for an evil one, so evil can't use it to end the day."""
+    chance = POLICY['mad_execute_evil' if p.evil else 'mad_execute_good']
+    return judged(yes_choice(f'Madness execution:{p.name}', chance), 'madness_penalty',
+                  f'{p.name} broke their madness about being the {about}. Do you execute them now (yes), which is '
+                  "today's execution, or let it pass? Usually yes for a good player (their choice); for an evil one, "
+                  'not if it would help evil (ending the day before a dangerous nomination).', about=p.name,
+                  recipient=p.name, helps='good' if p.evil else 'evil')
+
+
 def info_text(ability, value, target=None):
     """What the recipient is told."""
     v = norm(value)
@@ -898,5 +1052,6 @@ def info_text(ability, value, target=None):
 # The Bad Moon Rising characters (bmr.py) register themselves in characters.CHARACTERS. They need this module and
 # characters.py complete, so they load last, here: whichever of the two is imported first, both are done by now.
 from . import bmr  # noqa: E402
+from . import snv  # noqa: E402  (after bmr: Sects & Violets, clocktower/snv.py)
 
-BMR = bmr  # (a use, so pyflakes sees the import is wanted)
+BMR, SNV = bmr, snv  # (a use, so pyflakes sees the imports are wanted)

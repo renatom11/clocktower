@@ -11,6 +11,8 @@ What the judge knows (`--judge-hears`, docs/open-decisions.md section 2b):
 - all (the default): the Grimoire, every night choice, everything said aloud, every whisper, every nomination and
   vote, the death log. Never a player's thinking or their answers to belief probes.
 - public: the same without the whispers (and only the latest night's choices), as a human Storyteller hears.
+Madness is judged on the same hearing (madness_evidence): with `all`, a whispered confession is overheard. The
+scripted Storyteller's own madness floor reads only what was said aloud (docs/snv-rulings.md, ruling 1).
 
 Modes (`--judge`):
 - scripted: no judge; the scripted Storyteller decides (the default; Trouble Brewing's protocol v17).
@@ -120,6 +122,60 @@ def claim_events(game, hears='public'):
 def claims(game, hears='public'):
     """{player: the character they most recently claimed}: aloud, or (hearing all) to anyone."""
     return {who: c for who, c, _ in claim_events(game, hears)}
+
+
+TYPES = ('townsfolk', 'outsider', 'minion', 'demon')
+
+
+def madness_evidence(game, player, about, since, hears='public'):
+    """What the Storyteller heard `player` say from day `since` on about being `about` (a character, or a character
+    type such as 'Outsider'), for judging madness: aloud (speech, nominations, defenses, and public ability claims,
+    which claim that character), and whispers too when hearing all (the almanac: the Storyteller "overhears" a
+    private hint). Never anyone's thinking or belief probes. Returns {'since', 'aloud': claimed `about` aloud,
+    'claimed': claimed it anywhere heard, 'latest_matches': the latest character or type they were heard claiming is
+    `about` (None: no claim), 'denied': said they are not `about`, 'confessed': said they are mad, 'quotes'}."""
+    g = game.g
+    names = sorted(g.script.all, key=len, reverse=True)
+    alt = '|'.join(re.escape(n) for n in names) + '|' + '|'.join(TYPES)
+    claim = re.compile(rf"\bI(?:'m| am)(?: the| a| an)? ({alt})\b", re.I)
+    deny = re.compile(rf"\bI(?:'m| am) not(?: the| a| an)? ({alt})\b", re.I)
+    mad = re.compile(r"\bI(?:'m| am| was)(?: actually| really| secretly| made)? mad\b(?! at)"
+                     r"|\bCerenovus (?:chose|picked|made|selected|targeted|got) me\b", re.I)
+    canon = {n.lower(): n for n in names} | {t: t.capitalize() for t in TYPES}
+
+    def fits(c):
+        return c == about or (c in g.script.all and kind(c) == about)
+    out = {'since': since, 'aloud': False, 'claimed': False, 'latest_matches': None, 'denied': False,
+           'confessed': False, 'quotes': []}
+    for ev in game.events:
+        d = ev['data']
+        if ev['day'] < since or not _heard(ev, hears):
+            continue
+        if ev['kind'] == 'whisper':
+            who = d.get('from')
+        elif ev['kind'] == 'defense':
+            who = d.get('nominee')
+        else:
+            who = d.get('speaker') or d.get('nominator') or d.get('player')
+        if who != player:
+            continue
+        aloud = ev['kind'] != 'whisper'
+        text = d.get('text') or ''
+        said = [canon[m.group(1).lower()] for m in claim.finditer(text)]
+        if ev['kind'] == 'ability':
+            said.append(d['character'])  # claiming a character's ability claims the character
+        for c in said:
+            out['latest_matches'] = fits(c)
+            if fits(c):
+                out['claimed'] = True
+                out['aloud'] = out['aloud'] or aloud
+        if any(fits(canon[m.group(1).lower()]) for m in deny.finditer(text)):
+            out['denied'] = True
+        if mad.search(text):
+            out['confessed'] = True
+        if said or out['denied'] or mad.search(text):
+            out['quotes'].append(f"day {ev['day']}{'' if aloud else ', whispered'}: {text[:120]}")
+    return out
 
 
 def standing(game):
@@ -273,6 +329,12 @@ class RulesJudge(Judge):
     - gossip_victim: good well ahead, a good player who will die; evil well ahead, an evil one (never the Demon);
       close, or three alive, no opinion.
     - regurgitation: evil well ahead, a good player comes back; otherwise no opinion.
+    - madness: whether the player broke their madness, from what this judge heard (madness_evidence, with
+      whispers when hearing all): told to be mad about a character, they broke it unless they claimed it aloud and
+      their latest claim heard was it, without denying it or saying they were mad; told not to be mad about something
+      (the Mutant), they broke it by claiming it. The quotes it relied on are the reason.
+    - madness_penalty: a good player who broke madness is executed (the rulebook: the player's choice); an evil one
+      by the balance (the almanac: "might" lets the Storyteller stop evil using it).
     - setup calls (the red herring, the Drunk's character, the Demon's and the Lunatic's bluffs, the Grandchild),
       the Sailor's and Innkeeper's drunk, and Gossip statements the code can't read: no opinion (the scripted
       style, which follows the almanacs; there is nothing yet to read, or nothing this judge can read)."""
@@ -356,6 +418,20 @@ class RulesJudge(Judge):
         if claim:
             return ([v for v in choice.values if v['yes'] is False],
                     f"{ctx['about']} claims the {claim}, not a Townsfolk: the Virgin's silence fits the claim")
+        return self.balance(game, choice, ctx)
+
+    def _madness(self, game, choice, ctx):
+        from .state import madness_broken
+        ev = madness_evidence(game, ctx['about'], ctx['mad_about'], ctx.get('since', game.day), self.hears)
+        broke = madness_broken(ev, ctx.get('must', True))
+        quotes = '; '.join(ev['quotes'][-3:]) or 'nothing said about it'
+        return ([v for v in choice.values if v['yes'] is broke],
+                f"{ctx['about']} {'broke' if broke else 'kept'} their madness about the {ctx['mad_about']} ({quotes})")
+
+    def _madness_penalty(self, game, choice, ctx):
+        if not game.g[ctx['about']].evil:
+            return ([v for v in choice.values if v['yes'] is True],
+                    'a good player who broke their madness chose the penalty: execute them')
         return self.balance(game, choice, ctx)
 
     def _mayor_bounce(self, game, choice, ctx):

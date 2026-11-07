@@ -18,7 +18,7 @@ class OfficialDataTests(unittest.TestCase):
     def test_every_character_is_official_with_its_official_type(self):
         for name, c in characters.CHARACTERS.items():
             self.assertEqual(official.kind(name), c.kind, name)
-            self.assertIn(official.role(name)['edition'], ('tb', 'bmr'), name)
+            self.assertIn(official.role(name)['edition'], ('tb', 'bmr', 'snv'), name)
 
     def test_the_night_order_is_the_official_one(self):
         steps = official.nightsheet()

@@ -38,6 +38,7 @@ class Choose:
     dead_only: bool = False   # only players who are dead (as the town sees it: the Professor)
     not_last: bool = False    # not the player chosen last night (the Exorcist)
     character: bool = False   # a character too (the Gambler) or instead (the Courtier)
+    kinds: tuple = ()         # the character types that may be named (the Cerenovus's good characters); () any
 
 
 async def settle(result):
@@ -91,6 +92,9 @@ class Character:
     #                            not at that character's (the Lunatic, as their Demon, before the real one wakes)
     picks_in_turn = False    # its night step reports each player it chose (Game.pick) as it acts on them, since a
     #                          pick can stop the later ones (the Shabaloth choosing the Goon first)
+    derives = False          # its ability puts states in force that are worked out from the Grimoire whenever they
+    #                          are asked about (`ongoing`: the No Dashii's poisoned neighbours, recomputed)
+    falsifies_info = False   # its ability can make other players' information false (`falsifies`: the Vortox)
 
     @property
     def evil(self):
@@ -132,8 +136,9 @@ class Character:
         return None
 
     # ---- hooks --------------------------------------------------------------------------------
-    # setup, redirect_attack, nominated, act_publicly and moment may be coroutines (async def) when they make a
-    # Storyteller's call through Game.decide_judged; the game loop awaits them (characters.settle).
+    # setup, redirect_attack, nominated, nomination, act_publicly, moment, becomes and changed may be coroutines
+    # (async def) when they make a Storyteller's call through Game.decide_judged; the game loop awaits them
+    # (characters.settle).
     def night_spec(self, game, me, night):
         """What `me`, who believes they are this character, is woken to choose tonight: `night_choice`, a choice of
         another shape (the Po's three after choosing no one) or None not to wake them (the Zombuul when someone died
@@ -192,6 +197,35 @@ class Character:
     def moment(self, game, me, when):
         """A point of the day when the Storyteller may act for this character: 'dawn', 'beat' (after each beat),
         'nominations' (before they open) or 'dusk' (after them). The Tinker may die at any of them."""
+
+    def ongoing(self, g, me):
+        """With `derives`: the States `me`'s ability puts in force now, worked out from the Grimoire each time they
+        are asked about, so they follow every change at once (the No Dashii's two nearest Townsfolk are poisoned;
+        when one becomes an Outsider, the next Townsfolk is). Placed states are in `g.states`; these are not."""
+        return []
+
+    def falsifies(self, g, me, recipient, ability):
+        """With `falsifies_info`: whether `me`'s ability makes the information `recipient` gets from `ability` false
+        (the Vortox: every Townsfolk's), so the Storyteller may give only false values (Game.decide_judged)."""
+        return False
+
+    def nomination(self, game, me, nominator, nominee):
+        """Any player just nominated (after the nominee's own reaction, the Virgin's); `me` has this ability (the
+        Witch's curse kills a cursed nominator; the nomination still stands)."""
+
+    def execution(self, game, me, executed):
+        """Player `executed` is being executed (dying or not), just before they die: (winner, reason) if that ends
+        the game for `me`'s ability (the Evil Twin's good twin), else None. The executed player's own character
+        answers through `executed`."""
+        return None
+
+    def becomes(self, game, me):
+        """`me` has just become this character mid-game (Game.change: the Pit-Hag's, a Demon's jump), and been told:
+        what the new character needs now (a new Evil Twin is paired with a twin)."""
+
+    def changed(self, game, me, other):
+        """Player `other`'s character or alignment has just changed (Game.change); `me` has this ability (an Evil
+        Twin whose twin turned to their side gets a new twin)."""
 
     def overrides_end(self, g, me, winner, reason):
         """The game would end with `winner` for `reason`: None to let it, False to keep it going (the Mastermind's
@@ -596,6 +630,8 @@ class Script:
         self.public_actions = {rules(n).public_action: rules(n) for n in self.all
                                if rules(n).public_action not in (None, 'ability')}
         self.claimable = [n for n in self.all if rules(n).public_action == 'ability']  # via the 'ability' field
+        self.derivers = [n for n in self.all if rules(n).derives]  # characters with states worked out on demand
+        self.falsifiers = [n for n in self.all if rules(n).falsifies_info]  # characters that can falsify information
         # Trouble Brewing asks night choices in batches (protocol v17); other scripts wake one character at a time,
         # since their steps depend on earlier ones (the Lunatic before the Demon, the Exorcist's target, the Goon)
         self.batched_night = self.id == 'tb'
@@ -618,6 +654,8 @@ class Script:
         s.public_actions = {rules(n).public_action: rules(n) for n in s.all
                             if rules(n).public_action not in (None, 'ability')}
         s.claimable = [n for n in s.all if rules(n).public_action == 'ability']
+        s.derivers = [n for n in s.all if rules(n).derives]  # characters with states worked out on demand
+        s.falsifiers = [n for n in s.all if rules(n).falsifies_info]  # characters that can falsify information
         s.batched_night, s.jinxes = False, {}
         return s
 
