@@ -710,8 +710,9 @@ class Widow(Minion):
             return
         for w in [q for q in g.players if q.alive and q.character == self.name and q.name in night.chosen]:
             t = (night.chosen[w.name] or [None])[0]
-            if t and g.works(w, self.name):
-                g.add(State('poisoned', t, source=w.name, until=None, ends_with_source=True))
+            if t and g.works(w, self.name):  # paused while the Widow is drunk or poisoned (as the Poisoner's poison)
+                g.add(State('poisoned', t, source=w.name, until=None, ends_with_source=True,
+                            while_source_sober=t != w.name))
             elif t:
                 snv.failed(game, w, self.name, 'nobody poisoned')
             # the good player learns it, whatever the Widow's sobriety (a reading: it is true that a Widow is in play)

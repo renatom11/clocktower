@@ -64,6 +64,7 @@ class State:
     against: str = 'demon'      # for 'safe': the deaths it stops ('demon', 'execution' or 'any')
     while_source_works: bool = False  # in force only while its source is alive, sober and healthy (the Courtier)
     about: str | None = None    # what a 'mad' or 'has ability' state is about (a character, or a character type)
+    while_source_sober: bool = False  # in force only while its source is sober and healthy (the Poisoner's poison)
 
 
 def team_sizes(n, outsiders=0, floor=False):
@@ -428,13 +429,15 @@ class Grimoire:
         while the source is dead, drunk or poisoned (the Courtier's drunkenness, when the Courtier is drunk). A state
         that would pause itself is not in force, rather than the question looping: a Pukka who poisons themself is
         not poisoned by it (and dies the next night, as the previously poisoned player)."""
-        if not s.while_source_works or not s.source:
+        if not (s.while_source_works or s.while_source_sober) or not s.source:
             return True
         if id(s) in _PAUSING:
             return True
         _PAUSING.add(id(s))
         try:
             src = self[s.source]
+            if not s.while_source_works:  # (sober: life is left to ends_with_source and keeps_ability)
+                return not self.impaired(src)
             return (src.alive or self.keeps_ability(src)) and not self.impaired(src)
         finally:
             _PAUSING.discard(id(s))

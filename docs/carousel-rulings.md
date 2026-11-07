@@ -418,7 +418,8 @@ implemented.
     neighbours the Marionette the same way.
 54. **The Widow.** The first night only (the night order has no later step: a Widow made later does nothing). They
     see the whole Grimoire as they wake, then choose a player: poisoned for the rest of the game, while the Widow has
-    the ability (dead, the poison ends; drunk, it is not made). Then a living good player (by alignment; usually a
+    the ability (dead, the poison ends; drunk, it is not made; made drunk or poisoned later, it pauses, as the
+    Poisoner's: B5 in docs/interaction-findings.md). Then a living good player (by alignment; usually a
     Townsfolk) learns "a Widow is in play", whatever the Widow's sobriety (a reading: it is true). Options: no
     knower when the Widow is drunk; the knower may be a Spy registering as good.
 55. **The Widow's jinxes.** Poppy Grower: no Grimoire while a Poppy Grower has the ability (she still chooses). Magician:
@@ -468,9 +469,11 @@ implemented.
     `always_drunk` character (the Marionette); the first-night evil information skips players who believe they are
     good and stops when a Poppy Grower keeps evil apart (`Character.keeps_evil_apart`); a Demon with no Minions yet is
     told so; the Poisoner does nothing while it has a `no ability` state (the Preacher's); the Grandmother's choice
-    always includes the truth. Noticed, not changed: a Poisoner made drunk by another ability (the Courtier, the
-    Innkeeper, the Puzzlemaster) still poisons; fixing that would change carousel-1's fingerprints, so it is left for
-    the owner.
+    always includes the truth. A Poisoner made drunk by another ability (the Courtier, the Innkeeper, the
+    Puzzlemaster) used to poison all the same; since the fuzzer batch (docs/interaction-findings.md, B5) a drunk or
+    poisoned Poisoner poisons no one (abnormal for the Mathematician), and the poison pauses while the Poisoner is
+    made drunk or poisoned later (the Courtier and the Innkeeper act after it), except a Poisoner's poison on
+    themself (Trouble Brewing's case, which stands as before). carousel-1's fingerprints were re-recorded for it.
 64. **The third synthetic script** (`clocktower/data/scripts/carousel-3.json`, "Carousel test 3"): the fifteen, with
     the Magician, Monk, Soldier, Mayor, Sage, Ravenkeeper, Exorcist, Innkeeper, Juggler, Mathematician, Banshee and
     Grandmother; the Butler, Damsel, Hatter and Plague Doctor; the Spy, Summoner, Cerenovus, Pit-Hag, Baron and

@@ -1,9 +1,10 @@
 """Interactions between characters of different base scripts that the fuzzer found wrong (docs/interaction-findings.md,
-B1-B4) and their fixes: each meeting only happens on a custom script, so the base scripts play as before."""
+B1-B4, B5) and their fixes: each meeting only happens on a custom script, so the base scripts play as before."""
 import unittest
 
 from clocktower import bmr
 from clocktower.llm import Reply
+from clocktower.state import State
 
 from test_carousel import BLANK, T1, T2, T3, T4, run
 from test_carousel1 import Batch1Test, Seat
@@ -171,6 +172,55 @@ class PhilosopherOncePerGameTests(Test):
         run(g.night(4))
         self.assertEqual((len(woken_as(self.seats[A], 'Professor')), len(woken_as(self.seats[C], 'Professor'))),
                          (2, 1))
+
+
+class DrunkPoisonerTests(Test):
+    CHARS = ['Poisoner', 'Courtier', 'Innkeeper', T1, T2, 'Imp', 'Soldier']
+
+    def setUp(self):
+        self.night2 = {}
+
+    def play(self, **roles):
+        g = self.game(self.CHARS)
+        self.as_role(2, F, 'Imp', [G])
+        self.as_role(2, B, 'Courtier', character=None)
+        self.as_role(2, C, 'Innkeeper', [F, G])
+        for role, (who, answer) in roles.items():
+            self.as_role(2, who, role.replace('_', ' '), **answer)
+        return g
+
+    def test_a_drunk_poisoner_poisons_no_one(self):
+        g = self.play(Poisoner=(A, {'targets': [D]}))
+        g.g.add(State('drunk', A, source='test', until=None))
+        run(g.night(2))
+        self.assertFalse(g.g.is_poisoned(g.g[D]))
+        self.assertTrue(any(a['player'] == A and a['ability'] == 'Poisoner' for a in g.g.abnormal))
+
+    def test_made_drunk_later_the_same_night_the_poison_stops(self):
+        g = self.play(Poisoner=(A, {'targets': [D]}), Courtier=(B, {'character': 'Poisoner'}))
+        run(g.night(2))
+        self.assertTrue(g.g.is_drunk(g.g[A]))
+        self.assertFalse(g.g.is_poisoned(g.g[D]))
+        self.assertTrue(any(s.kind == 'poisoned' and s.target == D for s in g.g.states))  # paused, not removed
+        g = self.play(Poisoner=(A, {'targets': [D]}))
+        run(g.night(2))
+        self.assertTrue(g.g.is_poisoned(g.g[D]))
+
+    def test_a_poisoner_who_poisons_themself_stays_poisoned(self):
+        g = self.play(Poisoner=(A, {'targets': [A]}))
+        run(g.night(2))
+        self.assertTrue(g.g.is_poisoned(g.g[A]))
+
+    def test_the_widows_poison_pauses_while_she_is_drunk(self):
+        g = self.game(['Widow', T1, T2, T3, 'Poisoner', 'Imp', 'Soldier'])
+        quiet(self, 1)
+        self.as_role(1, A, 'Widow', [D])
+        run(g.night(1))
+        self.assertTrue(g.g.is_poisoned(g.g[D]))
+        g.g.add(State('drunk', A, source='test', until='night'))
+        self.assertFalse(g.g.is_poisoned(g.g[D]))
+        g.g.expire('night')
+        self.assertTrue(g.g.is_poisoned(g.g[D]))
 
 
 if __name__ == '__main__':

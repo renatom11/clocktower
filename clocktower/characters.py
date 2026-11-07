@@ -579,11 +579,23 @@ class Poisoner(Minion):
     night_choice = (1, 'Choose a player to poison tonight and tomorrow.', True)
 
     async def resolve_night(self, game, night):
-        poisoner, t = night.choice_of(game.g, self.name)
+        g = game.g
+        poisoner, t = night.choice_of(g, self.name)
+        if not t:
+            return
         # the poison lasts while the Poisoner has their ability: it ends if they die or change character; none from
-        # a Poisoner with no ability (custom scripts: one the Preacher chose)
-        if t and not game.g.has(poisoner, 'no ability'):
-            game.g.add(state.State('poisoned', t, source=poisoner.name, until='night', ends_with_source=True))
+        # a Poisoner with no ability (custom scripts: one the Preacher chose), or one drunk or poisoned (custom
+        # scripts: the Courtier's, the Innkeeper's, the Puzzlemaster's; Trouble Brewing's Poisoner is always sober
+        # at its step, its own poison having ended at dusk). Paused while they are made drunk or poisoned later (the
+        # Courtier and the Innkeeper act after the Poisoner in the night order), except on themself (a Poisoner who
+        # poisons themself stays poisoned, as in Trouble Brewing, rather than the poison pausing itself)
+        if g.has(poisoner, 'no ability'):
+            return
+        if g.impaired(poisoner):
+            game.abnormal(poisoner, self.name, 'poisoned no one')
+            return
+        g.add(state.State('poisoned', t, source=poisoner.name, until='night', ends_with_source=True,
+                          while_source_sober=t != poisoner.name))
 
 
 class Spy(Minion):
