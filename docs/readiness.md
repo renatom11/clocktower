@@ -83,17 +83,36 @@ marked for the owner's review (docs/snv-rulings.md).
 - **The synthetic `carousel-3`** (the fifteen and all thirty-three jinxes) plays 2,200 games with no crash and has
   replay fingerprints.
 
+**Built in batch 3** (docs/carousel-rulings.md, 65-81):
+- **Thirteen experimental characters** in `clocktower/carousel3.py`: the Village Idiot, Acrobat, Lycanthrope,
+  Alchemist, Zealot, Organ Grinder, Noble, Farmer, Harpy, Boffin, Boomdandy, Fearmonger and Xaan, with Storyteller's
+  notes and the eighteen official jinxes between them and built characters. Lil' Monsta is not built: its Demon is a
+  token, not a character (ruling 65, for the owner). Core changes, all no-ops elsewhere: several players with one
+  character (the Village Idiot), an end-of-night hook (the Acrobat), a good player registering as evil (the
+  Lycanthrope), a good ability a Demon has through the Boffin (whose sobriety counts), eyes-closed votes and a
+  compelled hand (the Organ Grinder, the Zealot), a Demon's choice limited to one player (the Alchemist-Spy's guess),
+  the Godfather and Assassin for a player who has the ability without the character (the Alchemist), the Assassin
+  spent per player.
+- **Two more corpus scripts play end to end**: the Carousel Script Collection's monkeydomath (Monkey Do Math) and the
+  World Championship's seat7 (The Ballad of Seat 7), 2,200 random-bot games each under each Storyteller mode with no
+  crash; the earlier ones still play. buyersremorse now needs only the Lleech, and 1daymore only Lil' Monsta.
+- **The synthetic `carousel-4`** (the thirteen and all eighteen jinxes) plays 2,200 games with no crash and has
+  replay fingerprints. The fuzzer draws the new characters, with oracles for the Noble and the Village Idiot and
+  checks on the Faux Paw, the Farmer's heir, the Boffin's and Alchemist's picks and the Zealot's vote
+  (docs/interaction-findings.md, the third runs).
+
 **Still open:**
-- **The experimental characters** (38 more Townsfolk, Outsiders, Minions and Demons in the official data's carousel
-  edition): later batches. Across both corpora the scripts need the Noble (11 scripts), Amnesiac (10), Farmer and
-  Village Idiot (7), Harpy (6), Alsaahir and Huntsman (5) most.
+- **The experimental characters** (25 more Townsfolk, Outsiders, Minions and Demons in the official data's carousel
+  edition): later batches. Across both corpora the scripts need the Amnesiac (10), Alsaahir and Huntsman (5) most;
+  Lil' Monsta waits for the owner's design (ruling 65).
 - **Jinxes** with experimental characters: each with its character. They take about eight forms (bans, setup
   changes, registration and visibility overrides, replacement abilities, alignment locks, kill rulings).
 - **No Demon or several** (the Legion, the Riot, the Atheist): victory checks and evil's first-night information.
 - **Speech-triggered abilities** (the Yaggababble's phrase, the Mezepheles' word): the judge reads speech.
 - **Storyteller-invented content** (the Wizard's wish, the Amnesiac's ability): a model judge that generates, with
   code limiting it to effects the engine can carry out.
-- **Vote mechanics** (negative, secret, set by a Traveller: the Thief, the Bureaucrat, the Voudon): the vote is a
+- **Vote mechanics** (negative, set by a Traveller: the Thief, the Bureaucrat, the Voudon; secret votes are built, the
+  Organ Grinder's): the vote is a
   count of raised hands, each one vote unless an ability says more (the Banshee's two).
 - **Travellers and exile, Fabled and Loric:** listed, not played; a Traveller flag on players exists; nothing else.
 - **Homebrew characters** and scripts' house rules (the corpus's "bootlegger" rules): not played.

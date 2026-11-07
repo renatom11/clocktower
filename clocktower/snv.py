@@ -177,7 +177,9 @@ class PitHag(Minion):
         c = night.characters.get(ph.name) if ph else None
         if not (t and c):
             return
-        if any(q.character == c for q in g.players):
+        idiots = sum(1 for q in g.players if q.character == c) if c == 'Village Idiot' else 0
+        extra_idiot = idiots and idiots < 3 and g.script.jinxed(self.name, c)  # (custom scripts: a spare token)
+        if any(q.character == c for q in g.players) and not extra_idiot:
             return  # in play (a dead player's character too; a Drunk's apparent one is not): nothing happens
         if c == 'Marionette' and 'Marionette' in g.script.all:
             return  # (custom scripts: the Marionette starts beside the Demon or not at all, docs/carousel-rulings.md)
@@ -195,6 +197,8 @@ class PitHag(Minion):
             target = g[(await game.decide_judged(damsel_choice(g, ph, target)))['players'][0]]
         was_demon = target.is_demon
         await game.change(target, character=c)  # a dead player too; their alignment stays
+        if extra_idiot:  # the jinx (batch 3): with another Village Idiot, the drunk one might change
+            await rules(c).mark_drunk(game, again=True)
         if c in ('Goon', 'Politician') and g.script.jinxed(self.name, c):
             # the jinxes (custom scripts): an evil player made the Goon (or the Politician) can't turn good by its own
             # ability; a good one made it later is free again (docs/carousel-rulings.md, 9 and batch 1)

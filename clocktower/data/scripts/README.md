@@ -18,3 +18,8 @@ table size from 5 to 15 can be dealt. Its games are protocol `custom-carousel-2`
 Priestess, Poppy Grower, Shugenja, Balloonist, General, Preacher, Cannibal, Puzzlemaster, Heretic, Marionette, Widow,
 Goblin, Kazali, Leviathan) with built characters chosen so that all thirty-three official jinxes between them and built
 characters are on it and every table size from 5 to 15 can be dealt. Its games are protocol `custom-carousel-3`.
+
+`carousel-4.json` ("Carousel test 4") is the fourth: the thirteen experimental characters of batch 3 (Village Idiot,
+Acrobat, Lycanthrope, Alchemist, Zealot, Organ Grinder, Noble, Farmer, Harpy, Boffin, Boomdandy, Fearmonger, Xaan)
+with built characters chosen so that all eighteen official jinxes between them and built characters are on it and
+every table size from 5 to 15 can be dealt. Its games are protocol `custom-carousel-4`.

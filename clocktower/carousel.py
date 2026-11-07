@@ -493,7 +493,8 @@ class Hatter(Outsider):
 # character, with nothing for a scripted style to aim at) nor the Summoner's (a second Demon summoned on the third
 # night, which has passed or would end the Demon's game): the Storyteller picks among the others.
 PLAGUE_STEPS = ('Poisoner', 'Godfather', "Devil's Advocate", 'Assassin', 'Witch', 'Cerenovus')
-PLAGUE_JINXED = ('Spy', 'Scarlet Woman', 'Baron', 'Evil Twin', 'Goblin', 'Marionette')  # (the last two: batch 2)
+PLAGUE_JINXED = ('Spy', 'Scarlet Woman', 'Baron', 'Evil Twin', 'Goblin', 'Marionette',  # (the last two: batch 2)
+                 'Boomdandy', 'Fearmonger')  # (batch 3)
 PLAGUE_USABLE = PLAGUE_STEPS + PLAGUE_JINXED + ('Mastermind',)
 
 
@@ -540,8 +541,11 @@ class PlagueDoctor(Outsider):
         game.emit('text', {'text': f'[the Storyteller gains the {m} ability]'}, 'audit')
         if m in PLAGUE_STEPS:
             g.notes.setdefault('Storyteller abilities', {})[m] = self.name
-        elif m in ('Spy', 'Scarlet Woman', 'Goblin'):
+        elif m in ('Spy', 'Scarlet Woman', 'Goblin', 'Fearmonger'):
             await self.minion_gains(game, m)
+        elif m == 'Boomdandy':
+            from .carousel3 import boomdandy_made
+            await boomdandy_made(game)
         elif m == 'Marionette':
             await self.marionette(game)
         elif m == 'Baron':
@@ -747,6 +751,11 @@ class Summoner(Minion):
         g = game.g
         if g.notes.get('Summoned'):
             return None
+        if night.n == 3 and me.character == 'Alchemist' and g.script.jinxed('Alchemist', self.name):
+            # the jinx (batch 3): the Alchemist-Summoner chooses which Demon, not which player
+            return Choose(players=0, character=True, kinds=('Demon',),
+                          prompt='The 3rd night: choose a Demon (`character`): a player of the Storyteller\'s choice '
+                                 'becomes an evil Demon of that kind.')
         if night.n == 3:
             return self.night_choice
         if night.n == 2 and g.script.jinxed(self.name, 'Pukka') and 'Pukka' in g.script.demons:
@@ -773,6 +782,11 @@ class Summoner(Minion):
             if night.n == 2 and not (target and c == 'Pukka'):
                 continue  # waiting for the 3rd night
             demons = ['Pukka'] if night.n == 2 else list(g.script.demons)
+            if s.character == 'Alchemist' and g.script.jinxed('Alchemist', self.name):
+                if night.n != 3 or c not in demons:
+                    continue
+                from .carousel3 import summoned_by_alchemist_choice  # the jinx (batch 3): the Storyteller's player
+                target = (await game.decide_judged(summoned_by_alchemist_choice(g, s, c)))['players'][0]
             if g.script.jinxed(self.name, 'Poppy Grower') and any(q.alive and q.character == 'Poppy Grower'
                                                                    for q in g.players) and c in demons:
                 # the jinx (batch 2): with the Poppy Grower alive, the Summoner chooses the Demon, not the player

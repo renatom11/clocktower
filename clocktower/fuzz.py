@@ -15,16 +15,18 @@ each dawn and dusk (Monitor):
   must be true, judged by the engine's own truth test and, for the information roles in ORACLES, by an independent
   one computed here from the Grimoire (only the characters whose text says they "might register" may register
   otherwise); information the Vortox falsifies must be false; Storyteller choices whose legal values a text fixes
-  ('choice': the Widow's knower and the Grandchild are good) are checked too;
+  ('choice': the Widow's knower, the Grandchild, the Faux Paw and the Farmer's heir are good; the Boffin's gift and
+  the Alchemist's Minion are not in play, unless a jinx allows it) are checked too, and a working Zealot's vote
+  ('zealot'); the Lycanthrope's Faux Paw registers as evil to the oracles;
 - dead players' abilities ('dead-acts'): the dead don't wake, learn, kill or place states unless they keep their
   ability (the Vigormortis's Minions) or their ability says it works on or after death (DEAD_OK);
 - once-per-game abilities ('once-twice'): a player-character instance (a new character or a return to life starts a
   new one) uses it at most once (night choices, the per-player use record, the Golem's nomination, each Minion's
   Damsel guess); a player who only believes they have it is not woken to use it again ('once-rewoken');
 - the Grimoire's coherence ('coherence'): known characters on the script, one alignment, no two living players with
-  the same character, states naming real players, no state outliving the source it ends with, no ability held
-  beyond the character's unless an ability gave it (a 'gains' event: the Philosopher, Pixie, Cannibal, Plague
-  Doctor);
+  the same character (beyond the Village Idiot's three and the Farmer's heirs), states naming real players, no
+  state outliving the source it ends with, no ability held beyond the character's unless an ability gave it (a
+  'gains' event: the Philosopher, Pixie, Cannibal, Plague Doctor, Alchemist, Boffin);
 - the setup's structure ('setup'): the Marionette neighbours the Demon; a Kazali has made the table's Minions by
   the first dawn; and announcements the texts require ('announcement': the Leviathan is in play; whom the
   Al-Hadikhia chose, at dawn);
@@ -303,6 +305,10 @@ class Monitor:
             self.night_choice(data)
         elif kind_ == 'vote' and data.get('yes'):
             self.votes.append((self.game.day, data['voter'], g[data['voter']].character))
+        elif kind_ == 'vote':  # "you must vote for every nomination" (5 or more alive): a working Zealot's hand is up
+            p = g[data['voter']]
+            if any(rules(c).must_vote(g, p) and g.works(p, c) for c in g.abilities(p)):
+                self.flag('zealot', f'{p.name} ({p.character}) did not vote for {data["nominee"]}', [p.character])
         elif kind_ == 'nomination':
             nominator = g[data['nominator']]
             self.noms.append((self.game.day, data['nominator'], nominator.character))
@@ -387,6 +393,8 @@ class Monitor:
         role = ctx.get('ability') or choice.id.split(':')[0]
         if role in CHARACTERS:
             self.acted.add(role)
+        FAUX.clear()  # (the Lycanthrope's Faux Paw, for the oracles: only while the Lycanthrope has their ability)
+        FAUX.update(s.target for s in g.states if s.kind == 'registers evil' and g.active(s))
         check = CHOICE_CHECKS.get(ctx.get('call'))
         if check:
             problem = check(self, ctx, norm(value))
@@ -402,7 +410,8 @@ class Monitor:
         has = role in g.abilities(p)
         if not (p.alive or g.keeps_ability(p)) and role not in DEAD_OK:
             self.flag('dead-acts', f'dead {p.name} ({p.character}) was given {role} information', [p.character, role])
-        healthy = has and not g.impaired(p)
+        gifted = g.gift_impaired(p, role)  # (a Demon's ability through the Boffin's: the Boffin's sobriety counts)
+        healthy = has and not (g.impaired(p) if gifted is None else gifted)
         falsified = g.falsified(p, role)
         truth = choice.truth(value) if choice.truth else None
         shown = json.dumps({k: v for k, v in value.items() if v not in (None, [])})
@@ -483,8 +492,8 @@ class Monitor:
                           [p.character, *stray])
             if p.alive:
                 living[p.character] += 1
-        for c, n in living.items():
-            if n > 1:
+        for c, n in living.items():  # (up to 3 Village Idiots; "becomes a Farmer": any number)
+            if n > rules(c).duplicates and f'becomes a {c.lower()}' not in text(c).lower():
                 self.flag('coherence', f'{n} living players are the {c}', [c])
         self.check_states()
         for st in [*g.states, *g.derived()]:  # what touched whom (the mechanism matrix reads it)
@@ -611,8 +620,18 @@ STORYTELLER_DEATHS = {'pit-hag'}  # the Storyteller's arbitrary deaths when a De
 # Each returns None if the value is one a working ability could give in this Grimoire, else why not. Registration: only
 # a character whose text says it "might register" (MISREG) may register otherwise, and then as anything.
 
+# the good players a Lycanthrope's text lets register as evil ("One good player registers as evil": its Faux Paw),
+# set by Monitor.decided before each check from the Grimoire's 'registers evil' states
+FAUX = set()
+
+
+def evil_seen(q):
+    """Evil as an ability sees a player who does not misregister: their alignment, or the Lycanthrope's Faux Paw."""
+    return q.evil or q.name in FAUX
+
+
 def reg_evil(p):
-    return {True, False} if misreg(p) else {p.evil}
+    return {True, False} if misreg(p) else {evil_seen(p)}
 
 
 # what a misregistering character's text lets it register as, besides itself: the Spy "as good & as a Townsfolk or
@@ -644,7 +663,7 @@ def _pair(group):
 def _counts(players, f):
     """Every value of f(evil set) over the registrations the players could have."""
     flex = [q for q in players if misreg(q)]
-    fixed = {q.name for q in players if q.evil and not misreg(q)}
+    fixed = {q.name for q in players if evil_seen(q) and not misreg(q)}
     out = set()
     for combo in product((False, True), repeat=len(flex)):
         out.add(f(fixed | {q.name for q, e in zip(flex, combo) if e}))
@@ -802,7 +821,7 @@ def steward(m, p, ctx, v):
     x = m.g[v['players'][0]]
     if x is p:
         return 'shown themself'
-    return None if misreg(x) or not x.evil else f'{x.name} is the {x.character}, evil'
+    return None if misreg(x) or not evil_seen(x) else f'{x.name} is the {x.character}, evil'
 
 
 def nightwatchman(m, p, ctx, v):
@@ -813,7 +832,7 @@ def shugenja(m, p, ctx, v):
     g = m.g
     n = len(g.players)
     flex = [q for q in g.players if misreg(q) and q is not p]
-    fixed = {q.name for q in g.players if q.evil and not misreg(q) and q is not p}
+    fixed = {q.name for q in g.players if evil_seen(q) and not misreg(q) and q is not p}
     ok = set()
     for combo in product((False, True), repeat=len(flex)):
         evil = fixed | {q.name for q, e in zip(flex, combo) if e}
@@ -869,13 +888,29 @@ def general(m, p, ctx, v):
     return None if v['statements'][0] in ('good', 'evil', 'neither') else f'answered {v["statements"]}'
 
 
+def noble(m, p, ctx, v):
+    trio = [m.g[x] for x in v['players']]
+    if len(set(v['players'])) != 3 or p in trio:
+        return f'shown {v["players"]}'
+    ok = _counts(trio, len)
+    return None if 1 in ok else f'{", ".join(f"{q.name} ({q.character})" for q in trio)}: not exactly one evil'
+
+
+def village_idiot(m, p, ctx, v):
+    t = m.g.by_name.get(ctx.get('about'))
+    if t is None:
+        return 'no player named'
+    return None if v['yes'] in reg_evil(t) else f'{t.name} ({t.character}, {t.alignment}) shown as ' \
+        f'{"evil" if v["yes"] else "good"}'
+
+
 ORACLES = {'Washerwoman': _pair('Townsfolk'), 'Librarian': _pair('Outsider'), 'Investigator': _pair('Minion'),
            'Chef': chef, 'Empath': empath, 'Fortune Teller': fortune_teller, 'Undertaker': undertaker,
            'Ravenkeeper': ravenkeeper, 'Clockmaker': clockmaker, 'Dreamer': dreamer, 'Seamstress': seamstress,
            'Oracle': oracle, 'Flowergirl': flowergirl, 'Town Crier': town_crier, 'Sage': sage,
            'Grandmother': grandmother, 'Godfather': godfather, 'Steward': steward, 'Nightwatchman': nightwatchman,
            'Shugenja': shugenja, 'Balloonist': balloonist, 'Pixie': pixie, 'Fisherman': fisherman,
-           'High Priestess': high_priestess, 'General': general}
+           'High Priestess': high_priestess, 'General': general, 'Noble': noble, 'Village Idiot': village_idiot}
 
 
 def widow_knower(m, ctx, v):
@@ -889,8 +924,35 @@ def grandchild(m, ctx, v):
     return None if not x.evil else f'the Grandchild {x.name} ({x.character}) is evil'
 
 
+def faux_paw(m, ctx, v):
+    x = m.g[v['players'][0]]
+    return None if not x.evil else f'the Faux Paw {x.name} ({x.character}) is evil'
+
+
+def farmer_heir(m, ctx, v):
+    x = m.g[v['players'][0]]
+    return None if x.alive and not x.evil else f'{x.name} ({x.character}, {x.alignment}) becomes a Farmer'
+
+
+def boffin_ability(m, ctx, v):
+    c, g = v['character'], m.g
+    if kind(c) not in ('Townsfolk', 'Outsider') or c in ('Drunk', 'Heretic', 'Politician'):
+        return f'the Demon is given the {c} ability'
+    in_play = c in {q.character for q in g.players}
+    return f'the {c} is in play' if in_play and not (c == 'Village Idiot' and g.script.jinxed('Boffin', c)) else None
+
+
+def alchemist_minion(m, ctx, v):
+    c, g = v['character'], m.g
+    if kind(c) != 'Minion':
+        return f'the Alchemist is given the {c} ability'
+    in_play = c in {q.character for q in g.players}
+    return f'the {c} is in play' if in_play and not g.script.jinxed('Alchemist', c) else None
+
+
 # Storyteller choices that are not information but whose legal values the text fixes: {call: check}
-CHOICE_CHECKS = {'widow_knower': widow_knower, 'grandchild': grandchild}
+CHOICE_CHECKS = {'widow_knower': widow_knower, 'grandchild': grandchild, 'faux_paw': faux_paw,
+                 'farmer_heir': farmer_heir, 'boffin_ability': boffin_ability, 'alchemist_minion': alchemist_minion}
 
 
 # ---- one game -------------------------------------------------------------------------------------------------

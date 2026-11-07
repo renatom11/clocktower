@@ -80,10 +80,10 @@ class ScriptTests(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / 'carousel.json'
-            path.write_text(json.dumps(['washerwoman', 'noble', 'imp']))  # an official character not built yet
+            path.write_text(json.dumps(['washerwoman', 'lilmonsta', 'imp']))  # an official character not built yet
             with self.assertRaises(ValueError) as e:
                 characters.Script(path)
-            self.assertIn('Noble', str(e.exception))
+            self.assertIn("Lil' Monsta", str(e.exception))
 
     def test_each_script_is_its_own_protocol(self):
         from clocktower.cli import PROTOCOL, protocol

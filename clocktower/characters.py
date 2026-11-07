@@ -105,6 +105,7 @@ class Character:
     flips_result = False     # its end hook turns the result around, so it runs after every other one (the Heretic)
     moment_unheld = False    # its `moment` runs (with `me` None) even when no player has the ability: a public duty
     #                          that outlives its holder (the Al-Hadikhia's dawn announcement of last night's choice)
+    duplicates = 1           # how many players may have it at once (the Village Idiot's [+0 to +2 Village Idiots]: 3)
 
     @property
     def evil(self):
@@ -289,6 +290,25 @@ class Character:
         """Whether `me`'s ability stops the Minions and Demon learning each other at the start (the Poppy Grower)."""
         return False
 
+    def must_vote(self, g, me):
+        """Whether `me`, who has or believes they have this ability, must vote yes on every nomination now (the Zealot,
+        with five or more players alive). The vote is asked as usual, the rule stated; a working one's hand is
+        raised."""
+        return False
+
+    def secret_votes(self, g, me):
+        """Whether `me`'s ability makes today's votes secret: eyes closed, and the tally (and so who is about to die)
+        known only to the Storyteller (the Organ Grinder)."""
+        return False
+
+    def followers_blind(self, g, me):
+        """With votes secret through `me`'s ability: whether a player who may vote only with their master (the Butler)
+        may raise a hand blind, which counts only if the master's is up too (the Organ Grinder/Butler jinx)."""
+        return False
+
+    def end_of_night(self, game, me, night):
+        """Tonight's last step is done, before dawn (the Acrobat dies if their player became drunk or poisoned)."""
+
     async def storyteller_step(self, game, night, character):
         """At `character`'s step tonight, the Storyteller uses `character`'s ability, gained through `me`'s (the
         Plague Doctor's): Game.night calls this for each ability in g.notes['Storyteller abilities']."""
@@ -319,8 +339,8 @@ class InfoRole(Townsfolk):
     info = True
 
     async def resolve_night(self, game, night):
-        for p in game.g.players:  # (and a player who gained the ability: the Pixie's, the Cannibal's)
-            if p.alive and (p.shown == self.name or self.name in getattr(p, 'extra', ())):
+        for p in game.g.players:  # (and a player who gained the ability: the Pixie's, the Cannibal's, the Boffin's)
+            if p.alive and (p.shown == self.name or self.name in game.g.abilities(p)[1:]):
                 told = self.information(game, p, night)
                 if told:
                     await game.tell(p, self.name, *told)

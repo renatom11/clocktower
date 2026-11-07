@@ -599,7 +599,7 @@ class Game:
                     continue  # character has a step tonight (a Lunatic who believes they are the Zombuul)
             elif p.shown not in roles:
                 # an ability gained beyond their character (the Philosopher's) wakes them at that character's step
-                role = next((c for c in getattr(p, 'extra', ()) if c in roles), None)
+                role = next((c for c in g.abilities(p)[1:] if c in roles), None)
                 if role is None:
                     continue
             if p.name in night.asleep:
@@ -613,6 +613,9 @@ class Game:
             options = [x for x in names if (spec.may_self or x != p.name) and x not in last
                        and (not spec.alive_only or g[x].appears_alive)
                        and (not spec.dead_only or not g[x].appears_alive)]
+            must = g.notes.get('Demon must choose', {}).get(night.n) if g.notes.get('Demon must choose') else None
+            if must in options and kind(role) == 'Demon':  # (custom scripts: the Alchemist-Spy's right guess)
+                options = [must]
             if v17:  # Trouble Brewing's wording and choice, as in protocol v17
                 requests[p.name] = Request('night', f'Night {night.n} — {p.shown}: {spec.prompt} Put your choice in '
                                                     '`targets`.', night.n, n_targets=spec.players, options=options)
@@ -703,6 +706,13 @@ class Game:
                 if g.winner:  # a win at night (custom scripts: the Al-Hadikhia's last stand): the game ends now, no
                     self.tonight = None  # later step wakes anyone (the base scripts have none: their wins come by
                     return  # day, or at the dawn check)
+        for p in g.players:  # (custom scripts: the Acrobat's check; the base scripts' characters do nothing here)
+            for c in g.abilities(p):
+                await settle(rules(c).end_of_night(self, p, night))
+        await self.run_pending()
+        if g.winner:
+            self.tonight = None
+            return
         g.expire('dawn')  # protections that last only tonight end (the Innkeeper's)
         self.tonight = None
 
@@ -952,20 +962,37 @@ class Game:
         def weight(q):
             return max(rules(c).vote_weight(g, q) for c in g.abilities(q))
 
+        secret = self.secret_votes()  # (custom scripts: the Organ Grinder's eyes-closed voting)
+        jinxed_butler = secret and any(rules(c).followers_blind(g, q) for q in g.players for c in g.abilities(q)
+                                       if rules(c).secret_votes(g, q))
+
+        def must(q):  # believes they must vote yes now (the Zealot), and whether their hand is raised regardless
+            told = any(rules(c).must_vote(g, q) for c in dict.fromkeys([q.shown, *g.abilities(q)]))
+            return told, any(rules(c).must_vote(g, q) and g.works(q, c) for c in g.abilities(q))
+
         async def ask_vote(voter):
             p = g[voter]
             lines = [f'Vote: should {nominee} be executed? It takes {required} yes votes to put them on the block']
-            if block:
+            if secret:  # eyes closed: no tally, no block, no hands seen
+                lines = [f'Vote, eyes closed: should {nominee} be executed? The votes and the tally are secret (only '
+                         'the Storyteller knows who is about to die)']
+            elif block:
                 lines[0] += f' (replacing {block}, who has {top})'
             elif top:
                 lines[0] += f' (more than the {top} of an earlier tied vote)'
             lines[0] += '.'
-            lines.append(f'Yes so far: {", ".join(yes) if yes else "none"} ({hands}).')
+            if not secret:
+                lines.append(f'Yes so far: {", ".join(yes) if yes else "none"} ({hands}).')
+            if must(p)[0]:
+                lines.append('You must vote yes on every nomination (5 or more players are alive).')
             if not p.appears_alive and not free(p):
                 lines.append('You are dead: voting yes uses your one ghost vote.')
             if weight(p) > 1:
                 lines.append(f'Your raised hand counts as {weight(p)} votes.')
-            if rules(p.character).follows_master and p.alive and g.master:  # poisoned or not: they can't tell
+            if jinxed_butler and rules(p.character).follows_master and p.alive and g.master:
+                lines.append(f'Your master is {g.master}: you may raise your hand, but your vote counts only if they '
+                             'vote yes too.')
+            elif rules(p.character).follows_master and p.alive and g.master:  # poisoned or not: they can't tell
                 up = g.master in yes or early.get(g.master, (False,))[0]
                 lines.append(f'Your master is {g.master}: their hand is {"up, so you may vote" if up else "down, so you may not vote yes"}.')
             lines.append('Set `vote` to true or false; `say` may hold a very short remark (optional; don\'t just restate your vote).')
@@ -992,13 +1019,18 @@ class Game:
             if (v and rules(p.character).follows_master and g.works(p, p.character) and g.master
                     and not (g.master in yes or early.get(g.master, (False,))[0])):
                 v, remark = False, ''  # a Butler may only raise their hand while their master's is up
-                self.emit('notice', {'text': f'(Your master {g.master} is not voting yes, so you cannot vote.)'}, [voter])
+                if not jinxed_butler:  # (the Organ Grinder jinx: their hand is up, but it does not count)
+                    self.emit('notice', {'text': f'(Your master {g.master} is not voting yes, so you cannot vote.)'},
+                              [voter])
+            if not v and must(p)[1]:  # a working Zealot's hand is raised regardless (custom scripts)
+                v = True
+                self.emit('notice', {'text': '(You are the Zealot: your hand is raised.)'}, [voter])
             ghost = v and not p.appears_alive and not free(p)  # a Zombuul who seems dead spends their token too
             if ghost:
                 p.ghost_vote = False
             w = weight(p) if v else 1
             self.emit('vote', {'voter': voter, 'nominee': nominee, 'yes': v, 'ghost': ghost, 'text': remark,
-                               **({'votes': w} if w != 1 else {})})
+                               **({'votes': w} if w != 1 else {})}, [voter] if secret else 'public')
             voted.add(voter)
             if v:
                 yes.append(voter)
@@ -1011,13 +1043,20 @@ class Game:
         else:
             outcome = 'short'
         self.emit('vote_result', {'nominee': nominee, 'votes': count, 'needed': required, 'outcome': outcome,
-                                  'voters': yes})
+                                  'voters': yes}, 'audit' if secret else 'public')
+        if secret:
+            self.emit('text', {'text': f'The vote on {nominee} is over (eyes closed: the tally is secret).'})
         if g.nominations and g.nominations[-1]['nominee'] == nominee:
             # the voters' characters as they voted (the Flowergirl detects a Demon who voted, even one who changed
             # character later that day or night)
             g.nominations[-1].update(votes=count, voters=list(yes), outcome=outcome,
                                      characters={x: g[x].character for x in yes})
         return block, top
+
+    def secret_votes(self):
+        """Whether votes are secret now: an ability makes them so (Character.secret_votes: the Organ Grinder's)."""
+        g = self.g
+        return any(rules(c).secret_votes(g, q) for q in g.players for c in g.abilities(q))
 
     def nomination_limit(self, p):
         """How many nominations p may make today: one while alive (as the town sees it), else none, unless an ability
@@ -1044,6 +1083,8 @@ class Game:
                 break
             status = (f'{block} is on the block with {top} votes.' if block else
                       f'Nobody is on the block (an earlier vote tied at {top}).' if top else 'Nobody is on the block yet.')
+            if self.secret_votes():  # (custom scripts: the Organ Grinder)
+                status = 'Votes are secret today (eyes closed): only the Storyteller knows who is about to die.'
             prompt = (f'Day {n}, nominations. {status} Already nominated today: {", ".join(sorted(nominees)) or "nobody"}. '
                       'You may nominate someone (set `nominate`; your `say` is the accusation), or pass. Only '
                       'nominations are heard now: everyone can comment after the defense. No whispering now.')

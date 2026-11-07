@@ -41,6 +41,12 @@ JINXES2 = [('Cannibal', 'Butler'), ('Cannibal', 'Juggler'), ('Cerenovus', 'Gobli
            ('Mathematician', 'Marionette'), ('Plague Doctor', 'Goblin'), ('Plague Doctor', 'Marionette'),
            ('Spy', 'Poppy Grower'), ('Summoner', 'Kazali'), ('Summoner', 'Poppy Grower'), ('Summoner', 'Preacher'),
            ('Widow', 'Damsel'), ('Widow', 'Poppy Grower')]
+# batch 3's (tests/test_carousel3.py)
+JINXES3 = [('Alchemist', 'Boffin'), ('Alchemist', 'Marionette'), ('Alchemist', 'Mastermind'),
+           ('Alchemist', 'Organ Grinder'), ('Alchemist', 'Spy'), ('Alchemist', 'Summoner'), ('Alchemist', 'Widow'),
+           ('Boffin', 'Drunk'), ('Boffin', 'Goon'), ('Boffin', 'Heretic'), ('Boffin', 'Politician'),
+           ('Boffin', 'Village Idiot'), ('Butler', 'Organ Grinder'), ('Cannibal', 'Zealot'), ('Leviathan', 'Farmer'),
+           ('Pit-Hag', 'Village Idiot'), ('Plague Doctor', 'Boomdandy'), ('Plague Doctor', 'Fearmonger')]
 
 
 def run(coro):
@@ -190,7 +196,7 @@ class JinxFrameworkTests(unittest.TestCase):
     def test_every_official_jinx_between_built_characters_is_implemented(self):
         built = {frozenset(p) for p in official.jinxes() if set(p) <= set(ch.CHARACTERS)}
         self.assertEqual(built, set(ch.IMPLEMENTED_JINXES))
-        self.assertEqual(built, {frozenset(p) for p in JINXES + JINXES1 + JINXES2})
+        self.assertEqual(built, {frozenset(p) for p in JINXES + JINXES1 + JINXES2 + JINXES3})
         with self.assertRaises(ValueError):
             ch.jinx('Imp', 'Washerwoman', 'nowhere')
 
@@ -235,7 +241,7 @@ class JinxTest(unittest.TestCase):
 
     def script(self, chars, jinxed):
         real = [c for c in dict.fromkeys(chars) if c not in {f.name for f in FILLERS}]
-        on = [p for p in JINXES + JINXES1 + JINXES2 if set(p) <= set(real)] if jinxed else []
+        on = [p for p in JINXES + JINXES1 + JINXES2 + JINXES3 if set(p) <= set(real)] if jinxed else []
         return ch.Script.of('carousel-test', [f.name for f in FILLERS] + real, official.night_order(real, True),
                             official.night_order(real, False), jinxes=on)
 

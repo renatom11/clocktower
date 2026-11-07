@@ -88,7 +88,9 @@ class Godfather(Minion):
 
     async def resolve_night(self, game, night):
         g = game.g
-        gf = g.with_character(self.name)
+        # (custom scripts: a living player who has the ability without being the Godfather, the Alchemist)
+        gf = g.with_character(self.name) or next((q for q in g.players if q.alive
+                                                  and self.name in g.abilities(q)[1:]), None)
         if not gf:
             return
         if night.first:
@@ -128,21 +130,34 @@ class Assassin(Minion):
     kills_at_night = True
     picks_in_turn = True  # the Goon it chooses makes it drunk, but the kill goes through ("even if ...")
 
+    # spent per player (as snv.use), so two players with the ability each have theirs (custom scripts: an Alchemist's
+    # and an Assassin made later); with one Assassin, as Bad Moon Rising has, the same as the Grimoire's spent record
+    def used(self, g, me):
+        return self.name in g.notes.get('Used', {}).get(me.name, ())
+
     def night_spec(self, game, me, night):
-        return None if night.first or game.g.spent_ability(self.name) else self.night_choice
+        return None if night.first or self.used(game.g, me) else self.night_choice
+
+    def becomes(self, game, me):
+        used = game.g.notes.get('Used', {})
+        if me.name in used:  # a new Assassin starts fresh (as Game.changes does for the Grimoire's record)
+            used[me.name] = [x for x in used[me.name] if x != self.name]
 
     async def resolve_night(self, game, night):
         g = game.g
-        a, t = night.choice_of(g, self.name)
-        if not t:
-            return
-        works = g.works(a, self.name)  # as it chooses: a Goon chosen by a sober Assassin dies, and turns evil
-        game.pick(night, a, t)
-        g.spend(self.name)  # spent even when drunk or poisoned: the Assassin won't wake again
-        if works:
-            # nothing stops it: protections, the Fool's survival, and (a reading: like the Fool's) the Zombuul's
-            # first death, or a Zombuul who only seems dead
-            game.attempt_kill(g[t], 'assassin', a, night, unstoppable=True)
+        for a in [p for p in g.players if self.name in g.abilities(p) and (p.alive or g.keeps_ability(p))
+                  and p.name in night.chosen]:
+            t = (night.chosen[a.name] or [None])[0]
+            if not t:
+                continue
+            works = g.works(a, self.name)  # as it chooses: a Goon chosen by a sober Assassin dies, and turns evil
+            game.pick(night, a, t)
+            g.spend(self.name)  # spent even when drunk or poisoned: the Assassin won't wake again
+            g.notes.setdefault('Used', {}).setdefault(a.name, []).append(self.name)
+            if works:
+                # nothing stops it: protections, the Fool's survival, and (a reading: like the Fool's) the Zombuul's
+                # first death, or a Zombuul who only seems dead
+                game.attempt_kill(g[t], 'assassin', a, night, unstoppable=True)
 
 
 class Mastermind(Minion):
@@ -862,6 +877,8 @@ class Goon(Outsider):
         # drunk at once (even if already drunk or poisoned), until dusk; it ends if the Goon dies (a reading, as in
         # batch 2: the Assassin's kill still lands, since its sobriety was settled as it chose)
         g.add(State('drunk', chooser.name, source=me.name, until='night', ends_with_source=True))
+        if me.is_demon and g.script.jinxed('Boffin', self.name):
+            return  # (custom scripts: the Boffin jinx: a Demon with the Goon's ability can't turn good by it)
         if me.alignment != chooser.alignment and not (chooser.alignment == 'good'
                                                       and me.name in g.notes.get('Evil Goons', ())):
             # (an evil player the Pit-Hag made the Goon stays evil: the Pit-Hag/Goon jinx, PitHag.resolve_night)

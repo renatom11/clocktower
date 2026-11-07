@@ -1,7 +1,7 @@
 # Interaction findings: what the fuzzer found
 
-`clocktower/fuzz.py` plays random-bot games on random scripts drawn from every built character (today 100: the
-Trouble Brewing, BMR and S&V characters and the experimental ones of carousel.py and carousel2.py; each script has
+`clocktower/fuzz.py` plays random-bot games on random scripts drawn from every built character (today 113: the
+Trouble Brewing, BMR and S&V characters and the experimental ones of carousel.py to carousel3.py; each script has
 13 Townsfolk, 4 Outsiders, 4 Minions, 4 Demons, loaded as custom script JSON, so the night order and jinxes are the
 official ones),
 under the scripted Storyteller and the rules judge alternately, and checks invariants after every night step, every
@@ -20,6 +20,25 @@ How to rerun (about 80 games a second on four cores):
 
 Each run writes `summary.md` (violations grouped, with a first example and its repro; advisories; pair coverage; the
 information checked), `violations.jsonl` (every violation with its repro) and `coverage.json`.
+
+## The third runs (2026-11-07, all 113 built characters: batch 3 added)
+
+The pool now holds batch 3's thirteen (carousel3.py). New checks: independent oracles for the Noble (three other
+players, exactly one able to register as evil) and the Village Idiot (the chosen player's alignment as it can
+register); the Lycanthrope's Faux Paw registers as evil in every alignment oracle (a 'registers evil' state, only while
+the Lycanthrope has their ability); Storyteller choices the texts fix: the Faux Paw is good, the Farmer's heir alive
+and good, the Boffin's gift a good character not in play and never the Drunk, Heretic or Politician (the Village Idiot
+in play only by its jinx), the Alchemist's Minion not in play (unless its jinx says so); a working Zealot votes for
+every nomination with five or more alive; up to three living Village Idiots and any number of Farmers are coherent.
+A Demon's ability through the Boffin is judged by the Boffin's sobriety.
+
+10,000 games: 7,000 uniform (same seeds as before) and 3,000 `--target-uncovered`. A first pass (two 7,000-game runs)
+found four engine faults, B11 to B14 below, and an oracle bug (the Faux Paw check shadowed a name, 610 crashes in
+the fuzzer itself), all fixed. After the fixes: 7 violations in the uniform run (U1 x3, U2, U4, U7, U8) and 3 in the
+targeted one (U7 x2, U1): nothing new but U9, which the scripted Storyteller now avoids. All 6,328 pairs of the 113
+characters were in play together, and 6,325 with both acting, after the targeted run. Decisions checked in the
+uniform run include the Noble's 800 and the Village Idiot's 807 (oracle 790 and 800), 622 Alchemist picks, 408
+Boffin gifts and 216 Farmer heirs.
 
 ## The second runs (2026-11-07, all 100 built characters: TB, BMR, S&V and experimental batches 0-2)
 
@@ -208,6 +227,29 @@ The Kazali no longer offers one fewer when it would leave a Drunk nothing to bel
 setup with the Drunk and every Townsfolk (a forced one: the fuzzer's own Kazali setups hit it). Repro (before):
 `python -m clocktower fuzz repro --seed 9008676 --players 15 --judge scripted --chars pixie,seamstress,nightwatchman,investigator,librarian,virgin,exorcist,oracle,slayer,chambermaid,grandmother,ravenkeeper,highpriestess,mutant,damsel,tinker,drunk,poisoner,scarletwoman,goblin,godfather,ojo,alhadikhia,kazali,imp`.
 
+B11. **Fixed (batch 3 commit).** **A setup step turns the Alchemist into another character.** Alchemist + Village Idiot
+(or the Balloonist's or the Xaan's added Outsider): the Alchemist's step (setup order -1.5) had already acted, the
+Summoner jinx's [No Demon] included, when the Village Idiot's extras took the Alchemist's player; with no Alchemist and
+no Demon, nobody could summon and good did not win (`missed-win`). Repro (before): `python -m clocktower fuzz repro --seed 9004385 --players 6 --judge rules --chars snakecharmer,librarian,noble,nightwatchman,chef,sailor,villageidiot,investigator,alchemist,fortuneteller,preacher,shugenja,banshee,lunatic,plaguedoctor,golem,moonchild,devilsadvocate,witch,summoner,scarletwoman,imp,pukka,alhadikhia,vigormortis`.
+Fix: those steps never take a Townsfolk whose setup step has run (setup order below -1: only the Alchemist).
+
+B12. **Fixed (batch 3 commit).** **Two players with the Assassin's ability.** Alchemist-Assassin + an Assassin made
+later (the Hatter's tea party): the Assassin was spent for the Grimoire as a whole and acted only for the first holder
+in seat order, so the made Assassin's choice was ignored and they were woken again (`once-twice`). Repro (before):
+`python -m clocktower fuzz repro --seed 9003532 --players 9 --judge scripted --chars innkeeper,alchemist,chef,monk,ravenkeeper,clockmaker,shugenja,exorcist,mayor,villageidiot,sage,philosopher,pacifist,puzzlemaster,hatter,heretic,mutant,cerenovus,scarletwoman,assassin,pithag,vigormortis,kazali,shabaloth,zombuul`.
+Fix: each holder acts, and the ability is spent per player (as snv.use); with one Assassin it is the same, and BMR
+replays identically.
+
+B13. **Fixed (batch 3 commit).** **A dead player made the Lycanthrope places a Faux Paw.** Lycanthrope + Barber (a
+swap onto a dead player): the new Lycanthrope chose a Faux Paw whose source was already dead (`coherence`). Repro
+(before): `python -m clocktower fuzz repro --seed 9000584 --players 12 --judge scripted --chars banshee,soldier,professor,investigator,undertaker,grandmother,philosopher,dreamer,tealady,savant,lycanthrope,noble,innkeeper,barber,damsel,butler,lunatic,cerenovus,boffin,summoner,baron,nodashii,vigormortis,pukka,ojo`.
+Fix: only a living Lycanthrope chooses one.
+
+B14. **Fixed (batch 3 commit; found by the smoke run of carousel-4).** **An Alchemist-Summoner with only a Marionette.**
+At 7 players with the Marionette the only Minion, the Summoner jinx's [No Demon] left no evil player at all (the
+Marionette waits for the summoned Demon), and the Investigator had nothing true to show (crash). The Summoner is now
+offered to the Alchemist only with an evil player other than the Demon and a Marionette (ruling 72).
+
 ## Unruled interactions (the engine does something defensible; a ruling would settle it)
 
 U1. **The Undertaker learns the executed player's character after it changed.** Undertaker + Pit-Hag or Barber (also
@@ -298,6 +340,14 @@ the engine offers every player and its own truth test calls each false (`engine-
 Repro: `python -m clocktower fuzz repro --seed 9100313 --players 10 --judge rules --chars poppygrower,snakecharmer,minstrel,sailor,slayer,shugenja,dreamer,flowergirl,seamstress,banshee,chef,grandmother,preacher,puzzlemaster,plaguedoctor,hatter,drunk,godfather,summoner,baron,goblin,leviathan,zombuul,alhadikhia,nodashii`
 (day 2, the Summoner's game: Drew guesses his drunk right and is shown Blair, a Townsfolk). Suggested ruling: tell
 them no player is the Demon (true, and the guess is spent); option: hold the guess until a Demon is in play.
+
+U9. **The Noble with nothing true to show.** Noble + Lycanthrope at 5 players: two evil players and the Faux Paw leave
+one good player among the Noble's four others, so no three hold exactly one evil player; the engine offered any three
+and its truth test called them false (`engine-truth`, 2 in 7,000 games before the change). Repro: `python -m clocktower fuzz repro --seed 9006413 --players 5 --judge rules --chars towncrier,shugenja,pixie,nightwatchman,gossip,sailor,highpriestess,lycanthrope,magician,ravenkeeper,artist,noble,philosopher,goon,hatter,tinker,moonchild,harpy,widow,marionette,mastermind,vortox,pukka,shabaloth,leviathan`.
+The scripted Storyteller (and the judge's default) now picks a Faux Paw that leaves the Noble a true answer when one
+exists, but a judge may still choose otherwise, and a Recluse can do the same. Suggested ruling: the Storyteller must
+not make the Noble's information impossible (the Faux Paw is theirs to choose). Option: show any three (the
+almanac's habit for information with no true answer).
 
 ## Advisories (counted, not violations)
 

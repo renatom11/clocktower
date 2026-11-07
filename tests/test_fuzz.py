@@ -103,6 +103,26 @@ class FuzzTests(unittest.TestCase):
         self.assertIsNone(fuzz.widow_knower(m, {}, {'players': ['Drew']}))
         self.assertIsNotNone(fuzz.widow_knower(m, {}, {'players': ['Frankie']}))
 
+    def test_the_batch_3_oracles_and_the_faux_paw(self):
+        script = fuzz.make_script(['Noble', 'Village Idiot', 'Lycanthrope', 'Boffin', 'Alchemist', 'Chef', 'Monk',
+                                   'Mayor', 'Soldier', 'Empath', 'Drunk', 'Poisoner', 'Imp'])
+        g = self.game(['Noble', 'Village Idiot', 'Imp', 'Monk', 'Lycanthrope', 'Poisoner', 'Soldier'], script)
+        m, noble, vi = g.fz, g.g['Alex'], g.g['Blair']
+        self.assertIsNone(fuzz.noble(m, noble, {}, {'players': ['Casey', 'Drew', 'Ellis']}))
+        self.assertIsNotNone(fuzz.noble(m, noble, {}, {'players': ['Casey', 'Frankie', 'Ellis']}))
+        self.assertIsNotNone(fuzz.noble(m, noble, {}, {'players': ['Drew', 'Ellis', 'Gray']}))
+        self.assertIsNone(fuzz.village_idiot(m, vi, {'about': 'Casey'}, {'yes': True}))
+        self.assertIsNotNone(fuzz.village_idiot(m, vi, {'about': 'Drew'}, {'yes': True}))
+        fuzz.FAUX.add('Drew')  # the Lycanthrope's Faux Paw registers as evil
+        self.assertIsNone(fuzz.village_idiot(m, vi, {'about': 'Drew'}, {'yes': True}))
+        fuzz.FAUX.clear()
+        self.assertIsNotNone(fuzz.boffin_ability(m, {}, {'character': 'Drunk'}))
+        self.assertIsNotNone(fuzz.boffin_ability(m, {}, {'character': 'Monk'}))
+        self.assertIsNone(fuzz.boffin_ability(m, {}, {'character': 'Chef'}))
+        self.assertIsNotNone(fuzz.alchemist_minion(m, {}, {'character': 'Poisoner'}))
+        self.assertIsNone(fuzz.faux_paw(m, {}, {'players': ['Drew']}))
+        self.assertIsNotNone(fuzz.faux_paw(m, {}, {'players': ['Casey']}))
+
     def test_extra_abilities_need_a_gains_event(self):
         g = self.game(['Empath', 'Chef', 'Imp', 'Soldier', 'Monk', 'Mayor', 'Poisoner'])
         g.g['Alex'].extra.append('Monk')

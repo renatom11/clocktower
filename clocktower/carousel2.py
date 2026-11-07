@@ -53,7 +53,9 @@ def add_outsider(game, by):
     setup, nor an Outsider only one of whose jinxed pair can be in play."""
     g = game.g
     in_play = {q.character for q in g.players}
-    towns = [q.name for q in g.players if kind(q.character) == 'Townsfolk' and q is not by]
+    # (not a Townsfolk whose own setup step has already changed the game: the Alchemist's, batch 3)
+    towns = [q.name for q in g.players if kind(q.character) == 'Townsfolk' and q is not by
+             and not (rules(q.character).setup_order or 0) < -1]
     pool = [c for c in g.script.outsiders if c not in in_play and not rules(c).always_drunk
             and not rules(c).wakes_at_own_step and not g.script.clash(in_play | {c})]
     if not (towns and pool):
@@ -465,8 +467,8 @@ class Cannibal(Townsfolk):
         g, c = game.g, dead.character
         if not (me.alive and c in me.extra):
             return
-        if c == 'Butler' and g.script.jinxed(self.name, 'Butler'):  # the jinx: they learn it
-            game.inform(me, f'{snv.when(game)}: you have gained the Butler\'s ability: {rules(c).ability}')
+        if c in ('Butler', 'Zealot') and g.script.jinxed(self.name, c):  # the jinxes: they learn it (Zealot: batch 3)
+            game.inform(me, f'{snv.when(game)}: you have gained the {c}\'s ability: {rules(c).ability}')
         record = g.notes.get('Juggler', {}).get(dead.name)
         if c == 'Juggler' and g.script.jinxed(self.name, 'Juggler') and record and record['day'] == game.day:
             # the jinx: the Juggler guessed on their first day and was executed: the Cannibal learns tonight
@@ -868,7 +870,7 @@ class Kazali(Demon):
 
 
 def leviathan_choice_jinxes(g):
-    return [c for c in ('Banshee', 'Sage', 'Ravenkeeper') if g.script.jinxed('Leviathan', c)]
+    return [c for c in ('Banshee', 'Sage', 'Ravenkeeper', 'Farmer') if g.script.jinxed('Leviathan', c)]
 
 
 class Leviathan(Demon):
@@ -915,6 +917,9 @@ class Leviathan(Demon):
             if choice:
                 await snv.learn(game, t, 'Sage', choice, lambda v: 'the Demon is {} or {}.'.format(
                     *sorted(v['players'], key=lambda x: g[x].seat)))
+        elif c == 'Farmer' and 'Farmer' in jinxes and not t.evil:
+            from .carousel3 import farm  # the jinx (batch 3): the Farmer's ability, and the Farmer does not die
+            await farm(game, t)
         elif c == 'Ravenkeeper' and 'Ravenkeeper' in jinxes:
             req = game.request('ravenkeeper', f'Night {night.n}: Ravenkeeper: the Leviathan chose you. Choose a '
                                               'player to learn their character (`targets`).', night.n, n_targets=1,

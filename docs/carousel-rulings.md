@@ -484,3 +484,132 @@ implemented.
 New weights: `priestess_info_weight` 3, `balloonist_outsider` 0.5, `cannibal_lie_claim` 0.8, `puzzle_townsfolk`
 0.8, `marionette_townsfolk` 0.8, `kazali_outsiders_same` 0.6. The rules judge has no heuristic of its own for the new
 calls (the scripted style decides).
+
+## Batch 3: thirteen experimental characters
+
+The Village Idiot, Acrobat, Lycanthrope, Alchemist, Zealot, Organ Grinder, Noble, Farmer, Harpy, Boffin, Boomdandy,
+Fearmonger and Xaan (`clocktower/carousel3.py`, tests in `tests/test_carousel3.py`, Storyteller's notes in
+`clocktower/data/storyteller/carousel.md`). The first six, with built characters, make the Carousel Script
+Collection's Monkey Do Math, which now plays end to end; their interactions with each other are tested there. The
+eighteen official jinxes between them and built characters are all implemented. Lil' Monsta is not built (65).
+
+65. **Lil' Monsta is left out.** Its Demon is not a character but a token the Minions pass each night ("is the
+    Demon"): no player's character is a Demon, the babysitter keeps their Minion ability, and the token decides who
+    dies to execution as the Demon, who registers as it, and the victory check. That is the "no Demon character"
+    design the brief keeps for the owner with the Legion, Riot and Atheist; its five jinxes (Hatter, Magician, Poppy
+    Grower, Scarlet Woman, Marionette) wait with it. Options: a Demon token held as a state (`Player.is_demon` and
+    every registration hook reading it), or a Lil' Monsta character moved between Minions each night (simple, but the
+    babysitter would lose their own ability, which the text keeps).
+
+### Townsfolk
+
+66. **The Village Idiot.** In a dealt game the Storyteller adds no extra (0.4), one (0.35) or two (0.25) Village
+    Idiots at setup, Townsfolk becoming them before anyone is told (never a Townsfolk whose own setup step has run:
+    the Alchemist); a forced setup keeps the ones given. With two or more, the Storyteller marks one, any of them, as
+    drunk all game. Each night every Village Idiot chooses a player and learns the alignment they register as (a Spy
+    may show good, a Recluse evil, the Lycanthrope's player evil). The drunk one's results are drawn as a poisoned
+    player's are, night by night (not one false world for the game, as the Drunk's: a reading). Up to three players
+    may have the character at once (`Character.duplicates`; `setup_error` allows it).
+67. **The Acrobat.** "Are or become drunk or poisoned tonight": checked at the Acrobat's step and again when
+    tonight's last step is done (`Character.end_of_night`, a new hook), so a player the Organ Grinder or the Sailor
+    makes drunk later in the night counts; the Drunk always counts. The Acrobat must have a working ability at the
+    check: a poisoned Acrobat never dies this way, even choosing themself. A death, announced at dawn.
+68. **The Lycanthrope.** "If good": as the player registers (a Spy may register either way: the Storyteller's call,
+    POLICY `lycanthrope_misregister_good` 0.5; the Faux Paw registers evil, so survives). A good choice dies (not a
+    Demon's kill: the Monk and the Soldier don't stop it) and the Demons' attacks kill nobody tonight, even if the
+    chosen player is protected and lives (a reading). "One good player registers as evil": chosen at setup (or when
+    a living player becomes the Lycanthrope), usually a Townsfolk, and never one that would leave a Noble with no
+    true three (see U9); while the Lycanthrope is alive, sober and healthy, they register as evil to every alignment
+    check (`Grimoire.registers_evil`, a 'registers evil' state), not as an evil character.
+69. **The Noble.** On their first night (or when they become one), three other players of whom exactly one can
+    register as evil. Drunk, poisoned or under the Vortox: any three, misinformed with none or two or more evil.
+70. **The Farmer.** Any death at night while sober and healthy (a Philosopher's too); none by day. The Storyteller
+    picks a living good player (usually a Townsfolk, not already a Farmer), who becomes a Farmer and is told; several
+    Farmers can be in play. With the Leviathan (its jinx), a good Farmer it chooses makes a new Farmer and lives.
+71. **The Alchemist.** The Storyteller picks, at setup, a Minion on the script that is not in play, among those the
+    engine runs for a good player (Poisoner, Devil's Advocate, Assassin, Godfather, Baron, Witch, Cerenovus,
+    Fearmonger, Boomdandy, Harpy). The Scarlet Woman (a good Demon), Pit-Hag, Evil Twin, Goblin and Xaan are never
+    offered (options: build each for a good holder). The Alchemist holds it on top of their own, is shown it on the
+    first night, and in a dealt game its setup change comes with it (the Baron's two Outsiders; the Godfather's one
+    more, 0.75, or one fewer). "May prompt you to choose differently": the engine never does (option: let a judge
+    refuse a choice that would end the game for evil). A Drunk who believes they are the Alchemist is shown a Minion
+    not in play, without a setup change, woken for its step, with no effect.
+72. **The Alchemist's jinxes.** Spy, Widow: only while that Minion is in play; no ability; after each execution
+    (dying or not) a living Alchemist may publicly name a living player as it, optionally; a right guess makes every
+    Demon's night choice tonight that player. Marionette: only while one is in play; nothing. Mastermind: only while
+    not in play; nothing. Organ Grinder: only while one is in play; both have the ability, and while both are sober
+    (by anything placed, not by this jinx's own drunkenness, so it does not loop) both are drunk. Boffin: the
+    Alchemist is not told the Demon's ability. Summoner: only in a dealt game, at setup, with an evil player other than
+    the Demon and a Marionette (else no evil player would be in play until the third night: a smoke crash): the Demon
+    dealt becomes a good Townsfolk not in play; on the third night the Alchemist names a Demon and the Storyteller
+    the player (usually a living good one), who becomes it, evil; until then good does not win for want of a Demon,
+    and the Alchemist dying first wins for evil.
+
+### Outsiders
+
+73. **The Zealot.** "5 or more players alive": as the town sees it. A working Zealot is asked to vote as usual, told
+    they must vote yes, and their hand is raised whatever they answer (with a private notice); a drunk or poisoned one
+    is told the same and their answer stands. A dead Zealot has no ability. With the Cannibal (its jinx), a Cannibal
+    who gains the Zealot's ability is told.
+
+### Minions
+
+74. **The Organ Grinder.** Each night a yes/no (`decide`): drunk until dusk, or not. While a holder is alive, sober
+    and healthy, every vote is eyes closed (`Character.secret_votes`): each voter sees only their own hand, the
+    prompt gives no tally and no block, the count goes to the Storyteller's record only, and nominations do not say
+    who is about to die; the execution, or no execution, is announced at the end as usual. With the Butler (its
+    jinx), the Butler is not shown the master's hand and may raise theirs; it counts only if the master's is up.
+75. **The Harpy.** Two players each night; the first is told, by name, whom they must be mad about (even when the
+    Harpy is drunk or poisoned: no penalty then). Judged once, as the day's talk ends and before nominations (as the
+    Cerenovus's). The scripted floor: they broke it unless, aloud that day, they said the second player is evil (a
+    sentence naming them with "evil", "Demon", "Minion" or "Imp") or nominated them, and never called them good or
+    said they were mad (a judge weighs effort). Broken: the Storyteller may kill nobody (0.2), the first (0.6 of the
+    rest), the second, or both (0.2). Option: judge at dusk, over the whole day.
+76. **The Boffin.** At the Boffin's step on the first night the Storyteller picks a good character not in play from
+    those the engine runs for a Demon who has them (the Washerwoman, Librarian, Investigator, Chef, Empath,
+    Undertaker, Monk, Noble, Village Idiot and Goon); the Demon and the Boffin are told. The Demon has it while the
+    Boffin is alive and still has their ability, whichever player is the Demon (a starpass passes it on), and it works
+    while the Boffin is sober and healthy, whatever the Demon's own sobriety (`Grimoire.gift`, `gift_impaired`). Its
+    jinxes: never the Drunk's, Heretic's or Politician's ability; a Demon with the Goon's doesn't turn good by it; the
+    Village Idiot's even in play while a token is spare (another Village Idiot: the drunk one is chosen again).
+77. **The Boomdandy.** Executed and dying while sober and healthy (an Alchemist's too), once a game: the town is told,
+    and all but three living players die, the Storyteller choosing the three (usually the Demon and two others,
+    0.9, so the pointing decides). With three or fewer alive, nobody dies first. Then every player, dead ones too,
+    points at a living player at once; the one most pointed at dies, and a tie kills nobody (a reading). With the
+    Plague Doctor (its jinx), a player becomes the Boomdandy: usually a living Minion (0.8), keeping their alignment.
+78. **The Fearmonger.** A new choice is announced to all only when it takes effect (a drunk or poisoned Fearmonger's
+    choice changes nothing and is not announced: a reading); the chosen player is not told. If the Fearmonger
+    nominated today's executee and that is their chosen player, the executee's team loses at the execution, dying or
+    not. With the Plague Doctor (its jinx), a living Minion gains the ability and is told.
+79. **The Xaan.** "[X Outsiders]": dealt with one more, as many or one fewer Outsider than the table's base (the
+    Storyteller's, uniformly, among those the script can deal: `outsider_choices`); X is then the number of Outsiders
+    in play after every setup change, and a dealt game with none gets one (else X is 0 and the Xaan never poisons). A
+    Xaan made later has X equal to the Outsiders in play then. On night X, from the Xaan's step until dusk, every
+    Townsfolk (as they are now) is poisoned while the Xaan is alive, sober and healthy (as the Poisoner's poison:
+    finding B5); a drunk or poisoned Xaan at that step poisons nobody, and night X never comes again.
+
+### Core changes and playability
+
+80. **Core changes**, each a no-op on the base scripts (their fingerprints are identical, and so are carousel-1 to
+    carousel-3's): a character may be held by several players (`Character.duplicates`, the Village Idiot's three);
+    an end-of-night hook (the Acrobat); a 'registers evil' state (the Lycanthrope's); a good ability a Demon has
+    through another's whose sobriety counts (`Grimoire.gift`: the Boffin); secret votes and a compelled hand
+    (`Character.secret_votes`, `must_vote`, `followers_blind`: the Organ Grinder, the Zealot, the Butler jinx); a
+    Demon's night choice limited to one player (the Alchemist-Spy's right guess); abilities gained beyond a
+    character wake a player for that character's step and inform them as before, now also when a Demon has them
+    through the Boffin. The Godfather and the Assassin act for a living player who has the ability without being the
+    character (the Alchemist); the Assassin is spent per player (snv.use), so two players with it each have one use
+    (finding B12: identical with one Assassin, so BMR replays). Setup steps that turn Townsfolk into other characters
+    (the Balloonist's and Xaan's Outsider, the Village Idiot's extras) never take a Townsfolk whose own setup has run
+    (the Alchemist: finding B11).
+81. **The fourth synthetic script** (`clocktower/data/scripts/carousel-4.json`, "Carousel test 4"): the thirteen,
+    with the Cannibal, Empath, Monk, Chef, Washerwoman, Investigator and Undertaker; the Butler, Drunk, Goon,
+    Heretic, Politician, Plague Doctor and Recluse; the Spy, Widow, Marionette, Mastermind, Summoner and Pit-Hag; the
+    Imp and the Leviathan. All eighteen batch 3 jinxes are on it, and every size from 5 to 15
+    deals. Its replay fingerprints are
+    `tests/data/fingerprints-carousel-4.json`.
+
+New weights: `idiot_extra_one` 0.35, `idiot_extra_two` 0.25, `lycanthrope_misregister_good` 0.5, `harpy_kill` 0.8,
+`harpy_first` 0.6, `harpy_both` 0.2, `boomdandy_keep_demon` 0.9, `plague_boomdandy_minion` 0.8. The rules judge has
+no heuristic of its own for the new calls (the scripted style decides, or its balance for the yes/no ones that help
+a team).

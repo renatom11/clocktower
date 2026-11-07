@@ -97,7 +97,8 @@ def setup_error(characters, script=TB):
     """Why a list of characters is not a legal setup of `script`, or None."""
     n = len(characters)
     if n not in SETUPS: return f'{script.name} is for {min(SETUPS)}-{max(SETUPS)} players'
-    if len(set(characters)) != n: return 'characters must be distinct'
+    if any(characters.count(c) > (rules(c).duplicates if c in script.all else 1) for c in set(characters)):
+        return 'characters must be distinct'  # (custom scripts: up to 3 Village Idiots, `Character.duplicates`)
     bad = [c for c in characters if c not in script.all]
     if bad: return f'not on the script: {bad}'
     counts = {k: sum(1 for c in characters if kind(c) == k) for k in ('Townsfolk', 'Outsider', 'Minion', 'Demon')}
@@ -299,6 +300,15 @@ POLICY = {
     'puzzle_townsfolk': 0.8,        # the Puzzlemaster's drunk is a good Townsfolk (else any other player)
     'marionette_townsfolk': 0.8,    # the Marionette believes they are a Townsfolk (else an Outsider)
     'kazali_outsiders_same': 0.6,   # the Kazali's Outsiders stay as dealt (else one more or one fewer)
+    # batch 3 (docs/carousel-rulings.md). Default, for review.
+    'idiot_extra_one': 0.35,        # the Village Idiot's extras: one more Village Idiot,
+    'idiot_extra_two': 0.25,        # or two more (else none)
+    'lycanthrope_misregister_good': 0.5,  # a player who may register either way (a Spy) registers good to it, and dies
+    'harpy_kill': 0.8,              # a broken Harpy madness kills someone (else nobody),
+    'harpy_first': 0.6,             # the 1st player (else, below, the 2nd),
+    'harpy_both': 0.2,              # or both
+    'boomdandy_keep_demon': 0.9,    # the Demon is among the Boomdandy's three survivors (else any three)
+    'plague_boomdandy_minion': 0.8,  # the Plague Doctor jinx: the new Boomdandy is a living Minion (else anyone)
     # the Storyteller judge (judge.py, when one is chosen; never in TB's protocol v17): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
@@ -543,12 +553,40 @@ class Grimoire:
         return self.is_drunk(p) or self.is_poisoned(p)
 
     def abilities(self, p):
-        """The characters whose abilities p has: their own, and any gained (the Philosopher's)."""
-        return [p.character, *getattr(p, 'extra', [])]
+        """The characters whose abilities p has: their own, any gained (the Philosopher's), and a good character's that
+        a Demon has through another player's ability (the Boffin's: Grimoire.gift)."""
+        out = [p.character, *getattr(p, 'extra', [])]
+        gift = self.gift(p)
+        if gift and gift['ability'] not in out:
+            out.append(gift['ability'])
+        return out
+
+    def gift(self, p):
+        """{'ability', 'giver'}: the good character's ability Demon p has through the giver's ability (the Boffin's:
+        the Demon "even if drunk or poisoned"), while the giver is alive and still has that ability; else None. Only
+        custom scripts give one."""
+        gift = self.notes.get('Boffin gift')
+        if not gift or not p.is_demon:
+            return None
+        giver = self.by_name[gift['giver']]
+        if not (giver.alive and (giver.character == 'Boffin' or 'Boffin' in getattr(giver, 'extra', ()))):
+            return None
+        return gift
+
+    def gift_impaired(self, p, ability):
+        """For a gifted ability (Grimoire.gift): whether it fails, which goes by the giver's sobriety, not p's (the
+        Boffin's Demon has it "even if drunk or poisoned"); None for any other ability."""
+        gift = self.gift(p) if self.notes.get('Boffin gift') else None
+        if not gift or gift['ability'] != ability:
+            return None
+        return self.impaired(self.by_name[gift['giver']])
 
     def works(self, p, character):
         """p is alive (or dead and keeping their ability: the Vigormortis's Minions), has `character`'s ability, and
-        is neither drunk nor poisoned."""
+        is neither drunk nor poisoned (for a gifted ability, its giver: Grimoire.gift_impaired)."""
+        gifted = self.gift_impaired(p, character)
+        if gifted is not None:
+            return (p.alive or self.keeps_ability(p)) and not gifted
         return (p.alive or self.keeps_ability(p)) and character in self.abilities(p) and not self.impaired(p)
 
     def falsified(self, p, ability=None):
@@ -563,8 +601,10 @@ class Grimoire:
 
     def unreliable(self, p, ability=None):
         """Whether p's information may be false: they are drunk or poisoned, or it is falsified (the Vortox). An
-        information Choice offers every value then, as for an impaired player."""
-        return self.impaired(p) or self.falsified(p, ability)
+        information Choice offers every value then, as for an impaired player. A gifted ability (the Boffin's) goes by
+        its giver's sobriety."""
+        gifted = self.gift_impaired(p, ability)
+        return (self.impaired(p) if gifted is None else gifted) or self.falsified(p, ability)
 
     def safe_from_demon(self, p):
         """The Demon's attack can't kill p: their own ability (the Soldier) or protection (the Monk's)."""
@@ -634,7 +674,10 @@ class Grimoire:
 
     # ---- registration --------------------------------------------------------------
     def registers_evil(self, p, observer=None):
-        """Set of possible answers to 'is p evil?' (asked by `observer`'s ability, if given)"""
+        """Set of possible answers to 'is p evil?' (asked by `observer`'s ability, if given). A 'registers evil' state
+        (the Lycanthrope's good player) makes it evil."""
+        if self.has(p, 'registers evil'):
+            return {True}
         return rules(p.character).registers_evil(self, p, observer)
 
     def registers_as(self, p, observer=None):
@@ -707,7 +750,7 @@ class Grimoire:
             if chance is not None and not self.is_poisoned(q):
                 if r.random() < chance:
                     out.add(q.name)
-            elif q.evil:
+            elif q.evil or self.has(q, 'registers evil'):
                 out.add(q.name)
         return out
 
@@ -1192,5 +1235,6 @@ from . import bmr  # noqa: E402
 from . import snv  # noqa: E402  (after bmr: Sects & Violets, clocktower/snv.py)
 from . import carousel  # noqa: E402  (after snv: the experimental characters and jinxes, clocktower/carousel.py)
 from . import carousel2  # noqa: E402  (after carousel: batch 2 of the experimental characters)
+from . import carousel3  # noqa: E402  (after carousel2: batch 3 of the experimental characters)
 
-BMR, SNV, CAROUSEL = bmr, snv, (carousel, carousel2)  # (a use, so pyflakes sees the imports are wanted)
+BMR, SNV, CAROUSEL = bmr, snv, (carousel, carousel2, carousel3)  # (a use, so pyflakes sees the imports are wanted)

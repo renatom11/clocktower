@@ -181,3 +181,80 @@ gives good the win; with the Mayor alive on day 5 and no execution, good wins. W
 Grandchild loses for good. With the Banshee, Sage or Ravenkeeper, the Leviathan picks a new living player each night:
 a Banshee chosen dies (and gets her powers), a Sage or Ravenkeeper chosen uses their ability without dying. It cannot
 be made after day 5 by the Pit-Hag or a tea party.
+
+## Village Idiot
+Each night every Village Idiot picks a player and you show their alignment with a thumb. At setup you may turn up
+to two more Townsfolk into Village Idiots; with two or more, one of them (your pick) is drunk all game and gets
+alignments that may be wrong, consistently. A Spy may show as good and a Recluse as evil. With the Pit-Hag, she may
+make another Village Idiot while a token is spare, and you may move the drunk marker; with the Boffin, the Demon may
+get the ability even with Village Idiots in play.
+
+## Acrobat
+From the second night the Acrobat picks a player. If that player is drunk or poisoned at any point tonight, the
+Drunk included and someone who decides to be drunk later in the night (the Organ Grinder), the Acrobat dies. A drunk
+or poisoned Acrobat never dies this way.
+
+## Lycanthrope
+At setup mark one good player, usually a Townsfolk, who registers as evil to everything while the Lycanthrope keeps
+the ability. From the second night the Lycanthrope picks a living player: if that player registers as good they die
+and no Demon kill happens tonight; an evil pick does nothing and the Demon kills as usual. A Spy may go either way:
+your call.
+
+## Alchemist
+At setup pick a Minion on the script that nobody has; the Alchemist holds that ability while staying good, and is
+shown it on the first night. Setup effects come with it in a dealt game (the Baron's extra Outsiders, the
+Godfather's change). The jinxes reshape some: a Spy, Widow or Marionette chosen this way gives no ability and must be
+in play (after each execution an Alchemist-Spy or -Widow may publicly name the Spy or Widow; a right guess makes the
+Demon pick that player tonight); a Mastermind gives nothing and stays out of play; an Organ Grinder must also be in
+play, and while both are sober both are drunk; a Boffin keeps the Alchemist ignorant of the gift; a Summoner means no
+Demon at the start, the Alchemist names the Demon on night three and you name the player, and their death before then
+hands evil the win. The engine never asks the Alchemist to choose again.
+
+## Zealot
+While five or more players appear alive, a working Zealot's hand goes up on every vote, whatever they intend; they
+are reminded each time. A drunk or poisoned Zealot is reminded too, but their vote stands as cast. With the
+Cannibal, a Cannibal who gains this ability is told.
+
+## Organ Grinder
+Each night the Organ Grinder decides whether to be drunk until dusk. While they are alive and sober, votes happen
+with eyes closed: each voter sees only their own hand, nobody hears the count, and the town does not learn who is
+about to die until the execution. With the Butler, the Butler may always raise a hand, but it only counts when the
+master's is up too.
+
+## Noble
+On the first night the Noble sees three players, exactly one of them evil (registration counts: a Spy may be the good
+two, a Recluse the evil one). A drunk or poisoned Noble, or one under the Vortox, may see three with no evil player or
+with two.
+
+## Farmer
+When a sober Farmer dies at night, wake a living good player, usually a Townsfolk, and make them a Farmer. A death by
+day passes nothing on. With the Leviathan, the Leviathan picking a good Farmer makes a new Farmer and the old one
+survives.
+
+## Harpy
+Each night the Harpy picks two players; wake the first and point to the second. Tomorrow the first must try to
+convince everyone the second is evil. Just before nominations, if they did not (silence, calling the second good, or
+admitting the madness), you may kill the first, the second or both, usually the first. A drunk or poisoned Harpy's
+target is still woken, but nobody dies.
+
+## Boffin
+On the first night pick a good character nobody has whose ability the engine can run for the Demon, and tell the
+Demon and the Boffin. The Demon keeps it while the Boffin lives, and it works whenever the Boffin is sober and
+healthy, even while the Demon is drunk or poisoned. The Demon can never have the Drunk's, Heretic's or Politician's
+ability; one with the Goon's never turns good through it.
+
+## Boomdandy
+If the Boomdandy is executed and dies, sober, everyone but three players dies: usually keep the Demon and two others
+alive, so the finish is decided at the table. Then everyone points at a living player after a countdown; the one with
+the most fingers dies, and a tie kills nobody. With the Plague Doctor, instead of you gaining it, a player (usually a
+living Minion) becomes the Boomdandy.
+
+## Fearmonger
+Each night the Fearmonger picks a player; whenever the pick changes, announce to everyone that the Fearmonger has
+chosen a player. If the Fearmonger later nominates that player and they are executed, the executed player's team
+loses at once. With the Plague Doctor, a living Minion receives this ability and learns it.
+
+## Xaan
+X is the number of Outsiders in play; in a dealt game with none, add one. On night X, from the Xaan's step until the
+next dusk, every Townsfolk is poisoned, as long as the Xaan lives and is sober. A drunk or poisoned Xaan on night X
+does nothing, and the night does not come again.
