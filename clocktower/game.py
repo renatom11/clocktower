@@ -269,8 +269,8 @@ class Game:
         """An information decision whose value a working ability could not give (`choice.truth`) is abnormal: the
         recipient was drunk or poisoned by an ability, or their information was falsified (the Vortox). True
         information for an impaired player is not (the almanac: the poisoned Empath getting true information). The
-        Drunk's own drunkenness is not another character's ability (a reading: the Mathematician/Drunk jinx says
-        otherwise, on scripts with both)."""
+        Drunk's own drunkenness is not another character's ability (a reading), except where the Mathematician/Drunk
+        jinx is in effect (a custom script with both: docs/carousel-rulings.md, 7)."""
         ctx = choice.context or {}
         if ctx.get('call') != 'information' or choice.truth is None or self.g is None:
             return
@@ -278,7 +278,8 @@ class Game:
         ability = ctx.get('ability') or (p.shown if p else None)
         if p is None or choice.truth(value):
             return
-        if rules(p.character).always_drunk and not self.g.falsified(p, ability):
+        if (rules(p.character).always_drunk and not self.g.falsified(p, ability)
+                and not self.g.script.jinxed('Mathematician', p.character)):
             return
         self.abnormal(p, ability, 'false information')
 

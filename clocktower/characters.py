@@ -410,6 +410,10 @@ class Slayer(Townsfolk):
         g = game.g
         s, t = g[actor], g[target]
         if not (s.alive and s.character == self.name and not g.spent_ability(self.name)):
+            if (s.alive and s.shown == self.name and rules(s.character).always_drunk and t.alive and t.is_demon
+                    and g.script.jinxed('Mathematician', s.character) and not g.notes.get(f'Drunk shot:{s.name}')):
+                g.notes[f'Drunk shot:{s.name}'] = True  # the Mathematician jinx: a Drunk's shot at the Demon
+                game.abnormal(s, self.name, 'shot the Demon, who did not die')
             return False  # anyone can claim a shot; only a real, unused Slayer's does anything
         g.spend(self.name)
         if g.is_poisoned(s) or not t.alive:
@@ -469,6 +473,29 @@ class Drunk(Outsider):
             in_play = {p.character for p in g.players}
             options = [c for c in g.script.townsfolk if c not in in_play]
             drunk.shown = (await game.decide_judged(state.drunk_as_choice(options, drunk)))['character']
+
+    # The Mathematician jinx (custom scripts): the Drunk's ability "failed to work properly" when the Townsfolk they
+    # believe they are would have done something. Their false information counts through Game.note_information; these
+    # are the other cases the engine can see (docs/carousel-rulings.md, 7). Without the jinx none is recorded.
+    @staticmethod
+    def jinxed(g):
+        return g.script.jinxed('Mathematician', 'Drunk')
+
+    def on_death(self, game, me, dead, cause, alive_before):
+        night = game.tonight
+        if cause != 'demon' or not self.jinxed(game.g):
+            return
+        if (dead is me and me.shown == 'Soldier') or (me.shown == 'Monk' and night is not None and me.alive
+                                                     and dead.name in (night.chosen.get(me.name) or ())):
+            game.abnormal(me, me.shown, 'the Demon killed a player this ability would have kept safe')
+
+    def nominated(self, game, me, nominator):
+        g = game.g
+        if me.shown == 'Virgin' and self.jinxed(g) and not g.notes.get(f'Drunk Virgin:{me.name}'):
+            g.notes[f'Drunk Virgin:{me.name}'] = True  # the first nomination only, as the Virgin's
+            if kind(g[nominator].character) == 'Townsfolk':
+                game.abnormal(me, 'Virgin', 'a Townsfolk nominated them and was not executed')
+        return False
 
 
 class Recluse(Outsider):
@@ -544,6 +571,9 @@ class ScarletWoman(Minion):
 
     def on_death(self, game, me, dead, cause, alive_before):
         if dead.is_demon and cause != 'starpass' and self.takes_over(game.g, me, alive_before):
+            if game.g.script.jinxed(self.name, 'Fang Gu') and any(
+                    q.is_demon and q.alive and q is not dead and q is not me for q in game.g.players):
+                return  # the Fang Gu jinx: there would be two Demons, so she stays the Scarlet Woman (a custom script)
             game.g.change_character(me, dead.character)
             game.emit('becomes', {'player': me.name, 'character': dead.character}, 'audit')
             game.emit('notice', {'text': f'The Demon has died — and because you are the Scarlet Woman, you are '
@@ -629,20 +659,38 @@ def after(order):
 class Script:
     """A script: its characters by type (in the script's order, which random setups draw from), its night order
     (the official universal order filtered to its characters) and its characters' setup steps and public actions.
-    `source` is a built-in script id ('tb', 'bmr') or a path to a script JSON in the official format."""
+    `source` is a built-in script id ('tb', 'bmr') or a path to a script JSON in the official format.
+
+    A custom script may also list Travellers, Fabled and Loric (`travellers`, `fabled`, `loric`, by name, homebrew
+    ones included): they are kept, noted on the character sheet as not in play, and never dealt or woken, since this
+    engine runs none of them. Every Townsfolk, Outsider, Minion and Demon must be built (an official one in
+    `CHARACTERS`; a homebrew one never is), or loading says which are not."""
 
     def __init__(self, source='tb'):
         self.id = Path(str(source)).stem
-        self.name, names = official.script(source)
-        missing = [n for n in names if n not in CHARACTERS]
+        loaded = official.script_entries(source)
+        self.name = loaded['name']
+        entries = loaded['entries']
+        missing = [e['name'] if e['official'] else f"{e['name']} (homebrew: {e['id']})" for e in entries
+                   if e['type'] in official.PLAYER_TYPES and not (e['official'] and e['name'] in CHARACTERS)]
         if missing:
             raise ValueError(f'{self.name}: characters not implemented yet: {", ".join(missing)}')
-        by = {k: [n for n in names if kind(n) == k] for k in ('Townsfolk', 'Outsider', 'Minion', 'Demon')}
+        names = [e['name'] for e in entries if e['type'] in official.PLAYER_TYPES]
+        self.travellers, self.fabled, self.loric = ([e['name'] for e in entries if e['type'] == k]
+                                                    for k in ('Traveller', 'Fabled', 'Loric'))
+        self._build(names, after(official.night_order(names, True)), after(official.night_order(names, False)))
+        # Trouble Brewing asks night choices in batches (protocol v17); other scripts wake one character at a time,
+        # since their steps depend on earlier ones (the Lunatic before the Demon, the Exorcist's target, the Goon)
+        self.batched_night = self.id == 'tb'
+        # official jinxes between this script's characters (none within Trouble Brewing)
+        self.jinxes = {pair: text for pair, text in official.jinxes().items() if set(pair) <= set(self.all)}
+
+    def _build(self, characters, first_night, other_nights):
+        by = {k: [n for n in characters if kind(n) == k] for k in ('Townsfolk', 'Outsider', 'Minion', 'Demon')}
         self.townsfolk, self.outsiders, self.minions, self.demons = (by[k] for k in by)
         self.all = self.townsfolk + self.outsiders + self.minions + self.demons
         self.good = self.townsfolk + self.outsiders
-        self.first_night = after(official.night_order(self.all, True))
-        self.other_nights = after(official.night_order(self.all, False))
+        self.first_night, self.other_nights = first_night, other_nights
         steps = [rules(n) for n in self.all if rules(n).setup_order is not None]
         self.setup_steps = sorted(steps, key=lambda c: c.setup_order)
         self.public_actions = {rules(n).public_action: rules(n) for n in self.all
@@ -652,34 +700,28 @@ class Script:
         self.falsifiers = [n for n in self.all if rules(n).falsifies_info]  # characters that can falsify information
         self.visitable = [n for n in self.all if rules(n).visit]  # abilities used by visiting the Storyteller
         self.guessable = [n for n in self.all if rules(n).public_guesses]  # public abilities that take guesses
-        # Trouble Brewing asks night choices in batches (protocol v17); other scripts wake one character at a time,
-        # since their steps depend on earlier ones (the Lunatic before the Demon, the Exorcist's target, the Goon)
-        self.batched_night = self.id == 'tb'
-        # official jinxes between this script's characters (none within Trouble Brewing)
-        self.jinxes = {pair: text for pair, text in official.jinxes().items() if set(pair) <= set(self.all)}
 
     @classmethod
-    def of(cls, name, characters, first_night=(), other_nights=()):
+    def of(cls, name, characters, first_night=(), other_nights=(), jinxes=()):
         """A script built in code from implemented characters, with its night order given (tests; characters
-        not in the official data)."""
+        not in the official data). `jinxes`: pairs of its characters whose official jinx is in effect, or a
+        {pair: text} for jinxes of its own."""
         s = cls.__new__(cls)
         s.id, s.name = name, name
-        by = {k: [n for n in characters if kind(n) == k] for k in ('Townsfolk', 'Outsider', 'Minion', 'Demon')}
-        s.townsfolk, s.outsiders, s.minions, s.demons = (by[k] for k in by)
-        s.all = s.townsfolk + s.outsiders + s.minions + s.demons
-        s.good = s.townsfolk + s.outsiders
-        s.first_night, s.other_nights = after(list(first_night)), after(list(other_nights))
-        s.setup_steps = sorted((rules(n) for n in s.all if rules(n).setup_order is not None),
-                               key=lambda c: c.setup_order)
-        s.public_actions = {rules(n).public_action: rules(n) for n in s.all
-                            if rules(n).public_action not in (None, 'ability')}
-        s.claimable = [n for n in s.all if rules(n).public_action == 'ability']
-        s.derivers = [n for n in s.all if rules(n).derives]  # characters with states worked out on demand
-        s.falsifiers = [n for n in s.all if rules(n).falsifies_info]  # characters that can falsify information
-        s.visitable = [n for n in s.all if rules(n).visit]  # abilities used by visiting the Storyteller
-        s.guessable = [n for n in s.all if rules(n).public_guesses]  # public abilities that take guesses
-        s.batched_night, s.jinxes = False, {}
+        s.travellers, s.fabled, s.loric = [], [], []
+        s._build(list(characters), after(list(first_night)), after(list(other_nights)))
+        s.batched_night = False
+        texts = jinxes if isinstance(jinxes, dict) else {tuple(p): official.jinxes()[tuple(p)] for p in jinxes}
+        s.jinxes = {}
+        for (a, b), text in texts.items():
+            s.jinxes[(a, b)] = s.jinxes[(b, a)] = text
         return s
+
+    def jinxed(self, a, b):
+        """Whether the jinx between characters `a` and `b` is in effect: both are on this script and a jinx between
+        them is (an official one, or one given to Script.of). A jinx applies whenever both are on the script, in play
+        or not; the code a jinx changes asks this and then checks the situation the jinx describes."""
+        return (a, b) in self.jinxes
 
     def __repr__(self):
         return f'Script({self.id!r})'
@@ -698,12 +740,28 @@ class Script:
             lines.append(f'{title}:')
             lines += [f'- {c}: {rules(c).ability}' for c in group]
         lines.append('(* = not on the first night)')
+        for title, group in [('Travellers', self.travellers), ('Fabled', self.fabled), ('Loric', self.loric)]:
+            if group:  # listed by the script, but this engine runs none of them
+                lines.append(f'{title} (not in play in this engine): {", ".join(group)}')
         seen = set()
         for (a, b), text in self.jinxes.items():  # each pair once
             if (b, a) not in seen:
                 seen.add((a, b))
                 lines.append(f'Jinx, {a} and {b}: {text}')
         return '\n'.join(lines)
+
+
+# The jinxes the engine implements, {frozenset((a, b)): where}: each is declared with `jinx` (in carousel.py, which
+# lists them all), and its code asks Script.jinxed. tests/test_carousel.py checks every official jinx between two built
+# characters is here.
+IMPLEMENTED_JINXES = {}
+
+
+def jinx(a, b, where):
+    """Declare that the official jinx between characters `a` and `b` is implemented, by the code at `where`."""
+    if (a, b) not in official.jinxes():
+        raise ValueError(f'no official jinx between {a} and {b}')
+    IMPLEMENTED_JINXES[frozenset((a, b))] = where
 
 
 # Trouble Brewing, the default script (protocol v17). The lists below are its; code written for TB uses them.

@@ -232,6 +232,9 @@ POLICY = {
     # but if evil is winning quite convincingly, you can make an Outsider, Minion, or even the Demon drunk." Default,
     # for review.
     'sweetheart_townsfolk': 0.9,    # a living good Townsfolk (else any other living player)
+    # Carousel (the experimental characters and custom scripts: docs/carousel-rulings.md)
+    # the Recluse/Sage jinx: "The Recluse might register as the Demon to the Sage". Default, for review.
+    'sage_shows_recluse': 0.3,      # a working Sage killed by the Demon is shown the Recluse in the Demon's place
     # the Storyteller judge (judge.py, when one is chosen; never in TB's protocol v17): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
@@ -520,7 +523,7 @@ class Grimoire:
         self.revivals.append({'player': p.name, 'day': self.day, 'source': source})
 
     def jinxed(self, a, b):
-        """The official jinx between two characters on this script, or None."""
+        """The text of the jinx between two characters in effect on this script (Script.jinxed), or None."""
         return self.script.jinxes.get((a, b))
 
     def died_today(self, day=None):
@@ -1092,5 +1095,6 @@ def info_text(ability, value, target=None):
 # characters.py complete, so they load last, here: whichever of the two is imported first, both are done by now.
 from . import bmr  # noqa: E402
 from . import snv  # noqa: E402  (after bmr: Sects & Violets, clocktower/snv.py)
+from . import carousel  # noqa: E402  (after snv: the experimental characters and jinxes, clocktower/carousel.py)
 
-BMR, SNV = bmr, snv  # (a use, so pyflakes sees the imports are wanted)
+BMR, SNV, CAROUSEL = bmr, snv, carousel  # (a use, so pyflakes sees the imports are wanted)

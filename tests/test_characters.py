@@ -18,7 +18,7 @@ class OfficialDataTests(unittest.TestCase):
     def test_every_character_is_official_with_its_official_type(self):
         for name, c in characters.CHARACTERS.items():
             self.assertEqual(official.kind(name), c.kind, name)
-            self.assertIn(official.role(name)['edition'], ('tb', 'bmr', 'snv'), name)
+            self.assertIn(official.role(name)['edition'], ('tb', 'bmr', 'snv', 'carousel'), name)
 
     def test_the_night_order_is_the_official_one(self):
         steps = official.nightsheet()
@@ -108,9 +108,11 @@ class ImportTests(unittest.TestCase):
         import subprocess
         import sys
         root = Path(characters.__file__).parent.parent
-        for module in ('state', 'characters', 'bmr', 'game', 'judge', 'official', 'cli', 'fingerprint'):
+        for module in ('state', 'characters', 'bmr', 'snv', 'carousel', 'game', 'judge', 'official', 'cli',
+                       'fingerprint', 'smoke'):
             r = subprocess.run([sys.executable, '-c', f'import clocktower.{module}; '
-                                'from clocktower.characters import CHARACTERS; assert "Zombuul" in CHARACTERS'],
+                                'from clocktower.characters import CHARACTERS, IMPLEMENTED_JINXES; '
+                                'assert "Zombuul" in CHARACTERS and "Vortox" in CHARACTERS and IMPLEMENTED_JINXES'],
                                cwd=root, capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, f'importing clocktower.{module} first: {r.stderr[-400:]}')
 

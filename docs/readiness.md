@@ -39,16 +39,33 @@ marked for the owner's review (docs/snv-rulings.md).
 
 ## Custom scripts
 
-- **Loading works** for any script whose characters are built; one with others says which aren't.
-- **Jinxes:** the official ones are loaded and shown on the character sheet (`Script.jinxes`), but none is applied:
-  each needs implementing (they take about eight forms: bans, setup changes, registration and visibility overrides,
-  replacement abilities, alignment locks, kill rulings) or a judge ruling.
+**Built in batch 0** (docs/carousel-rulings.md, 1-13):
+- **Loading real custom scripts**: ids in any spelling, official characters written as objects, homebrew entries
+  (a homebrew Townsfolk, Outsider, Minion or Demon is reported as not built), and Travellers, Fabled and Loric kept
+  on the script (`Script.travellers`, `.fabled`, `.loric`), noted on the sheet as not in play, never dealt or woken.
+  Every World Championship 2025 corpus script loads up to its unbuilt characters; none yet has all of them built.
+- **Jinxes**: `Script.jinxed(a, b)` (in effect when both are on the script; `Script.of(..., jinxes=...)` for tests),
+  with every implemented jinx declared in `clocktower/carousel.py`. The seven official jinxes between characters
+  already built are implemented (Mastermind/Vigormortis, Mathematician with the Chambermaid, the Drunk and the
+  Lunatic, Pit-Hag/Goon, Recluse/Sage, Scarlet Woman/Fang Gu); none is in effect on TB, BMR or S&V.
+- **The custom-script player prompt**: TB's with generic sentences, S&V's madness and visit sentences only when the
+  script's characters use them (a draft for review).
+- **Smoke runs**: `python -m clocktower smoke --script ID` and `--corpus` (random bots, both Storyteller modes, every
+  size). The synthetic `carousel-1` (all seven jinxes) plays 2,200 games with no crash and has replay fingerprints.
+
+**Still open:**
+- **The experimental characters** (71 in the official data's carousel edition): later batches, in
+  `clocktower/carousel.py`. The corpus needs Balloonist (7 scripts), Fisherman and Shugenja (6), Amnesiac, Damsel,
+  High Priestess, Noble and Pixie (5) most.
+- **Jinxes** with experimental characters: each with its character. They take about eight forms (bans, setup
+  changes, registration and visibility overrides, replacement abilities, alignment locks, kill rulings).
 - **No Demon or several** (the Legion, the Riot, the Atheist): victory checks and evil's first-night information.
 - **Speech-triggered abilities** (the Yaggababble's phrase, the Mezepheles' word): the judge reads speech.
 - **Storyteller-invented content** (the Wizard's wish, the Amnesiac's ability): a model judge that generates, with
   code limiting it to effects the engine can carry out.
 - **Vote mechanics** (weighted, negative, secret: the Thief, the Bureaucrat, the Voudon): the vote is a plain count.
-- **Travellers and exile, Fabled and Loric:** a Traveller flag on players exists; nothing else.
+- **Travellers and exile, Fabled and Loric:** listed, not played; a Traveller flag on players exists; nothing else.
+- **Homebrew characters** and scripts' house rules (the corpus's "bootlegger" rules): not played.
 
 ## Around the engine
 

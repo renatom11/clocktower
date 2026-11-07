@@ -1,5 +1,7 @@
 """The player system prompt (identical for every seat and every game, so it caches) and the
 scripted Storyteller's dawn narration."""
+import re
+
 from .characters import SETUPS, script_text
 
 WORDS = {1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight', 9: 'nine', 10: 'ten', 11: 'eleven', 12: 'twelve',
@@ -34,15 +36,17 @@ def player_system(n=9, memory='reasoning', private_beats=6, script=None):
     of protocol v17; another script's prompt is the same text with its own rules sentences (SCRIPT_TEXT)."""
     text, teams = _PLAYER_SYSTEM, _teams(n)
     if script is not None and script.id != 'tb':
-        text, teams = _script_system(script), SCRIPT_TEAMS[script.id](n)
+        text = _script_system(script)
+        teams = SCRIPT_TEAMS[script.id](n) if script.id in SCRIPT_TEAMS else _teams_custom(script, n)
     return (text.replace('{N}', WORDS[n]).replace('{TEAMS}', teams).replace('{MEMORY}', MEMORY[memory])
             .replace('{PW}', WORDS[private_beats]).replace('{P}', str(private_beats)))
 
 
 def _script_system(script):
-    """The Trouble Brewing prompt with that script's sentences swapped in and its character sheet."""
+    """The Trouble Brewing prompt with that script's sentences swapped in and its character sheet: its own
+    (SCRIPT_TEXT) for Bad Moon Rising and Sects & Violets, the generic ones (custom_text) for any other."""
     text = _PLAYER_SYSTEM
-    for old, new in SCRIPT_TEXT[script.id]:
+    for old, new in SCRIPT_TEXT[script.id] if script.id in SCRIPT_TEXT else custom_text(script):
         if old not in text:
             raise ValueError(f'{script.id} prompt: no longer finds {old[:60]!r}')
         text = text.replace(old, new)
@@ -272,6 +276,134 @@ def _teams_snv(n):
 
 
 SCRIPT_TEAMS['snv'] = _teams_snv
+
+
+# A custom script's prompt (any script but TB, BMR and S&V): generic sentences, with Sects & Violets' madness and visit
+# sentences only when the script's characters use those mechanics (a draft for review: docs/carousel-rulings.md).
+_TB_NIGHT = ("At night, characters with night abilities act and the Storyteller gives out information; the Imp kills. "
+             "At dawn the night's deaths are announced, but not how or why. Night order: the Poisoner acts first, then "
+             "the Monk, then the Imp; the information roles (Empath, Fortune Teller, Undertaker and the rest) wake "
+             "after the Imp, so a player killed in the night does not wake again that night (except the Ravenkeeper, "
+             "whose ability is triggered by that death). On the first night the Monk and the Imp do not act.")
+_TB_DEATHS = ("their character stays secret unless an ability (such as the Undertaker's or the Ravenkeeper's) shows it "
+              "to someone. During the day the town talks and whispers, then nominates and votes. There is at most one "
+              "execution per day.")
+_TB_INFO = ("Information from a working ability is true, except that the Spy and Recluse can register as something "
+            "they are not, and the Fortune Teller's red herring registers as a Demon to the Fortune Teller.")
+_TB_SLAYER = "The Slayer's shot is public, and anyone can claim to take one: a fake or failed shot simply does nothing."
+_TB_WRONG = ("- Information can be wrong: players may be drunk or poisoned, the Spy and Recluse can misregister, and "
+             "the Fortune Teller has a red herring.")
+_TB_BLUFFS = ("- The Demon's three bluffs are characters not in play (though the Drunk may believe they are one of "
+              "them). The Minion only learns them if the Demon shares them.")
+_TB_FIELD = ("- slayer_shot: a player's name to publicly use the Slayer's ability, otherwise null. You can shoot on "
+             "any public turn: the town square, the call for nominations, or the comments on a nomination.")
+_MADNESS = ("\nMadness. Some abilities make you \"mad\" about something: you must try to convince the group of it. "
+            "Breaking your madness (not trying, hinting or winking, or saying you are mad) can get you executed by the "
+            "Storyteller, without a vote, and that is the day's execution. Assume the Storyteller hears everything: "
+            "what you say aloud{visit} and your whispers too, so a private confession can count.")
+
+
+def _names(xs, last='and'):
+    xs = [f'the {x}' for x in xs]
+    return xs[0] if len(xs) == 1 else ', '.join(xs[:-1]) + f' {last} ' + xs[-1]
+
+
+def _quoted(xs):
+    return ' or '.join(f'"{x}"' for x in xs)
+
+
+def mad(script):
+    """Whether any of the script's characters makes a player "mad" (their ability says so: the Cerenovus, the
+    Mutant)."""
+    from .characters import rules
+    return any(re.search(r'\bmad\b', rules(c).ability) for c in script.all)
+
+
+def custom_text(script):
+    """A custom script's sentence swaps for the Trouble Brewing prompt (see SCRIPT_TEXT)."""
+    visit = bool(script.visitable)
+    deaths = ("their character stays secret unless an ability shows it to someone. During the day the town talks and "
+              "whispers, then nominates and votes. There is at most one execution per day"
+              + (", and a madness execution by the Storyteller counts as it." if mad(script) else ".")
+              + "\nCharacter and alignment are separate, and on some scripts either can change. Whenever your "
+              "character or team changes, the Storyteller tells you at once, in private: this is always true. You win "
+              "or lose with your team as it is at the end.")
+    if mad(script):
+        deaths += _MADNESS.format(visit=', what you tell them on a visit,' if visit else ',')
+    public = []
+    if 'slayer_shot' in script.public_actions:
+        public.append(_TB_SLAYER)
+    if script.claimable:
+        public.append(f"Some abilities are used in public ({_names(script.claimable)}), and anyone can claim to use "
+                      "them: a claim by anyone else simply does nothing.")
+    if visit:
+        public.append(f"Visits to the Storyteller. {_names(script.visitable)[0].upper()}"
+                      f"{_names(script.visitable)[1:]} use{'s' if len(script.visitable) == 1 else ''} "
+                      f"{'their ability' if len(script.visitable) == 1 else 'their abilities'} by visiting the "
+                      "Storyteller during private time. Anyone may visit, to bluff these characters: the town sees "
+                      "that you went to the Storyteller, never why or what was said. A visit takes the place of that "
+                      "turn's whisper, and you can visit once a day.")
+    fields = []
+    if 'slayer_shot' in script.public_actions:
+        fields.append(_TB_FIELD)
+    fields.append("- character: the character you choose when a night ability asks for one, otherwise null.")
+    if script.claimable:
+        guesses = ', "guesses": [{"player": a name, "character": a character}, ...]' if script.guessable else ''
+        fields.append('- ability: to use a public day ability, or to claim to: {"character": '
+                      f'{_quoted(script.claimable)}, "target": a player or null, "text": a statement or ""{guesses}}}'
+                      '; otherwise null. You can use it on any public turn: the town square, or the comments on a '
+                      'nomination. The town hears it as a use of that ability.')
+    if visit:
+        fields.append('- visit: during private time only, to visit the Storyteller instead of whispering: '
+                      f'{{"character": {_quoted(script.visitable)}, "text": what you ask or tell them, or ""}};'
+                      ' otherwise null. The answer comes to you in private; the town sees only that you went.')
+    return [
+        ('using the Trouble Brewing script', f'using {script.name}, a custom script'),
+        ('The Saint and Mayor add other ways to win or lose.',
+         'Some characters on this script may add other ways to win or lose, or change these: their abilities say '
+         'how.'),
+        (_TB_NIGHT,
+         "At night, characters with night abilities act and the Storyteller gives out information; the Demon attacks. "
+         "At dawn the night's deaths are announced, in seat order, but not how or why. Characters act in the official "
+         "night order: as a rule, those that protect, poison or make players drunk act before the Demon, and most "
+         "information roles wake after it, so a player killed in the night does not wake again that night. Several "
+         "players can die in one night, and some abilities kill by day. On the first night no Demon kills, unless "
+         "its ability says so."),
+        (_TB_DEATHS, deaths),
+        (_TB_INFO, "Information from a working ability is true, unless an ability on this script says otherwise (a "
+                   "character who can register as something they are not, or one that makes information false)."),
+        (_TB_SLAYER, ' '.join(public) or 'Abilities on this script are used at night or when they trigger: none is '
+                                         'used in public.'),
+        (_TB_WRONG, "- Information can be wrong: players may be drunk or poisoned without being told, and some "
+                    "characters can register as something they are not."),
+        (_TB_BLUFFS, "- The Demon's three bluffs are characters not in play"
+                     + (" (though the Drunk may believe they are one of them)" if 'Drunk' in script.all else '')
+                     + ". The Minions only learn them if the Demon shares them."),
+        ("- Night deaths are evidence too: the Demon chooses who dies, and who survives.",
+         "- Night deaths are evidence, but on some scripts the Demon is not the only killer, and a death can come a "
+         "night after the choice that caused it."),
+        ("- targets: the player(s) you choose for a night ability, otherwise [].",
+         "- targets: the player(s) you choose for a night ability, or when an ability asks you to choose a player, "
+         "otherwise []."),
+        (_TB_FIELD, '\n'.join(fields)),
+    ]
+
+
+def _teams_custom(script, n):
+    tf, os_, mn = SETUPS[n]
+    minions = 'one Minion' if mn == 1 else f'{mn} Minions'
+    demons = f' ({_names(script.demons, "or")})' if script.demons else ''
+    lunatic = (", with one exception: the Lunatic believes they are the Demon, and is not told otherwise"
+               if 'Lunatic' in script.all else '')
+    return (f"Teams. Good: Townsfolk and Outsiders. Evil: the Demon and {minions}. With {WORDS[n]} players there are "
+            f"normally {tf} Townsfolk, {os_} Outsider{'' if os_ == 1 else 's'}, {minions} and one Demon{demons}; some "
+            f"characters change how many Outsiders there are (their abilities say so, in brackets). Each character is "
+            f"in play at most once. You know your own character, not anyone else's{lunatic}.\n"
+            f"Evil knows itself at the start. The Demon and "
+            f"{'its Minion know each other' if mn == 1 else 'its Minions all know one another'}, and the Demon learns "
+            f"three good characters that are not in play (bluffs). Evil players can only talk the way everyone else "
+            f"does: in town{', by whisper, or to the Storyteller on a visit' if script.visitable else ' or by whisper'}"
+            f".")
 
 
 DAWN_DEATHS = [

@@ -10,6 +10,7 @@ does it for a fixed set of games across every table size and Minion (tests/data/
     python -m clocktower fingerprint --write            # re-record (only for a deliberate change of play)
     python -m clocktower fingerprint --check --script bmr   # Bad Moon Rising's recorded set
     python -m clocktower fingerprint --check --script snv   # Sects & Violets'
+    python -m clocktower fingerprint --check --script carousel-1   # a custom script in clocktower/data/scripts
 """
 from __future__ import annotations
 import argparse
@@ -30,6 +31,8 @@ FILE = DATA / 'fingerprints.json'  # Trouble Brewing's (protocol v17)
 
 def file_for(script):
     return FILE if script.id == 'tb' else DATA / f'fingerprints-{script.id}.json'
+
+
 SIZES = range(5, 16)
 SEEDS_PER_SIZE = 100
 
@@ -84,7 +87,8 @@ def main(argv=None):
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument('--check', action='store_true', help='compare with the recorded fingerprints')
     mode.add_argument('--write', action='store_true', help='record fingerprints for the current engine')
-    ap.add_argument('--script', default='tb', help='tb (the default), bmr or snv')
+    ap.add_argument('--script', default='tb', help='tb (the default), bmr, snv, a custom script in clocktower/data/'
+                                                   'scripts (carousel-1) or a script JSON')
     ap.add_argument('--file', help='the recorded set (default: tests/data/fingerprints[-SCRIPT].json)')
     ap.add_argument('--limit', type=int, help='only the first N games (a quick check)')
     args = ap.parse_args(argv)

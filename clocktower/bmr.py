@@ -636,6 +636,11 @@ def chambermaid_choice(g, cm, pair, n):
     """How many of the Chambermaid's two woke tonight to use their ability (Grimoire.woke). An impaired one may be
     shown any count; when misinformed, a false one."""
     woke = set(g.woke.get(n, []))
+    if g.script.jinxed('Mathematician', 'Chambermaid'):
+        # the jinx (custom scripts): a Mathematician who will wake tonight, after the Chambermaid, counts too: every
+        # living player who has the ability or believes they do (docs/carousel-rulings.md, 6)
+        woke |= {q.name for q in g.players if q.alive and (q.shown == 'Mathematician'
+                                                          or 'Mathematician' in g.abilities(q))}
     true = sum(1 for x in pair if x in woke)
     impaired = g.impaired(cm)
     values = [0, 1, 2] if impaired else [true]
@@ -813,7 +818,9 @@ class Goon(Outsider):
         # drunk at once (even if already drunk or poisoned), until dusk; it ends if the Goon dies (a reading, as in
         # batch 2: the Assassin's kill still lands, since its sobriety was settled as it chose)
         g.add(State('drunk', chooser.name, source=me.name, until='night', ends_with_source=True))
-        if me.alignment != chooser.alignment:
+        if me.alignment != chooser.alignment and not (chooser.alignment == 'good'
+                                                      and me.name in g.notes.get('Evil Goons', ())):
+            # (an evil player the Pit-Hag made the Goon stays evil: the Pit-Hag/Goon jinx, PitHag.resolve_night)
             me.alignment = chooser.alignment
             game.emit('alignment', {'player': me.name, 'alignment': me.alignment}, 'audit')
             game.inform(me, f'Night {night.n} — Goon: you are now {me.alignment}.')

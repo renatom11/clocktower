@@ -179,6 +179,14 @@ class PitHag(Minion):
         target = g[t]
         was_demon = target.is_demon
         await game.change(target, character=c)  # a dead player too; their alignment stays
+        if c == 'Goon' and g.script.jinxed(self.name, c):
+            # the jinx (custom scripts): an evil player made the Goon can't turn good by the Goon's ability; a good
+            # one made the Goon later is free again (docs/carousel-rulings.md, 9)
+            locked = g.notes.setdefault('Evil Goons', [])
+            if target.evil and target.name not in locked:
+                locked.append(target.name)
+            elif not target.evil and target.name in locked:
+                locked.remove(target.name)
         if kind(c) == 'Demon':
             plan = await game.decide_judged(arbitrary_deaths_choice(g, ph, target, was_demon))
             if not plan['yes']:
@@ -357,6 +365,18 @@ class Vigormortis(Killer):
         value = await game.decide_judged(choice)
         side = choice.sides.get((value['players'] or [None])[0], 1)
         g.notes.setdefault('Vigormortis', {}).setdefault(me.name, {})[target.name] = side
+
+    def dies(self, game, me, cause):
+        # the Mastermind jinx (custom scripts): a dead Mastermind who has their ability through this Vigormortis now
+        # (it is alive, sober and healthy: "that has their ability") keeps it when the Vigormortis dies, for good: the
+        # kept state no longer depends on the Vigormortis (docs/carousel-rulings.md, 5)
+        g = game.g
+        if g.script.jinxed('Mastermind', self.name):
+            keep = [s.kind == 'has ability' and s.source == me.name and g.active(s)
+                    and g[s.target].character == 'Mastermind' for s in g.states]
+            g.states = [State('has ability', s.target, until=None, about=s.about) if k else s
+                        for s, k in zip(g.states, keep)]
+        return None
 
     def hand_over(self, g, old, new):
         # the kept abilities and their poison belong to the Vigormortis character, not its player: charmed by the
@@ -616,12 +636,29 @@ def mathematician_choice(g, p, n):
                 f'does {p.name} (Mathematician) learn?', lambda v: v['number'] == true, impaired)
 
 
+def lunatic_attacked_elsewhere(game, night):
+    """The Mathematician/Lunatic jinx (custom scripts): tonight's Lunatic attacked a different player than the real
+    Demon did, an abnormal result (recorded once a night, before the Mathematician counts). Both must have chosen
+    tonight; a different set of players (the Po's none, or three) is different (docs/carousel-rulings.md, 8)."""
+    g = game.g
+    lun, demon = g.with_character('Lunatic'), g.demon()
+    if not (lun and demon and lun.name in night.chosen and demon.name in night.chosen):
+        return
+    if any(a['player'] == lun.name and a['day'] == night.n and a['phase'] == 'night' and a['ability'] == 'Lunatic'
+           for a in g.abnormal):
+        return
+    if set(night.chosen[lun.name] or ()) != set(night.chosen[demon.name] or ()):
+        game.abnormal(lun, 'Lunatic', 'attacked a different player than the Demon')
+
+
 class Mathematician(Townsfolk):
     name = 'Mathematician'
     ability = ability(name)
     info = True
 
     async def resolve_night(self, game, night):
+        if game.g.script.jinxed(self.name, 'Lunatic'):
+            lunatic_attacked_elsewhere(game, night)
         for p in believers(game.g, self.name):
             await learn(game, p, self.name, mathematician_choice(game.g, p, night.n),
                         lambda v: ("1 player's ability" if v['number'] == 1 else f"{v['number']} players' "
@@ -765,8 +802,22 @@ def sage_choice(g, p, demon):
     if not values:
         return None
     late = final_night(g)
+    # the Recluse/Sage jinx (custom scripts): a Recluse who can register as a Demon (not poisoned) may stand in the
+    # Demon's place, with any other player but the Demon (docs/carousel-rulings.md, 10)
+    recluse = next((q.name for q in g.players if q is not p and q.character == 'Recluse' and g.script.jinxed(
+        'Recluse', 'Sage') and any(kind(c) == 'Demon' for c in g.registers_as(q, p))), None)
+    if recluse and not impaired:
+        values += [[recluse, x] for x in rest if x != recluse]
 
     def style(r):
+        if recluse and not impaired and r.random() < POLICY['sage_shows_recluse']:
+            pool = [x for x in rest if x != recluse]
+            alive = [x for x in pool if g[x].appears_alive]
+            if pool:
+                return {'players': [recluse, r.choice(alive if alive and not late else pool)]}
+        return plain(r)
+
+    def plain(r):
         alive = [x for x in rest if g[x].appears_alive and not g[x].is_demon]
         dead = [x for x in rest if not g[x].appears_alive]
         if impaired and g.misinformed(p, r):
@@ -778,10 +829,12 @@ def sage_choice(g, p, demon):
         if late or not pool or r.random() >= POLICY['sage_alive']:
             pool = rest
         return {'players': [demon, r.choice(pool)]}
-    return info(Choice(f'Sage:{p.name}', [{'players': v} for v in values], style), g, p, 'Sage',
+    return info(Choice(f'Sage:{p.name}', [{'players': v} for v in values], style if recluse else plain), g, p, 'Sage',
                 f'The Demon ({demon}) killed {p.name} (Sage): which two players are they shown, one the Demon that '
-                'killed them? Two alive players early; one alive and one dead is fine on the final night.',
-                lambda v: demon in v['players'], impaired, about=demon)
+                'killed them? Two alive players early; one alive and one dead is fine on the final night.'
+                + (f' The Recluse ({recluse}) may register as the Demon to the Sage, in its place.' if recluse else ''),
+                lambda v: demon in v['players'] or (recluse is not None and recluse in v['players']), impaired,
+                about=demon)
 
 
 class Sage(Townsfolk):
