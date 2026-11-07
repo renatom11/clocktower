@@ -447,7 +447,7 @@ class Game:
         # the characters' own setup (the Drunk's apparent character, then the red herring), for a character someone
         # has or believes they have (a Drunk-as-Fortune-Teller needs a red herring too)
         for c in self.script.setup_steps:
-            if c.name in {p.character for p in g.players} | {p.shown for p in g.players}:
+            if c.setup_unheld or c.name in {p.character for p in g.players} | {p.shown for p in g.players}:
                 await settle(c.setup(self))
         drunk = next((p for p in g.players if rules(p.character).always_drunk), None)
         g.bluffs = (await self.decide_judged(bluffs_choice([c for c in self.script.good if c not in in_play],
@@ -598,7 +598,7 @@ class Game:
     def prevent_death(self, p, cause, unstoppable=False):
         """Whether p, about to die from `cause`, doesn't: a protection or their own ability (the Fool, once), unless
         the kill is `unstoppable` (the Assassin's: the Fool dies and stays dead)."""
-        if unstoppable:
+        if unstoppable or self.dooms(p, cause):
             return False
         if self.g.safe(p, cause):
             return True
@@ -622,6 +622,11 @@ class Game:
         if night is not None:
             night.deaths.append(victim)
         return victim
+
+    def dooms(self, p, cause):
+        """Whether p dies from `cause` whatever would save them: a Demon token they carry says so (Character.dooms:
+        the Lil' Monsta jinxes, batch 6). False on every other script."""
+        return bool(p.carries) and rules(p.carries).dooms(self, p, cause)
 
     def demon_kills_stopped(self, night):
         """Whether the Storyteller has ruled that the Demons' attacks kill nobody tonight (the Pit-Hag's arbitrary

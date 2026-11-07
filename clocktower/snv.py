@@ -499,9 +499,9 @@ def clockmaker_choice(g, p):
     if g.script.jinxed('Clockmaker', 'Summoner'):  # the jinx (custom scripts): the Summoner registers as the Demon
         summoners = [q for q in minions if q.character == 'Summoner']
         demons, minions = demons + summoners, [q for q in minions if q not in summoners]
-    if not (demons and minions):
+    if not any(d is not m for d in demons for m in minions):  # (a Demon token's carrier is no Minion of their own)
         return None
-    true = min(steps_between(g, d, m) for d in demons for m in minions)
+    true = min(steps_between(g, d, m) for d in demons for m in minions if d is not m)
     impaired = g.unreliable(p, 'Clockmaker')
     values = list(range(1, len(g.players) // 2 + 1)) if impaired else [true]
 

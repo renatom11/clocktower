@@ -30,7 +30,37 @@ takes them out with it.
 
 ### Lil' Monsta
 
-(Not built yet.)
+3,000 games (1,500 with Lil' Monsta forced onto the script and into play, `--force lilmonsta`; 1,500 uniform from seed
+9300000, Lil' Monsta in play in 96), scripted Storyteller and rules judge alternately. The first passes found four
+faults in the new code, fixed before the commit (B24 to B27), and one interaction recorded for the owner (U14). After
+the fixes: 4 violations in the forced run (U14 three times; the known lone Washerwoman, U4, once at 5 players with the
+Baron) and 3 in the uniform one (U14 once; a known U1; one Witch's curse outliving a Vigormortis-kept source, in a game
+without Lil' Monsta).
+
+B24. **Fixed before the commit.** **Lil' Monsta not in play beside a waiting Marionette.** Marionette + Summoner on the
+script: the Marionette's own setup (its Summoner jinx) had already made the Marionette its good character, so Lil'
+Monsta's setup step counted one Minion short and decided it was not in play; with no Demon, good won at the first dusk
+(`missed-win` before the fix of B27, then a game with no Demon). Lil' Monsta is now in play whenever the deal has no
+Demon and no Summoner (the deal itself is checked by `setup_error`).
+
+B25. **Fixed before the commit.** **A good player made Lil' Monsta lost the token at once.** Pit-Hag: the good player
+it made Lil' Monsta became a Minion and babysat it, but the swap rule (ruling 147) read their good alignment as a swap
+and gave the token to the living player with that Minion character, the Pit-Hag itself. The rule now acts only when the
+babysitter's character changed and another player took it with the babysitter's alignment.
+
+B26. **Fixed before the commit.** **The Clockmaker counted the babysitter as its own nearest Minion** (0 steps;
+`oracle`). The distance is now to another player's Minion (`snv.clockmaker_choice`; no Demon on another script is a
+Minion, so it is unchanged there), and the fuzzer's oracles read a carrier as both a Demon and a Minion.
+
+B27. **Fixed before the commit.** **No Demon before the first babysitter.** At the dusk before the first night no
+player is the Demon yet, which the end check read as a win for good (`missed-win`, most games). The deal's character
+now holds the end until then (`Grimoire.check_victory` asks a deal character's `overrides_end`, nobody holding it).
+
+U14. **Lil' Monsta made with every Minion character held.** Pit-Hag or Engineer + Lil' Monsta at 13 to 15 players, the
+script's four Minions all in play and alive: the player made Lil' Monsta must become a Minion to carry it (ruling 146)
+and none is free, so they become a second of one (`coherence`, 3 in 1,500 forced games). Repro: `python -m clocktower fuzz repro --seed 9000340 --players 15 --judge scripted --chars banshee,cultleader,alsaahir,farmer,poppygrower,balloonist,seamstress,mayor,washerwoman,minstrel,professor,gossip,princess,mutant,damsel,lunatic,recluse,witch,godfather,vizier,pithag,lilmonsta,po,kazali,vortox --setup mayor,recluse,witch,vizier,princess,godfather,gossip,poppygrower,washerwoman,professor,pithag,alsaahir,minstrel,banshee,cultleader`.
+Suggested rulings: the change fails (the Pit-Hag's "if not in play" read as needing a free Minion too), or the player
+keeps their own character and carries the token.
 
 ### Atheist
 

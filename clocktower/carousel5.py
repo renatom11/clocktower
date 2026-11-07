@@ -554,7 +554,8 @@ class Psychopath(Minion):
         # "If executed, you only die if you lose roshambo": a living Psychopath with a working ability, against the
         # player who nominated them (the Storyteller, for an execution with no nominator); the roshambo is announced
         g = game.g
-        if executed is me and me.alive and me.character == self.name and g.works(me, self.name):
+        if executed is me and me.alive and me.character == self.name and g.works(me, self.name) \
+                and not game.dooms(me, 'execution'):  # (batch 6: the Lil' Monsta jinx, Game.dooms)
             await psychopath_roshambo(game, me)
 
 

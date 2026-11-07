@@ -539,7 +539,8 @@ class Monitor:
         it); the Psychopath's kill comes "each day, before nominations", once a day; no Demon's attack kills on a night
         the Storyteller (the Pit-Hag's arbitrary deaths) or the Princess stopped them."""
         g, game = self.g, self.game
-        if p.character == 'Vizier' and p.alive and game.tonight is None and cause != 'assassin' and (
+        if p.character == 'Vizier' and p.alive and game.tonight is None and cause != 'assassin' and not game.dooms(
+                p, cause) and (
                 g.works(p, 'Vizier') or rules('Vizier').lost_by_jinx(g, p)):
             self.flag('vizier', f'{p.name} (Vizier) died by day ({cause})', ['Vizier', CAUSES.get(cause, cause)])
         if cause == 'psychopath':
@@ -776,7 +777,8 @@ REGISTERS_AS = {'Spy': ('Townsfolk', 'Outsider'), 'Recluse': ('Minion', 'Demon')
 
 
 def could_be(p, character):
-    return p.character == character or misreg(p) and kind(character) in REGISTERS_AS.get(p.character, TYPES)
+    return p.character == character or p.carries == character or misreg(p) and kind(character) in REGISTERS_AS.get(
+        p.character, TYPES)
 
 
 def _pair(group):
@@ -835,7 +837,7 @@ def empath(m, p, ctx, v):
 def fortune_teller(m, p, ctx, v):
     g = m.g
     ts = [g[x] for x in ctx.get('players') or []]
-    must = any(kind(q.character) == 'Demon' or q.name == g.red_herring for q in ts)
+    must = any(q.is_demon or q.name == g.red_herring for q in ts)  # (the Demon, or a Demon token's carrier)
     can = must or any(misreg(q) for q in ts)
     who = ', '.join(f'{q.name}: {q.character}' for q in ts)
     if v['yes'] and not can:
@@ -866,13 +868,13 @@ def clockmaker(m, p, ctx, v):
     options = []
     summoner = g.script.jinxed('Clockmaker', 'Summoner')  # the jinx: the Summoner registers as the Demon
     for q in g.players:
-        k = 'Demon' if summoner and q.character == 'Summoner' else kind(q.character)
-        options.append({k, 'Minion', 'Demon', 'other'} if misreg(q) else {k})
+        k = 'Demon' if summoner and q.character == 'Summoner' else 'both' if q.carries else kind(q.character)
+        options.append({k, 'Minion', 'Demon', 'other'} if misreg(q) else {k})  # ('both': a Demon token's carrier)
     ok = set()
     from .snv import steps_between
     for combo in product(*[sorted(o) for o in options]):
-        ds = [q for q, k in zip(g.players, combo) if k == 'Demon']
-        ms = [q for q, k in zip(g.players, combo) if k == 'Minion']
+        ds = [q for q, k in zip(g.players, combo) if k in ('Demon', 'both')]
+        ms = [q for q, k in zip(g.players, combo) if k in ('Minion', 'both')]
         if ds and ms:
             ok.add(min(steps_between(g, d, x) for d in ds for x in ms if d is not x) if any(
                 d is not x for d in ds for x in ms) else None)
@@ -985,7 +987,8 @@ def shugenja(m, p, ctx, v):
 
 
 def types(q):
-    return {kind(q.character), *REGISTERS_AS.get(q.character, TYPES)} if misreg(q) else {kind(q.character)}
+    own = {kind(q.character)} | ({kind(q.carries)} if q.carries else set())  # (a Demon token's carrier: both)
+    return own | set(REGISTERS_AS.get(q.character, TYPES)) if misreg(q) else own
 
 
 def balloonist(m, p, ctx, v):

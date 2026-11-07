@@ -1053,7 +1053,77 @@ note instead.
 
 ### Lil' Monsta
 
-(Not built yet.)
+Built (section "Lil' Monsta" of `carousel_extra.py`; tests `tests/test_carousel_lilmonsta.py`; notes
+`data/storyteller/extra-lilmonsta.md`; script `carousel-8`). Its seven official jinxes (Hatter, Magician, Poppy Grower,
+Psychopath, Scarlet Woman, Vizier, Marionette) are implemented. With it the Carousel Script Collection's Whose Cult Is
+It Anyway? and the World Championship's One Day More and Trained Killer have every character built (Witch Hunt still
+needs a homebrew Witch).
+
+139. **Never dealt.** With Lil' Monsta as the Demon in play no Demon is dealt: a Minion sits in the Demon's seat, so
+     there is one Minion more than the table's ("[+1 Minion]"), and the Townsfolk and Outsiders are as the other Minions'
+     setup modifiers make them (the Baron's +2 counts). The Demon is drawn as on any script; when the draw is Lil'
+     Monsta, it is replaced by a Minion not dealt that has no setup modifier of its own and is not the Summoner (a
+     reading: the Outsiders were drawn for the others); a draw that leaves none is drawn again. A deal naming Lil'
+     Monsta is refused. With the Summoner dealt, its [No Demon] deal is the one in play, and Lil' Monsta is not.
+140. **A token, not a character.** The babysitter keeps their Minion character, its ability and their alignment, and
+     carries the token beside it (`Player.carries`): they are the Demon for every rule that asks (dying as it, the
+     game's end, "the Demon" in other abilities), have its hooks (`Grimoire.abilities`), and the Spy's Grimoire shows
+     it. Option: the babysitter's character becomes Lil' Monsta (simpler, but their own ability would be lost, which
+     the text keeps).
+141. **The Minions' choice.** Every night, the first included, each living Minion who knows they are one (not a
+     Marionette, who believes they are good) names one of them, at Lil' Monsta's step in the night order; if they agree,
+     that one babysits; if not, the Storyteller picks among those named (a judged call; the scripted style keeps the
+     babysitter they had, when named, 60% of the time: POLICY `lilmonsta_keep_sitter`, default, for review). The dead
+     don't wake. All of them learn who babysits; the babysitter is told they are the Demon.
+142. **What evil learns.** At setup the Minions learn each other as usual, and that no player is the Demon yet; at the
+     first-night step they learn the three bluffs (nobody else does). The rule sentence on the custom prompt says how
+     Lil' Monsta works, since the team sizes it gives differ from the table's.
+143. **Registration.** The babysitter registers as Lil' Monsta and as their own character (a Spy babysitter also as the
+     Spy's good characters): information may show either. The Fortune Teller always sees a Demon there, and the Slayer's
+     shot always kills them ("is the Demon"). Other abilities that ask whether a player registers as the Demon treat
+     them as able to register either way, the Storyteller's call (option: always as the Demon, which the engine's
+     registration sets cannot say together with "and as their Minion").
+144. **"A player might die".** Each night but the first, at Lil' Monsta's step, the Storyteller's judged call: any
+     living player but the babysitter (no starpass), or nobody; the scripted style kills 90% of nights (POLICY
+     `lilmonsta_kill`, default, for review), a living good player. It is the Demon's kill (cause 'demon'): the Monk,
+     Soldier and the other protections stop it, the Mayor may bounce it. A drunk or poisoned babysitter kills nobody
+     (abnormal); one the Exorcist chose tonight does not act.
+145. **Lil' Monsta dies with its babysitter.** However the babysitter dies (executed, shot, killed at night), Lil' Monsta
+     is dead and good wins at the next check (unless the Scarlet Woman jinx, or another Demon is in play); the Minions
+     do not choose again, through a Mastermind's extra day too. Another Minion's death changes nothing. Before the first
+     choice no Demon is no win for good (`Grimoire.check_victory` asks the deal's character: nobody holds it).
+146. **Becoming Lil' Monsta.** A player made Lil' Monsta (the Pit-Hag's choice, the Summoner's, the Engineer's, a tea
+     party's: the Hatter jinx says "they also choose a Minion to become") becomes a Minion character of their choice too
+     (one no living player has; the Storyteller's, if they give none) and babysits it; from the next night the Minions
+     choose as usual. A good player made it stays good (as any Demon the Pit-Hag makes). If every Minion character is
+     held by a living player they take one anyway, a second of it (U14 in docs/interaction-findings.md, for the owner).
+147. **The token stays with its player** through any change until the Minions next choose, except a swap of
+     characters and alignments (the Snake Charmer choosing the Demon): it goes with their Minion character to the player
+     who took it with their alignment (a reading: the Snake Charmer takes the Demon).
+148. **The jinxes.** Hatter: as 146. Magician: while a Magician is alive, the Storyteller chooses which Minion babysits
+     (no Minion wakes to choose). Poppy Grower: while one is alive, the Minions wake one by one (from the babysitter
+     they had, then in seat order), each asked whether to take the token, until one does; if none does, the
+     Storyteller gives it. Psychopath: babysitting, they die when executed, with no roshambo. Vizier: babysitting, they
+     die when executed (`Game.dooms`, the token's hook, before every protection). Scarlet Woman: if the babysitter dies
+     with five or more players alive and a working Scarlet Woman lives, she babysits it for the rest of the game (the
+     Minions no longer choose) and is told; she stays the Scarlet Woman. Marionette: a dealt Marionette waits as the
+     good character they believe they are, and enters play beside the first babysitter on the first night (one of their
+     good neighbours becomes it, as with the Summoner's jinx).
+149. **Core changes**, each a no-op on every script without Lil' Monsta (the earlier fingerprints replay identically):
+     `Player.carries` and `Player.is_demon` reading it; `Grimoire.abilities`, `registers_as`, `registers_demon_to_ft`,
+     `demon_shown` and the Grimoire text for a carrier; `Character.setup_unheld` (its setup step runs with nobody holding
+     it), `carried_registers_as`, `carried_registers_demon_to_ft` and `dooms` (`Game.dooms`, asked by
+     `Game.prevent_death` and the Psychopath's roshambo); the Scarlet Woman leaves a carrier's death to the token; the
+     Slayer's shot kills a carrier; the Clockmaker counts from the Demon to another player's Minion. The fuzzer reads
+     the token too (its Clockmaker, Fortune Teller, Balloonist and Ravenkeeper oracles, the Vizier check).
+150. **The synthetic script** (`clocktower/data/scripts/carousel-8.json`, "Carousel test 8"): Lil' Monsta and the Imp;
+     the Poppy Grower, Magician, Fortune Teller, Slayer, Monk, Empath, Undertaker, Ravenkeeper, Investigator, Exorcist,
+     Soldier, Snake Charmer and Chef; the Hatter, Drunk, Recluse and Saint; the Psychopath, Scarlet Woman, Vizier,
+     Marionette, Poisoner and Spy. Every jinx of Lil' Monsta's is on it, and every size from 5 to 15 deals. Fingerprints:
+     `tests/data/fingerprints-carousel-8.json`.
+
+New weights: `lilmonsta_kill` 0.9, `lilmonsta_keep_sitter` 0.6 (added to POLICY by the section). The rules judge has
+no heuristic for its calls (the scripted style decides).
 
 ### Atheist
 

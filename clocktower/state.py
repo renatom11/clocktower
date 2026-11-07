@@ -29,6 +29,8 @@ class Player:
     seems_dead: bool = False  # alive, but registers and is shown as dead (the Zombuul after its first death)
     extra: list = field(default_factory=list)  # abilities held beyond their own character's (the Philosopher's)
     traveller: bool = False  # a Traveller doesn't count towards 'two alive' or the Scarlet Woman's five
+    carries: str = ''       # a Demon token held beside their character, which makes them the Demon (custom scripts,
+    #                         batch 6: Lil' Monsta's babysitter); '' on every other script
 
     def __post_init__(self):
         self.alignment = self.alignment or ('evil' if is_evil_character(self.character) else 'good')
@@ -40,7 +42,7 @@ class Player:
 
     @property
     def is_demon(self):
-        return kind(self.character) == 'Demon'
+        return kind(self.character) == 'Demon' or (self.carries != '' and kind(self.carries) == 'Demon')
 
     @property
     def appears_alive(self):
@@ -600,6 +602,8 @@ class Grimoire:
         """The characters whose abilities p has: their own, any gained (the Philosopher's), and a good character's that
         a Demon has through another player's ability (the Boffin's: Grimoire.gift)."""
         out = [p.character, *getattr(p, 'extra', [])]
+        if p.carries and p.carries not in out:  # (a Demon token's: Lil' Monsta's babysitter, batch 6)
+            out.append(p.carries)
         gift = self.gift(p)
         if gift and gift['ability'] not in out:
             out.append(gift['ability'])
@@ -725,10 +729,14 @@ class Grimoire:
         return rules(p.character).registers_evil(self, p, observer)
 
     def registers_as(self, p, observer=None):
-        """Set of characters p might register as."""
+        """Set of characters p might register as (a Demon token's carrier, as the token says: batch 6)."""
+        if p.carries:
+            return rules(p.carries).carried_registers_as(self, p, observer)
         return rules(p.character).registers_as(self, p, observer)
 
     def registers_demon_to_ft(self, p, observer=None):
+        if p.carries:
+            return rules(p.carries).carried_registers_demon_to_ft(self, p, observer)
         return rules(p.character).registers_demon_to_ft(self, p, observer)
 
     def decoy(self, p, r):
@@ -817,7 +825,7 @@ class Grimoire:
         Demon in play (a custom script's), else the script's first Demon."""
         if 'Imp' in self.script.demons:
             return 'Imp'
-        return next((q.character for q in self.players if q.is_demon), None) or self.script.demons[0]
+        return next((q.carries or q.character for q in self.players if q.is_demon), None) or self.script.demons[0]
 
     def evil_character(self, r, imp=True):
         """An evil character to show for a Recluse (the Imp only when `imp` is consistent)."""
@@ -891,6 +899,7 @@ class Grimoire:
                                  'mad': f'MAD about being the {s.about}',
                                  'has ability': 'keeps their ability while dead'}[s.kind])
             if getattr(p, 'extra', None): tags.append(f"also has the ability of the {', '.join(p.extra)}")
+            if p.carries: tags.append(f'babysits {p.carries}: is the Demon')  # (batch 6)
             if p.name == self.red_herring: tags.append("Fortune Teller's red herring")
             if self.has(p, 'master'): tags.append("Butler's master")
             team = 'evil' if p.evil else 'good'

@@ -111,6 +111,7 @@ class Character:
     listens = False          # its ability is triggered by what players say (`heard`: the Mezepheles's secret word)
     wakes_before = ''        # a character type: its step moves to just before the first step of that type on the
     #                          script's night order (the Amnesiac's, before the Demons: its ability may protect)
+    setup_unheld = False     # its setup step runs though nobody holds it (Lil' Monsta, never dealt: batch 6)
     deals = False            # its presence on the script changes the whole deal, beyond the setup modifiers above
     #                          (`deal_error`, `redeal`: batch 6, carousel_extra.py)
 
@@ -343,6 +344,18 @@ class Character:
         leaves its rules no legal deal: Lil' Monsta's extra Minion with no plain Minion left)."""
         return characters
 
+    def carried_registers_as(self, g, me, observer=None):
+        """For a Demon token `me` carries (Player.carries, batch 6: Lil' Monsta's), how they register."""
+        return {me.character}
+
+    def carried_registers_demon_to_ft(self, g, me, observer=None):
+        return {True}
+
+    def dooms(self, game, me, cause):
+        """For a Demon token `me` carries: whether they die from `cause` whatever would save them (Game.dooms: the
+        Lil' Monsta jinxes with the Psychopath and the Vizier)."""
+        return False
+
     def rule_text(self, script):
         """Sentences the custom-script player prompt adds about a rule this character brings to `script` (a
         nomination or a win the sheet's text alone does not explain); [] for none, so other scripts' prompts are
@@ -525,6 +538,8 @@ class Slayer(Townsfolk):
                 q.alive and q.character == 'Lleech' and g.notes.get('Lleech host', {}).get(q.name) == t.name
                 for q in g.players):
             return True
+        if t.carries and t.is_demon:  # (batch 6: Lil' Monsta's babysitter is the Demon, whatever else they register as)
+            return True
         registers = {kind(c) == 'Demon' for c in g.registers_as(t)}
         if len(registers) > 1:  # a misregistering target (the Recluse) may or may not die
             return (await game.decide_judged(state.slayer_choice(g, s, t)))['yes']
@@ -702,8 +717,10 @@ class ScarletWoman(Minion):
         return g.works(me, self.name) and alive_before >= 5
 
     def on_death(self, game, me, dead, cause, alive_before):
-        # a Demon that only seems to die (the Zombuul's first death: it lives on, registering as dead) has not died
-        if dead.is_demon and not dead.alive and cause != 'starpass' and self.takes_over(game.g, me, alive_before):
+        # a Demon that only seems to die (the Zombuul's first death: it lives on, registering as dead) has not died;
+        # a Demon token's carrier dying is the token's to settle (Lil' Monsta's babysitter: batch 6)
+        if dead.is_demon and not dead.carries and not dead.alive and cause != 'starpass' and self.takes_over(
+                game.g, me, alive_before):
             two = game.g.script.jinxed(self.name, 'Fang Gu') or game.g.script.jinxed(self.name, 'Al-Hadikhia')
             if two and any(q.is_demon and q.alive and q is not dead and q is not me for q in game.g.players):
                 return  # the Fang Gu and Al-Hadikhia jinxes: there would be two Demons, so she stays the Scarlet Woman

@@ -78,12 +78,17 @@ class ScriptTests(unittest.TestCase):
     def test_a_script_with_characters_not_implemented_says_which(self):
         import json
         import tempfile
+        from clocktower import official
+        missing = [r for r in official.roles().values() if r['team'] in ('townsfolk', 'outsider', 'minion', 'demon')
+                   and r['name'] not in characters.CHARACTERS]  # an official character not built yet, if any is left
+        if not missing:
+            self.skipTest('every official character is built')
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / 'carousel.json'
-            path.write_text(json.dumps(['washerwoman', 'lilmonsta', 'imp']))  # an official character not built yet
+            path.write_text(json.dumps(['washerwoman', missing[0]['id'], 'imp']))
             with self.assertRaises(ValueError) as e:
                 characters.Script(path)
-            self.assertIn("Lil' Monsta", str(e.exception))
+            self.assertIn(missing[0]['name'], str(e.exception))
 
     def test_each_script_is_its_own_protocol(self):
         from clocktower.cli import PROTOCOL, protocol
