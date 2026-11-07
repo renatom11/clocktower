@@ -31,6 +31,8 @@ class Request:
     #                                                the Storyteller (the Savant, the Artist), through the `visit` field
     guesses: list = field(default_factory=list)  # public turns: the characters a claimed ability's guesses may name,
     #                                              when one takes guesses (the Juggler's), else []
+    menu: list = field(default_factory=list)  # a night choice of an item from a list, by its number in `say` (batch
+    #                                          6: the Wizard's wishes); random bots pick one now and then
     chatter: list = field(default_factory=list)  # turns on scripts with an ability that listens to what is said (the
     #                                              Mezepheles's word): lines a random bot may say (Character.chatter);
     #                                              only random bots read it
@@ -69,6 +71,8 @@ class RandomSeat:
             a['targets'] = r.sample(request.options, k)
             if request.characters:
                 a['character'] = r.choice(request.characters)
+            if request.menu and r.random() < 0.35:  # (batch 6: the Wizard's wishes; nothing drawn without a menu)
+                a['say'] = str(r.randint(1, len(request.menu)))
         elif request.kind == 'beat':
             if r.random() < 0.5: a['say'] = r.choice(LINES)
             if r.random() < 0.3: a['whispers'] = [{'to': [r.choice(others)], 'text': 'psst, what are you?'}]

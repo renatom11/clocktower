@@ -85,7 +85,9 @@ read as good's, "The Demon is dead").
 
 ### Wizard
 
-(Not built yet.)
+3,000 games (1,500 with the Wizard forced into play, 1,500 uniform from seed 9320000). No fault in the Wizard: one
+violation in each run, the known U1 (the Undertaker after a Pit-Hag's or Summoner's change), in games where the Wizard
+played no part.
 
 ### Legion
 

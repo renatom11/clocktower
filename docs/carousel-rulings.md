@@ -1178,7 +1178,41 @@ for its calls.
 
 ### Wizard
 
-(Not built yet.)
+Built (section "Wizard" of `carousel_extra.py`; tests `tests/test_carousel_wizard.py`; notes
+`data/storyteller/extra-wizard.md`; script `carousel-10`). It has no official jinx. With it the Carousel Script
+Collection's Irrational Behaviour and the World Championship's Off to see the Wizard play end to end.
+
+157. **The wish list** (`carousel_extra.WISHES`, default, for review): eight wishes the engine can grant, each with the
+     prices it may have (`PRICES`): a chosen living player dies tonight (price: the Wizard poisoned two days and nights,
+     a good player learns the Wizard is a Minion, or the Wizard dies tonight); the Demon cannot die until the Wizard's
+     next night (poisoned, exposed, or a good player learns the Demon is one of two players); a chosen living player
+     turns evil and is told (the Wizard dies, the Demon poisoned tonight and tomorrow, or exposed); the Wizard learns a
+     chosen player's character (the chosen player, or a good player, learns the Wizard is the Wizard; or exposed); the
+     Wizard sees the Grimoire tonight (exposed, poisoned); a chosen living player is drunk for three days and nights
+     (poisoned, exposed); a chosen dead evil player comes back to life (the Wizard dies, or the Demon pair); the Wizard
+     learns the Demon's three bluffs (exposed, told). Left out: wishes the engine could not run (a new character, a
+     changed rule, more votes), or that end the game at once. Options: a longer list; prices of the owner's choosing.
+158. **Making the wish.** At the Wizard's step each night, the first included, a living Wizard who has not wished is
+     shown the numbered list (`Request.menu`; random bots pick one now and then) and may wish (its number in `say`, and
+     the player it names in `targets`) or wait. A wish in words is matched to the list by the Storyteller, a judged call
+     whose only values are the list's wishes and "none" (the scripted style: the wish whose keywords the words hold
+     most): a judge chooses, never invents. "None", or a wish without a fitting player, is no wish: the Wizard may wish
+     another night. Once made, the wish is spent (per player), granted or not.
+159. **Granted, its price and its clue.** Three judged calls, each among listed values only: whether it is granted (the
+     scripted style 85%: POLICY `wizard_grant`), its price among that wish's or none ("might have a price": 80% a
+     price, `wizard_price`), and its clue: announced (the town is told at dawn that a wish was granted), whispered (a
+     good player of the Storyteller's choice learns the wish's words) or none ("might leave a clue": 70% one,
+     `wizard_clue`). The Wizard is told whether it was granted and its price. A drunk or poisoned Wizard's wish is not
+     granted (abnormal) and is spent. Everything is written on the Grimoire (the Spy sees it).
+160. **Core changes**, each a no-op on every script without the Wizard: `Request.menu` and the random bots' pick from
+     it (no draw without a menu, so other scripts' bots play as before).
+161. **The synthetic script** (`clocktower/data/scripts/carousel-10.json`, "Carousel test 10"): the Washerwoman,
+     Librarian, Investigator, Chef, Empath, Fortune Teller, Undertaker, Monk, Ravenkeeper, Virgin, Slayer, Soldier and
+     Mayor; the Butler, Drunk, Recluse and Saint; the Wizard, Poisoner, Spy and Scarlet Woman; the Imp and No Dashii.
+     Every size from 5 to 15 deals. Fingerprints: `tests/data/fingerprints-carousel-10.json`.
+
+New weights: `wizard_grant` 0.85, `wizard_price` 0.8, `wizard_clue` 0.7 (added to POLICY by the section). The rules
+judge has no heuristic for its calls.
 
 ### Legion
 

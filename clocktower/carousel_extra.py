@@ -505,7 +505,258 @@ CHARACTERS[ATHEIST] = Atheist()
 
 
 # ---- Wizard ------------------------------------------------------------------------------------------------------
+# "Once per game, choose to make a wish. If granted, it might have a price & leave a clue as to its nature."
+# The wish is one of a curated list (WISHES) of effects the engine runs, each with the prices it may have; the Wizard
+# picks one (by its number, or in words the Storyteller matches to the list), and the Storyteller's judged calls grant
+# it or not, choose its price among that wish's and its clue among the list's (CLUES): a judge chooses, never invents.
+# The wishing is asked at the Wizard's night step through Request.menu (random bots pick from it). docs/
+# carousel-rulings.md, batch 6, Wizard.
+import re as _re_wz  # noqa: E402
+from dataclasses import dataclass as _dataclass_wz  # noqa: E402
 
+from . import snv as _snv_wz  # noqa: E402
+from .characters import Minion as _Minion_wz  # noqa: E402
+from .state import POLICY as _POLICY_wz, Choice as _Choice_wz, State as _State_wz, judged as _judged_wz  # noqa: E402
+
+WIZARD = 'Wizard'
+_POLICY_wz.update({  # (Carousel, batch 6: the Wizard. Default, for review.)
+    'wizard_grant': 0.85,       # a sober, living Wizard's wish is granted
+    'wizard_price': 0.8,        # a granted wish has a price (else none)
+    'wizard_clue': 0.7,         # it leaves a clue (else none)
+})
+
+
+@_dataclass_wz(frozen=True)
+class Wish:
+    id: str
+    text: str            # what the Wizard is shown, and what a clue says
+    target: str          # '' (no player), 'any', 'alive', 'dead'
+    prices: tuple        # ids of PRICES this wish may have
+    keywords: tuple      # words that match it, for a wish made in words (wish_match_choice)
+
+
+WISHES = (
+    Wish('kill', 'A player of your choice dies tonight.', 'alive', ('poisoned', 'exposed', 'dies'),
+         ('die', 'dies', 'kill', 'death', 'dead')),
+    Wish('protect', 'The Demon cannot die until your next night.', '', ('poisoned', 'exposed', 'demon pair'),
+         ('protect', 'safe', 'demon', 'survive')),
+    Wish('corrupt', 'A player of your choice turns evil (and is told).', 'alive', ('dies', 'demon poisoned', 'exposed'),
+         ('evil', 'turn', 'convert', 'corrupt', 'side')),
+    Wish('learn', 'You learn the character of a player of your choice.', 'any', ('told', 'exposed'),
+         ('learn', 'know', 'character', 'role', 'who')),
+    Wish('grimoire', 'You see the Grimoire tonight.', '', ('exposed', 'poisoned'),
+         ('grimoire', 'see', 'everything', 'all')),
+    Wish('drunk', 'A player of your choice is drunk for the next three days and nights.', 'alive',
+         ('poisoned', 'exposed'), ('drunk', 'poison', 'silence', 'ability')),
+    Wish('revive', 'A dead evil player of your choice comes back to life.', 'dead', ('dies', 'demon pair'),
+         ('alive', 'revive', 'resurrect', 'back', 'life')),
+    Wish('bluffs', 'You learn the three good characters the Demon was shown as not in play.', '', ('exposed', 'told'),
+         ('bluff', 'bluffs', 'not in play')),
+)
+WISH = {w.id: w for w in WISHES}
+PRICES = {
+    'poisoned': 'you are poisoned for the next two days and nights',
+    'exposed': 'a good player learns that you are a Minion',
+    'dies': 'you die tonight',
+    'demon pair': 'a good player learns that the Demon is one of two players',
+    'demon poisoned': 'the Demon is poisoned tonight and tomorrow',
+    'told': 'the player your wish named (or a good player) learns that you are the Wizard',
+}
+CLUES = ('announced', 'whispered')  # the town is told a wish was granted; a good player learns what was wished
+
+
+def wish_menu():
+    return [f'{i}. {w.text}' for i, w in enumerate(WISHES, start=1)]
+
+
+def wish_match_choice(g, p, text):
+    """The wish a Wizard made in words (no number): the Storyteller matches it to one of the list, or to none (no wish
+    made tonight). The scripted style: the wish whose keywords the words hold most, else none."""
+    words = set(_re_wz.findall(r"[a-z']+", (text or '').lower()))
+    scores = [(sum(1 for k in w.keywords if k in words or k in (text or '').lower()), w.id) for w in WISHES]
+    best = max(scores)
+
+    def style(r):
+        return {'statements': [best[1]]} if best[0] else {'statements': ['none']}
+    return _judged_wz(_Choice_wz(f'{WIZARD} wish:{p.name}', [{'statements': [w.id]} for w in WISHES]
+                                 + [{'statements': ['none']}], style), 'wizard_wish',
+                      f'{p.name} (Wizard) wished, in words: "{text}". Which wish of the list is it (none: not a wish '
+                      f'the list holds)? The list: ' + ' '.join(wish_menu()), recipient=p.name)
+
+
+def grant_choice(g, p, wish):
+    from .state import yes_choice
+    return _judged_wz(yes_choice(f'{WIZARD} grant:{p.name}', _POLICY_wz['wizard_grant']), 'wizard_grant',
+                      f'{p.name} (Wizard) wishes: "{wish.text}". Is it granted (yes)?', recipient=p.name)
+
+
+def price_choice(g, p, wish):
+    def style(r):
+        if r.random() < _POLICY_wz['wizard_price']:
+            return {'statements': [r.choice(wish.prices)]}
+        return {'statements': ['none']}
+    return _judged_wz(_Choice_wz(f'{WIZARD} price:{p.name}', [{'statements': [x]} for x in (*wish.prices, 'none')],
+                                 style), 'wizard_price',
+                      f'{p.name} (Wizard) is granted "{wish.text}". Its price, of these (none for no price): '
+                      + '; '.join(f'{x}: {PRICES[x]}' for x in wish.prices), recipient=p.name)
+
+
+def clue_choice(g, p, wish):
+    def style(r):
+        return {'statements': [r.choice(CLUES)]} if r.random() < _POLICY_wz['wizard_clue'] else {'statements': ['none']}
+    return _judged_wz(_Choice_wz(f'{WIZARD} clue:{p.name}', [{'statements': [x]} for x in (*CLUES, 'none')], style),
+                      'wizard_clue', f'{p.name} (Wizard) is granted "{wish.text}". Its clue: announced (the town is '
+                      'told at dawn that a wish was granted), whispered (a good player learns what was wished), or '
+                      'none?',
+                      recipient=p.name)
+
+
+def good_player_choice(g, cid, question, avoid=()):
+    pool = [q.name for q in g.players if q.alive and not q.evil and q.name not in avoid]
+    return _judged_wz(_Choice_wz(cid, [{'players': [x]} for x in pool], lambda r: {'players': [r.choice(pool)]}),
+                      'wizard_witness', question) if pool else None
+
+
+class Wizard(_Minion_wz):
+    name = WIZARD
+    ability = ability(name)
+
+    def rule_text(self, script):
+        return ['The Wizard\'s wish is one of a fixed list of wishes the Storyteller can grant, each with the prices '
+                'it may have; the Wizard is shown the list when woken.']
+
+    moment_unheld = True  # (the dawn's clue is announced even if the Wizard died paying for the wish)
+
+    def moment(self, game, me, when):
+        g = game.g
+        if when == 'dawn' and game.day in g.notes.get('Wizard clues', ()):  # (once: the first call takes it)
+            g.notes['Wizard clues'] = [x for x in g.notes['Wizard clues'] if x != game.day]
+            game.emit('text', {'text': 'The Storyteller announces: a wish was granted in the night.'})
+
+    async def resolve_night(self, game, night):
+        g = game.g
+        for p in [q for q in g.players if q.alive and _snv_wz.has(g, q, self.name) and not _snv_wz.used(g, q,
+                                                                                                         self.name)]:
+            await self.offer(game, night, p)
+
+    async def offer(self, game, night, p):
+        g = game.g
+        menu = wish_menu()
+        req = game.request('night', f'Night {night.n} — Wizard: once per game you may make a wish. The wishes the '
+                                    'Storyteller can grant: ' + ' '.join(menu) + ' To wish, put its number in `say` '
+                                    '(and the player it names in `targets`); to wait, leave `say` empty. A granted '
+                                    'wish might have a price and leave a clue.', night.n, n_targets=1,
+                           options=game.names,
+                           min_targets=0, menu=menu)
+        a = await game.ask(p.name, req)
+        game.woken(p)
+        say = (a.get('say') or '').strip()
+        if not say:
+            return
+        m = _re_wz.search(r'\d+', say)
+        wid = WISHES[int(m.group()) - 1].id if m and 1 <= int(m.group()) <= len(WISHES) else None
+        if wid is None:
+            wid = (await game.decide_judged(wish_match_choice(g, p, say)))['statements'][0]
+            if wid == 'none':
+                game.inform(p, f'Night {night.n} — Wizard: that is not a wish the Storyteller can grant; you '
+                               'may wish another night.')
+                return
+        wish = WISH[wid]
+        t = next(iter(game.targets(p.name, a, req)), None)
+        ok = {'': True, 'any': t is not None, 'alive': t is not None and g[t].alive,
+              'dead': t is not None and not g[t].alive and g[t].evil}[wish.target]
+        if not ok:
+            game.inform(p, f'Night {night.n} — Wizard: that wish needs a player ({wish.target or "none"}); none '
+                           'fit, so no wish was made. You may wish another night.')
+            return
+        _snv_wz.use(g, p, self.name)  # (spent per player, drunk or not, as every once-per-game ability)
+        game.emit('night_choice', {'player': p.name, 'role': self.name, 'targets': [t] if t else [],
+                                   'wish': wish.id}, 'audit')
+        if not g.works(p, self.name):
+            _snv_wz.failed(game, p, self.name, 'the wish was not granted')
+            game.inform(p, f'Night {night.n} — Wizard: you wished "{wish.text}". The Storyteller does not grant it.')
+            return
+        if not (await game.decide_judged(grant_choice(g, p, wish)))['yes']:
+            game.inform(p, f'Night {night.n} — Wizard: you wished "{wish.text}". The Storyteller does not grant it.')
+            return
+        price = (await game.decide_judged(price_choice(g, p, wish)))['statements'][0]
+        clue = (await game.decide_judged(clue_choice(g, p, wish)))['statements'][0]
+        g.reminders.append(f'{p.name} (Wizard) wished: {wish.text}' + (f' ({t})' if t else '')
+                           + f' Price: {PRICES.get(price, "none")}. Clue: {clue}.')
+        game.inform(p, f'Night {night.n} — Wizard: your wish is granted: {wish.text}'
+                       + (f' ({t})' if t else '') + (f' Its price: {PRICES[price]}.' if price != 'none' else ''))
+        await self.grant(game, night, p, wish, t)
+        await self.pay(game, night, p, price, t)
+        await self.leave_clue(game, night, p, wish, clue)
+
+    async def grant(self, game, night, p, wish, t):
+        g, n = game.g, night.n
+        if wish.id == 'kill':
+            game.attempt_kill(g[t], 'wizard', p, night)
+        elif wish.id == 'protect':
+            for d in [q for q in g.players if q.alive and q.is_demon]:
+                g.add(_State_wz('safe', d.name, source=p.name, until=n + 1, against='any'))
+        elif wish.id == 'corrupt':
+            if not g[t].evil:
+                await game.change(g[t], alignment='evil')
+        elif wish.id == 'learn':
+            game.inform(p, f'Night {n} — Wizard: {t} is the {g[t].character}.')
+        elif wish.id == 'grimoire':
+            game.inform(p, f'Night {n} — Wizard: you see the Grimoire.\n' + g.grimoire_text())
+        elif wish.id == 'drunk':
+            g.add(_State_wz('drunk', t, source=p.name, until=n + 3))
+        elif wish.id == 'revive':
+            g.revive(g[t], source=self.name)
+            night.revived.append(g[t])
+        elif wish.id == 'bluffs':
+            game.inform(p, f'Night {n} — Wizard: the Demon\'s bluffs are {", ".join(g.bluffs) or "none"}.')
+
+    async def pay(self, game, night, p, price, t):
+        g, n = game.g, night.n
+        if price == 'poisoned':
+            g.add(_State_wz('poisoned', p.name, source=None, until=n + 2))
+        elif price == 'dies':
+            game.attempt_kill(p, 'wizard', p, night, unstoppable=True)
+        elif price == 'demon poisoned':
+            for d in [q for q in g.players if q.alive and q.is_demon]:
+                g.add(_State_wz('poisoned', d.name, source=None, until=n + 1))
+        elif price in ('exposed', 'demon pair', 'told'):
+            to = g[t] if price == 'told' and t and g[t].alive and g[t] is not p else None
+            if to is None:
+                c = good_player_choice(g, f'{WIZARD} witness:{p.name}', f'Who learns the price of {p.name}\'s wish?',
+                                       avoid=(p.name,))
+                if c is None:
+                    return
+                to = g[(await game.decide_judged(c))['players'][0]]
+            if price == 'exposed':
+                text = f'{p.name} is a Minion.'
+            elif price == 'told':
+                text = f'{p.name} is the Wizard.'
+            else:
+                demon = next((q for q in g.players if q.alive and q.is_demon), None)
+                if demon is None:
+                    return
+                other = next((q for q in g.players if q is not demon and q is not to and q.alive), None)
+                pair = sorted([demon.name] + ([other.name] if other else []), key=lambda x: g[x].seat)
+                text = f'the Demon is {" or ".join(pair)}.'
+            game.woken(to)
+            game.inform(to, f'Night {n}: the Storyteller tells you that {text}')
+
+    async def leave_clue(self, game, night, p, wish, clue):
+        g = game.g
+        if clue == 'announced':  # (at dawn: Wizard.moment)
+            g.notes.setdefault('Wizard clues', []).append(night.n)
+        elif clue == 'whispered':
+            c = good_player_choice(g, f'{WIZARD} hears:{p.name}', 'Who learns what the Wizard wished?',
+                                   avoid=(p.name,))
+            if c is not None:
+                to = g[(await game.decide_judged(c))['players'][0]]
+                game.woken(to)
+                game.inform(to, f'Night {night.n}: the Storyteller tells you that a wish was granted tonight: '
+                                f'"{wish.text}"')
+
+
+CHARACTERS[WIZARD] = Wizard()
 # ---- end of Wizard -----------------------------------------------------------------------------------------------
 
 
