@@ -161,17 +161,46 @@ marked for the owner's review (docs/snv-rulings.md).
   events, and checks the Amnesiac's information by its model character's oracle (docs/interaction-findings.md, the
   sixth runs: one engine fault found and fixed, B23).
 
+**Built in batch 6, removable by design** (docs/carousel-rulings.md, 139-175):
+- **Lil' Monsta, the Atheist, the Wizard, Legion and Riot** in `clocktower/carousel_extra.py` (loaded last), each in a
+  section of its own, one commit each, with its own tests (`tests/test_carousel_<id>.py`), Storyteller's notes
+  (`data/storyteller/extra-<id>.md`), synthetic script (`carousel-8` to `carousel-12`, one character each, with
+  replay fingerprints), rulings and fuzz findings, so that `git revert` of a character's commit removes it and leaves
+  the others; each was checked that way (the revert of each, at the last commit, passes the full check). A scaffold
+  commit before them holds the hooks two or more of them share (`Character.deals`: a character whose presence changes
+  the whole deal; `Character.rule_text`: a prompt sentence for a rule it brings) and names none of them. Every core
+  hook is a no-op on a script without its character; TB, BMR, S&V and `carousel-1` to `-7` replay identically.
+- **Lil' Monsta**: a Demon token (`Player.carries`) the Minions pass between them each night, the babysitter being the
+  Demon and keeping their own Minion ability; never dealt (a Minion in the Demon's seat); its seven jinxes.
+- **The Atheist**: the closest reading the engine can run of a Storyteller who "can break the game rules": a fake evil
+  team its information follows, night deaths as a Demon's, no Demon no win; anyone may nominate the Storyteller, whose
+  execution is good's win with the Atheist in play and evil's without.
+- **The Wizard**: one wish from a curated list of eight effects the engine runs, each with the prices it may have; the
+  grant, price and clue are judged calls among listed values only (a judge chooses, never invents).
+- **Legion**: a bare majority of the players share the one Demon character; executions fail when only evil voted;
+  it registers as a Minion to the Investigator; its eight jinxes.
+- **Riot**: the Minions become Riot on the third night, and day 3's nominations are a riot (each nominee executed at
+  once, nominating the next); its twelve jinxes (the Atheist's only while the Atheist is built).
+- **Every corpus script whose characters are all official now plays end to end**: all thirteen of the Carousel Script
+  Collection, and thirteen of the sixteen World Championship scripts (beautifulhouse, stowedaway and witchhunt hold
+  homebrew characters), 2,200 random-bot games each with no crash. The fuzzer: about 3,000 games per character (1,500
+  forced into play); fourteen faults found in the new code and fixed (B24-B37), three interactions recorded for the
+  owner (U14-U16).
+
 **Still open:**
-- **The experimental characters** (5 more in the official data's carousel edition): the Wizard, Legion, Riot, Atheist
-  and Lil' Monsta (batch 6). Lil' Monsta waits for the owner's design (ruling 65); midnightoasis now needs only the
-  Atheist, trainedkiller only Lil' Monsta.
+- **The experimental characters**: none left unbuilt in the official data's carousel edition. Batch 6's readings are
+  for the owner to review: the Atheist's bounded rule-breaking (153), the Wizard's wish list (157), Legion's majority
+  and registration (162, 166), Riot's text (the official data's, not the newer "after day 3, evil wins": 172), and
+  U14-U16.
 - **Jinxes** with experimental characters: each with its character. They take about eight forms (bans, setup
   changes, registration and visibility overrides, replacement abilities, alignment locks, kill rulings).
-- **No Demon or several** (the Legion, the Riot, the Atheist): victory checks and evil's first-night information.
+- **No Demon or several** (built in batch 6: Legion, Riot, the Atheist, Lil' Monsta): what remains is the owner's
+  review of the readings.
 - **Speech-triggered abilities** (built in batch 5): what remains is review of the word and phrase lists and of the
   whisper and near-miss rulings (122-124), and a model judge's near-miss calls in real play.
-- **Storyteller-invented content** (the Wizard's wish; the Amnesiac's ability is drawn from a curated list, batch 5):
-  a model judge that generates, with code limiting it to effects the engine can carry out.
+- **Storyteller-invented content**: the Wizard's wish and the Amnesiac's ability are drawn from curated lists (batches
+  5 and 6); a model judge that generates new ones, with code limiting it to effects the engine can carry out, is not
+  built.
 - **Vote mechanics** (negative, set by a Traveller: the Thief, the Bureaucrat, the Voudon; secret votes are built, the
   Organ Grinder's): the vote is a
   count of raised hands, each one vote unless an ability says more (the Banshee's two).
