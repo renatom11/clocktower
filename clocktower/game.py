@@ -407,6 +407,8 @@ class Game:
                 for q in g.players:  # what evil learns because a character is in play (the Damsel)
                     lines += rules(q.character).told_evil(self, q, p)
             lines += rules(p.character).intro(self, p)  # a character's own first information (the Lunatic's)
+            lines += g.notes.get('Intro', {}).get(p.name, [])  # (custom scripts: what a setup step tells a player:
+            #                                                   the Bounty Hunter's evil Townsfolk, the Vizier's name)
             self.emit('intro', {'text': '\n'.join(lines)}, [p.name])
 
     def evil_shown(self, viewer, names, as_):
@@ -1053,6 +1055,16 @@ class Game:
                                      characters={x: g[x].character for x in yes})
         return block, top
 
+    async def vote_over_judged(self, nominee):
+        """Whether an ability executes `nominee` at once now that the vote on them is over (Character.vote_over: the
+        Vizier's, "If good voted, you may choose to execute immediately"). The base scripts have none."""
+        g = self.g
+        for p in g.players:
+            for c in g.abilities(p):
+                if not g.winner and await settle(rules(c).vote_over(self, p, nominee)):
+                    return True
+        return False
+
     def secret_votes(self):
         """Whether votes are secret now: an ability makes them so (Character.secret_votes: the Organ Grinder's)."""
         g = self.g
@@ -1121,6 +1133,10 @@ class Game:
             if g.winner:
                 return
             block, top = await self.vote(nominee, block, top)
+            if await self.vote_over_judged(nominee):  # (custom scripts: the Vizier executes the nominee at once)
+                await self.execution(nominee)
+                await self.run_pending()
+                return
         if g.winner:
             return
         if block:

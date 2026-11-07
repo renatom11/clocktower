@@ -119,10 +119,29 @@ marked for the owner's review (docs/snv-rulings.md).
   on the Alsaahir's and the cult's wins, the Lleech's life link and the Lord of Typhon's line
   (docs/interaction-findings.md, the fourth runs).
 
+**Built in batch 4** (docs/carousel-rulings.md, 100-119):
+- **Eight experimental characters** in `clocktower/carousel5.py`: the Bounty Hunter, Engineer, Princess, Hermit, Ogre,
+  Psychopath, Wraith and Vizier, with Storyteller's notes and the twenty official jinxes between them and built
+  characters (the Alchemist's, Plague Doctor's and Magician's with the Wraith, the Boffin's with the Ogre, the Vizier's
+  seven). Core changes, all no-ops elsewhere: an ability may execute the nominee once a vote is over
+  (`Character.vote_over`: the Vizier's "execute immediately", which decides an execution and changes no vote), lines a
+  setup step adds to a player's introduction (the Bounty Hunter's evil Townsfolk, the Vizier's name), and
+  `characters.holds` so an Outsider's own code accepts the Hermit, who holds every Outsider ability on the script but
+  the Drunk's, Lunatic's, Butler's and Puzzlemaster's. The Psychopath's kill uses the public `ability` move; its
+  roshambo and the Wraith's eyes are a judged call and a `decide`.
+- **One more corpus script plays end to end**: the Carousel Script Collection's contempt (Contempt), 2,200 random-bot
+  games under each Storyteller mode with no crash; the earlier ones (martianvampires, monkeydomath and the six World
+  Championship scripts) still play. No World Championship script is completed by this batch.
+- **The synthetic `carousel-6`** (the eight and all twenty jinxes) plays 2,200 games with no crash and has replay
+  fingerprints. The fuzzer draws the new characters, with an oracle for the Bounty Hunter and checks on its evil
+  Townsfolk, the Vizier's day, the Psychopath's kill and nights whose Demon kills were stopped
+  (docs/interaction-findings.md, the fifth runs: five engine faults found and fixed, B18-B22).
+
 **Still open:**
-- **The experimental characters** (16 more Townsfolk, Outsiders, Minions and Demons in the official data's carousel
-  edition): later batches. Across both corpora the scripts need the Amnesiac (10) most; Lil' Monsta waits for the
-  owner's design (ruling 65).
+- **The experimental characters** (8 more Townsfolk, Outsiders, Minions and Demons in the official data's carousel
+  edition): the Amnesiac, Mezepheles and Yaggababble (batch 5), the Wizard, Legion, Riot, Atheist and Lil' Monsta
+  (batch 6). Across both corpora the scripts need the Amnesiac (10) most; Lil' Monsta waits for the owner's design
+  (ruling 65).
 - **Jinxes** with experimental characters: each with its character. They take about eight forms (bans, setup
   changes, registration and visibility overrides, replacement abilities, alignment locks, kill rulings).
 - **No Demon or several** (the Legion, the Riot, the Atheist): victory checks and evil's first-night information.

@@ -734,3 +734,166 @@ Leader's cult vote is a separate yes/no, not a change to the execution vote.
 
 New weights: `cult_leader_evil` 0.5, `typhon_outsiders_same` 0.6, `typhon_outsiders_fewer` 0.75. The rules judge has
 no heuristic of its own for the new calls (the scripted style decides).
+
+## Batch 4: eight experimental characters
+
+The Bounty Hunter, Engineer, Princess, Hermit, Ogre, Psychopath, Wraith and Vizier (`clocktower/carousel5.py`,
+loaded after carousel4; tests in `tests/test_carousel4.py`, Storyteller's notes in
+`clocktower/data/storyteller/carousel.md`). With them the Carousel Script Collection's Contempt plays end to end. The
+twenty official jinxes between them and built characters are all implemented, among them the Alchemist's, the Plague
+Doctor's and the Magician's with the Wraith, the Boffin's with the Ogre and the Vizier's seven (the Legion's with the
+Engineer and Lil' Monsta's with the Psychopath and the Vizier wait for those characters). None of the eight needed a
+design the brief keeps for the owner. The Vizier decides executions, it does not change votes: once a vote is over it
+may execute the nominee at once, through a core hook that does nothing on any script without it (ruling 116). The
+Amnesiac, Mezepheles and Yaggababble are batch 5; the Wizard, Legion, Riot, Atheist and Lil' Monsta batch 6.
+
+### Townsfolk
+
+100. **The Bounty Hunter's evil players.** "You start knowing 1 evil player": on the first night (or, for a player
+     who gets the ability later, the Pit-Hag's or a Philosopher's, at once), another living player who can register
+     as evil (a Recluse may be shown, by its usual chance; a Spy may not be passed over as good). "If the player you
+     know dies, you learn another evil player tonight": at the Bounty Hunter's step on any night once the player they
+     know is dead (as the town sees it: died today or tonight), a living player who can register as evil and has not
+     been shown to them before; with none, nothing, and nothing more later. Drunk, poisoned or under the Vortox: any
+     other living player, misinformed with a good one. Option: allow a dead player, or one shown before.
+101. **"[1 Townsfolk is evil]".** Once per game, for a Bounty Hunter in play (a Drunk who believes they are one makes
+     none, as every setup modifier: ruling 83), in a forced setup too (it changes an alignment, not a character): a
+     good Townsfolk, not a Bounty Hunter, the Storyteller's choice, turns evil before anyone is told their character.
+     The setup step runs once the characters are final (after the Huntsman's Damsel) and before any step that picks a
+     good player (the red herring, the Grandchild, the Faux Paw, the Evil Twin's twin: finding B18). The evil Townsfolk
+     is told in their introduction that they are evil and nothing more; the evil team is not told about them (a
+     reading of "they know they are evil"). They win with evil and register as evil. The scripted Storyteller avoids
+     a choice that leaves a Noble no three players exactly one of whom is evil (a five-player table: finding U11).
+     Options: the evil Townsfolk learns the Demon, or the Demon learns them.
+102. **The Bounty Hunter's jinxes.** Kazali: with the Kazali in play the evil Townsfolk waits for the Kazali's
+     first-night choice; at the Bounty Hunter's step that night (after the Kazali's), if a Bounty Hunter is still in
+     play a Townsfolk turns evil and is told at once ("you are now evil"); if the Kazali made the Bounty Hunter a
+     Minion, none does. Philosopher: when a Philosopher gains the ability, a good Townsfolk (not the Philosopher) turns
+     evil half the time (POLICY `bounty_philosopher_evil` 0.5, default, for review) and is told at once, unless an
+     evil Townsfolk was already made.
+103. **The Engineer.** "Once per game, at night": the Engineer names a character (`character`, null keeps it). A
+     Demon: the living Demon becomes it (with several, the Storyteller picks which, so two players never share it; a
+     Demon already in play, or one jinxed out of play, changes nothing). A Minion: the Engineer then names the rest one
+     request at a time, as many as there are living Minions (not a Marionette), each different; a Minion already
+     holding a named character keeps it and the others take the rest, the Storyteller's assignment, all at once, each
+     woken and told. The dead keep their characters (option: change them too). Never the Marionette (it believes it
+     is good and sits by the Demon from the start), the Summoner (no Demon) or the Kazali (no Minions): naming one
+     keeps the ability, with a notice. The new characters' setup parts do not happen (no Lord of Typhon line, no
+     Fang Gu Outsider); a new Lleech chooses a host on its next night (ruling 94). Spent even if drunk or poisoned,
+     then nothing changes. A Drunk who believes they are the Engineer spends it for nothing.
+104. **The Summoner/Engineer jinx.** "If the living Summoner is removed from play, the Storyteller has the Summoner
+     ability": a living Summoner the Engineer turns into another Minion before it summons leaves the ability with the
+     Storyteller (`g.notes['Storyteller abilities']`, as the Plague Doctor's): until the third night no Demon is no
+     win for good, and at the Summoner's step on the third night the Storyteller makes a player (usually a living good
+     one, POLICY `summoner_st_honours`'s choice) an evil Demon on the script not in play (finding B22: never one
+     already in play).
+105. **The Princess.** "Your 1st day": day 1, or for a Princess made later the next day she is one (a reading).
+     "Nominated & executed": she made the last nomination of the player executed that day (died or not, the Vizier's
+     immediate execution included). That night, at her step (before the Demons'), with her ability working (alive,
+     sober, healthy then), the Demon wakes as normal but its attacks kill nobody tonight (Game.demon_kills_stopped,
+     as the Pit-Hag's "no one dies"); its other effects (a Pukka's poison) stand. Option: judge her sobriety at the
+     execution.
+106. **The Princess's jinxes.** Al-Hadikhia: its kills are the Demon's, so its three survive (the stop covers it as
+     written). Cannibal: a Cannibal who nominated, executed and killed the Princess today holds her ability, and that
+     night the Demon kills nobody; without the jinx a Cannibal's Princess ability never has a first day (it was not
+     theirs when they nominated).
+
+### Outsiders
+
+107. **The Hermit's abilities.** "You have all Outsider abilities": every Outsider on the script, in play or not, but
+     the Drunk's and the Lunatic's (illusions dealt at setup about who a player believes they are: the Hermit knows),
+     the Butler's (the engine keeps one master a game, `Grimoire.master`) and the Puzzlemaster's (one puzzle and one
+     drunk player a game). They are held as gained abilities (`extra`, a `gains` event each, at setup or when a player
+     becomes the Hermit), so each acts as for a Philosopher who gained it: the Hermit wakes at its step (the Ogre's
+     choice), its hooks run (the Tinker's death, the Klutz's, Moonchild's, Sweetheart's and Barber's deaths, the
+     Golem's nomination, the Zealot's vote, the Mutant's madness, the Snitch's bluffs, the Damsel's hunt); the hooks
+     the engine asks of a player's own character are passed on (the Recluse's registration, the Saint's execution,
+     the Damsel's news for the Minions, the Plague Doctor's end, the Politician's and the Heretic's). Code that asks
+     whether a player is the Outsider itself now accepts the Hermit too (`characters.holds`: the Politician, Heretic,
+     Damsel's Spy jinx, Tinker), and nothing else changes for anyone else. The result turns around once, whoever has
+     the Heretic's ability: a sober Heretic in play turns it already, so two do not cancel out. Drunk or poisoned,
+     every ability stops. A Philosopher who gains the Hermit's ability gains no more (a reading: it names abilities,
+     not a character). Options: a Hermit with the Drunk on the script is drunk all game (the Drunk's ability); a
+     second master for a Hermit-Butler.
+108. **The Hermit's "[-0 or -1 Outsider]".** In a dealt game, one fewer half the time (POLICY
+     `hermit_fewer_outsider` 0.5, default, for review): another Outsider becomes a Townsfolk not in play (keeping one
+     for a Drunk to believe), after the other Outsider changes (the Balloonist's, the Kazali's) and before the Xaan
+     counts them; `setup_error` accepts both counts. A forced setup keeps its characters.
+109. **The Ogre.** "On your 1st night, choose a player (not yourself)": a required choice on the first night, whatever
+     the Ogre's sobriety ("even if drunk or poisoned"). The Ogre takes the alignment the chosen player registers as to
+     it (a Recluse might register evil, by its usual chance; a Spy might register good, but for its jinx), silently:
+     no "you are now", and the Storyteller's other reactions to a change of alignment run (the Cult Leader's, the Evil
+     Twin's). A Drunk who believes they are the Ogre changes nothing. The official night order wakes the Ogre on the
+     first night only, so a player who gets the ability later (the Pit-Hag's Ogre, a Philosopher's, a Hermit made
+     later) chooses at once, as the change is made (a reading: that night is their first). Option: their first
+     whole night.
+110. **The Ogre's jinxes.** Spy: the Spy always registers as evil to it. Recluse: a Recluse who registers as evil to
+     it makes it evil, and it is told so. Pit-Hag: an evil player the Pit-Hag makes the Ogre stays evil whoever it
+     chooses (as the Goon's, Politician's and Cult Leader's locks). Boffin: the Demon is never given the Ogre's
+     ability (it is not among the Boffin's abilities).
+
+### Minions
+
+111. **The Psychopath's kill.** "Each day, before nominations, you may publicly choose a player": through the public
+     `ability` move with a `target`, on a public turn of the day, never during the nominations' comments; once a day,
+     alive. Anyone may claim it (a bluff looks the same, and nothing happens). A working Psychopath's target dies at
+     once, announced (not why), through the usual protections (a Tea Lady's neighbour lives); the game may end on it.
+     Drunk or poisoned, the day's choice is spent and nobody dies.
+112. **The roshambo.** "If executed, you only die if you lose roshambo": a living Psychopath with a working ability
+     who is executed (by vote, by the Vizier, by a madness ruling) plays the player who nominated them (the
+     Storyteller, with no nominator). The result is the Storyteller's judged call, a fair draw for the scripted
+     Storyteller (POLICY `psychopath_roshambo_win` 0.5, default, for review: rock-paper-scissors with ties replayed is
+     even); a judge may rule otherwise. It is announced; won, the Psychopath survives the execution (as the town sees:
+     "survived"). Drunk or poisoned: no roshambo, they die. Option: ask the two players to throw (rock, paper or
+     scissors), ties again, so the players themselves pick.
+113. **The Wraith.** "You may choose to open your eyes at night": asked each night at its step, the night's first
+     (`decide`). "You wake when other evil players do": either way, just before dawn it is told who woke tonight to use
+     an ability and whom (or which character) they chose: every player with its eyes open, only the evil players with
+     them shut. Never what anyone was shown (the Storyteller's tokens and fingers are hidden). Drunk or poisoned, it is
+     told nothing (no false wakes are staged). Options: tell it at each step as it happens; let opening its eyes risk
+     being seen.
+114. **The Wraith's jinxes.** Alchemist: an Alchemist-Wraith has no ability, a Wraith is in play, and after each
+     execution the living Alchemist may publicly guess a living player as the Wraith; right, the Demon must choose
+     them that night (as its Spy and Widow jinxes: ruling 77). Magician: after each execution the living Magician may
+     guess the same way (not while the Vizier takes the Magician's ability). Plague Doctor: if the Storyteller would
+     gain the Wraith's ability, a living Minion gains it and learns this.
+115. **The Vizier's announcement and protection.** "All players know you are the Vizier": every player's introduction
+     says who it is (a Vizier made later, the Engineer's or the Pit-Hag's, is announced at once), unless the Alsaahir
+     or the Investigator is on the script (their jinxes: not declared). "You cannot die during the day": every death by
+     day fails while its ability works (an execution "survived", the Psychopath's kill, the Slayer's shot, the
+     Tinker's); at night it dies as anyone does.
+116. **"If good voted, you may choose to execute immediately".** After each vote in which a player who registers as
+     good to the Vizier raised a hand (a Spy might register good, a Recluse evil: the Storyteller's judged call for
+     each, POLICY `vizier_registers_evil` 0.5, default, for review), the living Vizier with a working ability is asked
+     (`decide`) whether to execute the nominee now, whatever the tally. Yes: it is announced, the nominee is executed
+     at once, today's execution, and the day's nominations end. With secret votes (the Organ Grinder) it is still
+     asked: the Storyteller knows who voted (a reading). This is a core hook (`Character.vote_over`, asked by
+     `Game.vote_over_judged` after each vote) that does nothing on any script without the Vizier: the vote itself
+     never changes, so it is not one of the vote-changing characters the brief keeps for the owner. Options: "good
+     voted" as "most voters were good"; never asked under secret votes.
+117. **The Vizier's jinxes.** Alsaahir, Investigator: not declared. Courtier, Preacher: a Vizier made drunk by the
+     Courtier, or chosen by the Preacher, is told so (just before dawn) and still cannot die by day, though it cannot
+     execute anyone. Fearmonger: the Vizier learns whom the Fearmonger chose whenever the choice is new (just before
+     dawn) and cannot execute that player by its ability. Magician: with the Vizier in play the Magician has no ability
+     (no first-night illusion, no Wraith guess), and the Vizier cannot execute the Magician by its ability. Politician,
+     Zealot: a Politician or Zealot who voted might register as evil to the Vizier (the same judged call).
+
+### Core changes and playability
+
+118. **Core changes**, each a no-op on the base scripts and on carousel-1 to carousel-5 (their fingerprints are
+     identical): `Character.vote_over` and `Game.vote_over_judged` (the Vizier); introduction lines a setup step leaves
+     in `g.notes['Intro']` (the Bounty Hunter's evil Townsfolk, the Vizier's name); `characters.holds` (an Outsider's
+     code accepts the Hermit, and the Tinker's night death acts for one); the Alchemist's, Plague Doctor's and
+     Magician's Wraith jinxes and the Pit-Hag's Ogre lock (guarded by `Script.jinxed`). Fixes the fuzzer found
+     (docs/interaction-findings.md): the red herring is never an evil Townsfolk (B20); a spent Assassin no longer acts
+     on a choice its player made with another ability the same night (B21); a Lleech swapped onto a dead player
+     poisons nobody (B19).
+119. **The sixth synthetic script** (`clocktower/data/scripts/carousel-6.json`, "Carousel test 6"): the eight, with the
+     Alchemist, Philosopher, Cannibal, Magician, Alsaahir, Courtier, Investigator, Preacher, Empath, Chef and
+     Washerwoman; the Recluse, Politician, Zealot, Plague Doctor and Saint; the Boffin, Pit-Hag, Spy, Summoner,
+     Fearmonger and Poisoner; the Al-Hadikhia, Kazali and Imp. All twenty batch 4 jinxes are on it, and every size from
+     5 to 15 deals. Its replay fingerprints are `tests/data/fingerprints-carousel-6.json`.
+
+New weights: `bounty_philosopher_evil` 0.5, `hermit_fewer_outsider` 0.5, `psychopath_roshambo_win` 0.5,
+`vizier_registers_evil` 0.5. The rules judge has no heuristic of its own for the new calls (the scripted style
+decides).

@@ -696,9 +696,9 @@ class Xaan(Minion):
 ALCHEMIST_USABLE = ('Poisoner', "Devil's Advocate", 'Assassin', 'Godfather', 'Baron', 'Witch', 'Cerenovus',
                     'Fearmonger', 'Boomdandy', 'Harpy')
 # their jinxes: in play alongside (no ability: Spy, Widow, Marionette; both have it: Organ Grinder), or not
-ALCHEMIST_IN_PLAY = ('Spy', 'Widow', 'Marionette', 'Organ Grinder')
+ALCHEMIST_IN_PLAY = ('Spy', 'Widow', 'Marionette', 'Organ Grinder', 'Wraith')  # (the last: batch 4)
 ALCHEMIST_NOT_IN_PLAY = ('Mastermind', 'Boffin', 'Summoner')
-ALCHEMIST_NONE = ('Spy', 'Widow', 'Marionette', 'Mastermind')  # the jinxes: no ability
+ALCHEMIST_NONE = ('Spy', 'Widow', 'Marionette', 'Mastermind', 'Wraith')  # the jinxes: no ability
 ALCHEMIST_SETUP = ('Baron', 'Godfather', 'Summoner')  # setup changes: only in a dealt game, at setup
 
 
@@ -807,11 +807,11 @@ class Alchemist(Townsfolk):
                 game.inform(p, f'Night {night.n} — Alchemist: {alchemist_text(g, m)}')
 
     def execution(self, game, me, executed):
-        # the Spy and Widow jinxes: after each execution (dying or not), a living Alchemist with that "ability" may
-        # guess publicly
+        # the Spy and Widow jinxes (and the Wraith's, batch 4): after each execution (dying or not), a living Alchemist
+        # with that "ability" may guess publicly
         g = game.g
         m = self.minion(g, me)
-        if m in ('Spy', 'Widow') and me.alive and me.character == self.name and g.script.jinxed(self.name, m):
+        if m in ('Spy', 'Widow', 'Wraith') and me.alive and me.character == self.name and g.script.jinxed(self.name, m):
             game.later(lambda game: self.guess(game, me, m))
         return None
 

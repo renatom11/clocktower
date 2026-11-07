@@ -37,6 +37,11 @@ each dawn and dusk (Monitor):
   guess by a working Alsaahir, and a cult vote every good player joined with a working Cult Leader, win at once, and
   neither win is declared otherwise;
 - the Lleech ('lleech'): a working Lleech never dies while its host lives (but to the Assassin), and dies with it;
+- batch 4: a Vizier whose ability works (or the Courtier or Preacher took) never dies by day ('vizier'); the
+  Psychopath kills only by day before nominations, once a day ('psychopath'); no Demon's attack kills on a night its
+  kills were stopped (the Princess's, the Pit-Hag's arbitrary deaths: 'demon-stopped'); the Bounty Hunter's player
+  can register as evil (an oracle), and its evil Townsfolk is a good Townsfolk ('choice'); the Hermit misregisters
+  only with the Recluse's ability;
 - crashes and loops ('crash', 'loop', 'timeout'): every exception, more than STEP_CAP seat requests, or a game over
   TIME_CAP seconds.
 
@@ -102,7 +107,8 @@ ONCE = _matching(r'once per game')
 
 
 def misreg(p):
-    return p.character in MISREG
+    # (the Hermit has every Outsider ability on the script: a Recluse's among them)
+    return p.character in MISREG or (p.character == 'Hermit' and bool(MISREG & set(getattr(p, 'extra', ()))))
 
 
 def pool():
@@ -508,6 +514,7 @@ class Monitor:
                 cause, cause)])
         if not p.alive:
             self.flag('coherence', f'{p.name} ({p.character}), already dead, killed again ({cause})', [p.character])
+        self.batch4_death(p, cause, source)
         if cause == 'execution':
             self.death_chars[p.name] = p.character
         self.died_at[p.name] = (self.game.day, self.step_name)
@@ -518,9 +525,30 @@ class Monitor:
             self.died_at.get(source.name), self.lost_at.get(source.name))
         if source is not None and source is not p and not (source.alive or g.keeps_ability(source)) and not same_step:
             # (one who died at this very step acted with its deaths at once: the Al-Hadikhia choosing itself)
-            if c not in DEAD_OK and cause not in STORYTELLER_DEATHS and not DEAD_OK & set(g.abilities(source)):
+            st = cause in STORYTELLER_DEATHS or (cause == 'summoner' and g.notes.get('Storyteller summons'))
+            # (the Engineer jinx: the Storyteller summons in place of the Summoner it removed, who may be dead)
+            if c not in DEAD_OK and not st and not DEAD_OK & set(g.abilities(source)):
                 self.flag('dead-acts', f'{p.name} killed ({cause}) by dead {source.name} ({source.character})',
                           [source.character, p.character])
+
+    def batch4_death(self, p, cause, source):
+        """The Vizier "cannot die during the day" while its ability works (or the Courtier and Preacher jinxes took
+        it); the Psychopath's kill comes "each day, before nominations", once a day; no Demon's attack kills on a night
+        the Storyteller (the Pit-Hag's arbitrary deaths) or the Princess stopped them."""
+        g, game = self.g, self.game
+        if p.character == 'Vizier' and p.alive and game.tonight is None and cause != 'assassin' and (
+                g.works(p, 'Vizier') or rules('Vizier').lost_by_jinx(g, p)):
+            self.flag('vizier', f'{p.name} (Vizier) died by day ({cause})', ['Vizier', CAUSES.get(cause, cause)])
+        if cause == 'psychopath':
+            key = ('psychopath', source.name if source else None, game.day)
+            if game.phase != 'day' or game.tonight is not None:
+                self.flag('psychopath', f'{p.name} killed by the Psychopath during {game.phase}', ['Psychopath'])
+            elif key in self.flagged:
+                self.flag('psychopath', f'the Psychopath killed twice on day {game.day}', ['Psychopath'])
+            self.flagged.add(key)
+        if cause == 'demon' and game.tonight is not None and g.notes.get('Demon kills stopped') == game.day:
+            self.flag('demon-stopped', f'{p.name} killed by the Demon on a night its kills were stopped',
+                      [source.character if source else 'Demon', p.character])
 
     def killed(self, p):
         """After a death: a Lleech whose host it was, alive with a working ability (and not the Mastermind jinx's),
@@ -860,7 +888,8 @@ def sage(m, p, ctx, v):
     death = next((d for d in reversed(g.death_log) if d['player'] == p.name and d['cause'] == 'demon'), None)
     killer = death and death['source']
     if p.alive and g.script.jinxed('Leviathan', 'Sage'):  # the jinx: chosen by the Leviathan, they learn it alive
-        killer = next((q.name for q in g.players if q.character == 'Leviathan'), killer)
+        killer = next((q.name for q in sorted(g.players, key=lambda q: not q.alive) if q.character == 'Leviathan'),
+                      killer)  # (the living one: a Scarlet Woman's new Leviathan, not the dead one)
     if killer in v['players']:
         return None
     if g.script.jinxed('Recluse', 'Sage') and any(g[x].character == 'Recluse' for x in v['players']):
@@ -976,6 +1005,13 @@ def village_idiot(m, p, ctx, v):
         f'{"evil" if v["yes"] else "good"}'
 
 
+def bounty_hunter(m, p, ctx, v):
+    x = m.g[v['players'][0]]
+    if x is p:
+        return 'shown themself'
+    return None if True in reg_evil(x) else f'{x.name} ({x.character}) is good'
+
+
 def knight(m, p, ctx, v):
     g = m.g
     xs = v['players']
@@ -1003,7 +1039,7 @@ ORACLES = {'Washerwoman': _pair('Townsfolk'), 'Librarian': _pair('Outsider'), 'I
            'Grandmother': grandmother, 'Godfather': godfather, 'Steward': steward, 'Nightwatchman': nightwatchman,
            'Shugenja': shugenja, 'Balloonist': balloonist, 'Pixie': pixie, 'Fisherman': fisherman,
            'High Priestess': high_priestess, 'General': general, 'Noble': noble, 'Village Idiot': village_idiot,
-           'Knight': knight, 'King': king, 'Choirboy': choirboy}
+           'Knight': knight, 'King': king, 'Choirboy': choirboy, 'Bounty Hunter': bounty_hunter}
 
 
 def widow_knower(m, ctx, v):
@@ -1062,11 +1098,17 @@ def cult_leader_alignment(m, ctx, v):
     return None if side in sides else f'{p.name} (Cult Leader) takes {side}, which no alive neighbour is'
 
 
+def evil_townsfolk(m, ctx, v):
+    x = m.g[v['players'][0]]
+    return None if kind(x.character) == 'Townsfolk' and x.character != 'Bounty Hunter' and not x.evil else \
+        f'{x.name} ({x.character}, {x.alignment}) is made the evil Townsfolk'
+
+
 # Storyteller choices that are not information but whose legal values the text fixes: {call: check}
 CHOICE_CHECKS = {'widow_knower': widow_knower, 'grandchild': grandchild, 'faux_paw': faux_paw,
                  'farmer_heir': farmer_heir, 'boffin_ability': boffin_ability, 'alchemist_minion': alchemist_minion,
                  'huntsman_townsfolk': huntsman_townsfolk, 'typhon_minion': typhon_minion,
-                 'cult_leader_alignment': cult_leader_alignment}
+                 'cult_leader_alignment': cult_leader_alignment, 'evil_townsfolk': evil_townsfolk}
 
 
 # ---- one game -------------------------------------------------------------------------------------------------

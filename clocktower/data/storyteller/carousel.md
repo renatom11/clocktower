@@ -309,3 +309,54 @@ the Lleech is sober. After that it kills each night. While the host lives, nothi
 fails), except the Assassin; when the host dies, however it happens, the Lleech dies with them. A drunk or poisoned
 Lleech can die normally and does not die with its host. Jinxes: a Slayer shooting the host kills the host; with the
 Mastermind alive, a host executed leaves the Lleech alive but without its ability; never with the Heretic.
+
+## Bounty Hunter
+At setup make one good Townsfolk evil (never a Bounty Hunter): that player learns only that they are evil, and the
+other evil players are not told about them. On the first night point the Bounty Hunter at one evil player; whenever
+the player they know dies, point them at a different evil player that night. A drunk or poisoned Bounty Hunter may be
+pointed at a good player. With the Kazali, wait for its choices: if it made the Bounty Hunter a Minion, nobody is made
+evil. A Philosopher who takes this ability may also cost good a Townsfolk, your call.
+
+## Engineer
+Once per game, at night, the Engineer names a Demon, or a set of Minions as many as are alive. The living Demon becomes
+the one named; for Minions, any Minion already holding a named character keeps it and you share the rest among the
+others. Wake each player who changed and show them their new token. Never the Marionette, the Summoner or the Kazali.
+A drunk or poisoned Engineer spends it for nothing. With the Summoner, if the living Summoner is turned into another
+Minion, you summon the Demon yourself on the third night.
+
+## Princess
+If on her first day the Princess nominated the player who was then executed, the Demon still wakes that night but its
+attack kills nobody (the Al-Hadikhia's three survive too). She must be alive, sober and healthy at her step. With the
+Cannibal, a Cannibal who nominated, executed and killed the Princess today stops the Demon the same way.
+
+## Hermit
+The Hermit holds every Outsider ability on the script, whether those Outsiders are in play or not, all at once: a
+Saint's loss on execution, a Recluse's misregistration, a Damsel the Minions may hunt, a Tinker's sudden death and so
+on. It never holds the Drunk's or the Lunatic's (those are illusions about who you are), nor the Butler's or the
+Puzzlemaster's. At setup you may remove one Outsider. Drunk or poisoned, every one of its abilities stops.
+
+## Ogre
+On the first night the Ogre picks another player and silently takes that player's alignment, whatever the Ogre's
+sobriety; they are not told the result. A Spy always counts as evil here; a Recluse may, and if it does the Ogre is told
+they are evil. An evil player the Pit-Hag turns into the Ogre stays evil. A player who gets this ability later picks
+at once.
+
+## Psychopath
+Each day before nominations the Psychopath may announce a player, who dies on the spot (protections still work); once a
+day, and nothing during the nominations. If executed, they play roshambo with whoever nominated them: you decide the
+result fairly, as a coin toss; a win means they survive the execution. A drunk or poisoned Psychopath kills nobody and
+simply dies when executed.
+
+## Wraith
+At the start of each night the Wraith decides whether to open their eyes. Either way they wake with the other evil
+players; at dawn tell them who woke and whom they pointed at: everyone if their eyes were open, otherwise only evil
+players. Never tell them what anyone was shown. A drunk or poisoned Wraith sees nothing. The Alchemist, the Magician
+and the Plague Doctor each have a jinx that brings guesses about the Wraith, or hands its ability to a Minion.
+
+## Vizier
+Tell everyone who the Vizier is before the first night (not if the Alsaahir or the Investigator is on the script). By
+day the Vizier cannot die, executions included. After any vote in which at least one good player raised a hand, ask the
+Vizier whether to execute the nominee at once, whatever the count; doing so ends the day's nominations. A drunk or
+poisoned Vizier can die by day and executes nobody, but one silenced by the Courtier or the Preacher is told so and still
+cannot die by day. The Magician is immune to it (and loses its own ability), the Fearmonger's pick is off limits and the
+Vizier learns it, and a Politician or Zealot voting may count as evil.

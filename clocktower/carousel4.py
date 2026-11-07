@@ -657,7 +657,7 @@ class Lleech(Demon):
         keep = [s for s in g.states if s.source == old.name and s.kind == 'poisoned'
                 and s.target == hosts.get(new.name)]
         g.states = [s for s in g.states if not any(s is k for k in keep)]
-        return keep
+        return keep if new.alive else []  # (a swap onto a dead player: a dead Lleech poisons nobody, finding B19)
 
 
 CHARACTERS.update({c.name: c() for c in [Alsaahir, Huntsman, Knight, King, Choirboy, CultLeader, Snitch, LordOfTyphon,

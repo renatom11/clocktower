@@ -311,6 +311,11 @@ class Character:
     def end_of_night(self, game, me, night):
         """Tonight's last step is done, before dawn (the Acrobat dies if their player became drunk or poisoned)."""
 
+    async def vote_over(self, game, me, nominee):
+        """The vote on `nominee` is over (its tally recorded on the last of g.nominations); `me` has this ability:
+        True to execute `nominee` at once, today's execution, which ends the day's nominations (the Vizier's)."""
+        return False
+
     async def storyteller_step(self, game, night, character):
         """At `character`'s step tonight, the Storyteller uses `character`'s ability, gained through `me`'s (the
         Plague Doctor's): Game.night calls this for each ability in g.notes['Storyteller abilities']."""
@@ -722,6 +727,14 @@ class Imp(Demon):
 CHARACTERS = {c.name: c() for c in [Washerwoman, Librarian, Investigator, Chef, Empath, FortuneTeller, Undertaker, Monk,
                                      Ravenkeeper, Virgin, Slayer, Soldier, Mayor, Butler, Drunk, Recluse, Saint,
                                      Poisoner, Spy, ScarletWoman, Baron, Imp]}
+
+
+def holds(p, name):
+    """Whether player p has `name`'s ability as their own character's: they are that character, or the Hermit, who has
+    every Outsider ability on the script (custom scripts: carousel5.Hermit keeps them in `extra`). For the code of an
+    Outsider that asks whether `me` is the character itself, so that abilities gained otherwise (the Philosopher's)
+    play as before."""
+    return p.character == name or (p.character == 'Hermit' and name in getattr(p, 'extra', ()))
 
 
 def rules(character):

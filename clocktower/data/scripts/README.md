@@ -28,3 +28,8 @@ every table size from 5 to 15 can be dealt. Its games are protocol `custom-carou
 Snitch, Knight, Choirboy, King, Cult Leader, Lord of Typhon, Lleech) with built characters chosen so that all eight
 official jinxes between them and built characters are on it and every table size from 5 to 15 can be dealt. Its games
 are protocol `custom-carousel-5`.
+
+`carousel-6.json` ("Carousel test 6") is the sixth: the eight experimental characters of batch 4 (Bounty Hunter,
+Engineer, Princess, Hermit, Ogre, Psychopath, Wraith, Vizier) with built characters chosen so that all twenty official
+jinxes between them and built characters are on it and every table size from 5 to 15 can be dealt. Its games are
+protocol `custom-carousel-6`.

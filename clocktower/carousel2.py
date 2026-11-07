@@ -12,7 +12,8 @@ from __future__ import annotations
 import re
 
 from . import carousel, snv
-from .characters import CHARACTERS, SETUPS, Choose, Demon, Minion, Outsider, Townsfolk, jinx, kind, rules, settle
+from .characters import (CHARACTERS, SETUPS, Choose, Demon, Minion, Outsider, Townsfolk, holds, jinx, kind, rules,
+                         settle)
 from .state import POLICY, Choice, State, judged, madness_choice, yes_choice
 
 
@@ -572,7 +573,7 @@ class Heretic(Outsider):
     def ended(self, g, me, winner, reason):
         # dead or alive, while they are the Heretic and sober; after every other end hook (the Politician's). Every
         # ending, the Saint's, the Damsel's and the Goblin's included
-        if me.character != self.name or g.impaired(me):
+        if not holds(me, self.name) or g.impaired(me):  # (the Hermit's too: batch 4)
             return None
         g.winner = 'evil' if winner == 'good' else 'good'
         return f'{reason} But {me.name} is the Heretic: whoever wins, loses, so {g.winner} wins.'

@@ -50,6 +50,12 @@ JINXES3 = [('Alchemist', 'Boffin'), ('Alchemist', 'Marionette'), ('Alchemist', '
 # batch 3b's (tests/test_carousel3b.py)
 JINXES4 = [('Boffin', 'Cult Leader'), ('Heretic', 'Lleech'), ('Leviathan', 'King'), ('Lleech', 'Mastermind'),
            ('Lleech', 'Slayer'), ('Marionette', 'Huntsman'), ('Pit-Hag', 'Cult Leader'), ('Summoner', 'Lord of Typhon')]
+# batch 4's (tests/test_carousel4.py)
+JINXES5 = [('Alchemist', 'Wraith'), ('Al-Hadikhia', 'Princess'), ('Boffin', 'Ogre'), ('Bounty Hunter', 'Kazali'),
+           ('Bounty Hunter', 'Philosopher'), ('Cannibal', 'Princess'), ('Magician', 'Vizier'), ('Magician', 'Wraith'),
+           ('Pit-Hag', 'Ogre'), ('Plague Doctor', 'Wraith'), ('Recluse', 'Ogre'), ('Spy', 'Ogre'),
+           ('Summoner', 'Engineer'), ('Vizier', 'Alsaahir'), ('Vizier', 'Courtier'), ('Vizier', 'Fearmonger'),
+           ('Vizier', 'Investigator'), ('Vizier', 'Politician'), ('Vizier', 'Preacher'), ('Vizier', 'Zealot')]
 
 
 def run(coro):
@@ -199,7 +205,7 @@ class JinxFrameworkTests(unittest.TestCase):
     def test_every_official_jinx_between_built_characters_is_implemented(self):
         built = {frozenset(p) for p in official.jinxes() if set(p) <= set(ch.CHARACTERS)}
         self.assertEqual(built, set(ch.IMPLEMENTED_JINXES))
-        self.assertEqual(built, {frozenset(p) for p in JINXES + JINXES1 + JINXES2 + JINXES3 + JINXES4})
+        self.assertEqual(built, {frozenset(p) for p in JINXES + JINXES1 + JINXES2 + JINXES3 + JINXES4 + JINXES5})
         with self.assertRaises(ValueError):
             ch.jinx('Imp', 'Washerwoman', 'nowhere')
 
@@ -244,7 +250,8 @@ class JinxTest(unittest.TestCase):
 
     def script(self, chars, jinxed):
         real = [c for c in dict.fromkeys(chars) if c not in {f.name for f in FILLERS}]
-        on = [p for p in JINXES + JINXES1 + JINXES2 + JINXES3 + JINXES4 if set(p) <= set(real)] if jinxed else []
+        on = [p for p in JINXES + JINXES1 + JINXES2 + JINXES3 + JINXES4 + JINXES5 if set(p) <= set(real)] if jinxed \
+            else []
         return ch.Script.of('carousel-test', [f.name for f in FILLERS] + real, official.night_order(real, True),
                             official.night_order(real, False), jinxes=on)
 

@@ -1,7 +1,7 @@
 # Interaction findings: what the fuzzer found
 
-`clocktower/fuzz.py` plays random-bot games on random scripts drawn from every built character (today 122: the
-Trouble Brewing, BMR and S&V characters and the experimental ones of carousel.py to carousel4.py; each script has
+`clocktower/fuzz.py` plays random-bot games on random scripts drawn from every built character (today 130: the
+Trouble Brewing, BMR and S&V characters and the experimental ones of carousel.py to carousel5.py; each script has
 13 Townsfolk, 4 Outsiders, 4 Minions, 4 Demons, loaded as custom script JSON, so the night order and jinxes are the
 official ones),
 under the scripted Storyteller and the rules judge alternately, and checks invariants after every night step, every
@@ -20,6 +20,25 @@ How to rerun (about 80 games a second on four cores):
 
 Each run writes `summary.md` (violations grouped, with a first example and its repro; advisories; pair coverage; the
 information checked), `violations.jsonl` (every violation with its repro) and `coverage.json`.
+
+## The fifth runs (2026-11-07, all 130 built characters: batch 4 added)
+
+The pool now holds batch 4's eight (carousel5.py). New checks: an independent oracle for the Bounty Hunter (the
+player shown can register as evil, and is not the Bounty Hunter); its evil Townsfolk is a good Townsfolk, never a
+Bounty Hunter ('choice'); a Vizier whose ability works (or the Courtier or Preacher took) never dies by day ('vizier');
+the Psychopath kills only by day before nominations, once a day ('psychopath'); no Demon's attack kills on a night its
+kills were stopped, by the Princess or the Pit-Hag's arbitrary deaths ('demon-stopped'); the Hermit misregisters only
+while it holds the Recluse's ability (the oracles' registration). A death the Storyteller deals while holding the
+Summoner's ability (the Engineer jinx) is not a dead player acting. The Sage oracle now takes the living Leviathan
+(a Scarlet Woman's), not a dead one, for the Leviathan jinx (an oracle fault, one false flag in 7,000 games).
+
+10,000 games: 7,000 uniform (same seeds as before) and 3,000 `--target-uncovered`, plus 3,200 games with one of the
+eight forced into play (`--force`, 400 each). First passes (two 7,000-game uniform runs, 3,000 targeted and 7,200 forced) found five
+engine faults, B18 to B22 below, and one unruled interaction, U11, all fixed (U11 avoided by the scripted
+Storyteller). After the fixes: 5 violations in the uniform run (U1 x4, U2) and 1 in the targeted one (U1), all known;
+none in the forced runs. All 8,385 pairs of the 130 characters were in play together, and 8,363 with both acting,
+after the targeted run. Decisions checked in the uniform run include the Bounty Hunter's 680 (by its oracle too) and
+598 evil Townsfolk.
 
 ## The fourth runs (2026-11-07, all 122 built characters: batch 3b added)
 
@@ -287,6 +306,37 @@ At five players its extra Minion leaves two Townsfolk; adding an Outsider ("-? t
 alone had nothing true to show (the U4 crash). Repro (before): `python -m clocktower fuzz repro --seed 9000312 --players 5 --judge scripted --chars washerwoman,shugenja,innkeeper,grandmother,exorcist,highpriestess,undertaker,mayor,fortuneteller,soldier,cultleader,fool,poppygrower,barber,sweetheart,puzzlemaster,golem,boffin,godfather,scarletwoman,witch,alhadikhia,ojo,lleech,lordoftyphon`.
 Fix: the Lord of Typhon's setup keeps two Townsfolk (ruling 92). U4 itself is unchanged.
 
+B18. **Fixed (batch 4 commit; found by the forced runs).** **The Bounty Hunter's evil Townsfolk was made after the
+setup's good picks.** Its setup step ran last, so the Townsfolk it turned evil could already be the Grandmother's
+Grandchild (or the red herring, the Faux Paw, the Evil Twin's twin), each of which must be good (`oracle`, 6 in 400
+forced games, 0 once fixed). Repro (before): `python -m clocktower fuzz repro --seed 9100073 --players 7 --judge rules --chars bountyhunter,tealady,poppygrower,grandmother,cultleader,librarian,sage,banshee,washerwoman,monk,savant,fool,pacifist,zealot,puzzlemaster,drunk,barber,psychopath,fearmonger,devilsadvocate,organgrinder,zombuul,po,leviathan,vortox --setup grandmother,banshee,leviathan,fool,bountyhunter,poppygrower,devilsadvocate`.
+Fix: the step runs once the characters are final and before any step that picks a good player (ruling 101).
+
+B19. **Fixed (batch 4 commit; found by the forced runs).** **A Lleech swapped onto a dead player kept poisoning its
+host.** Barber + Lleech (here the Hermit's Barber): the Demon swapped itself with a dead player, and the host's poison
+moved with the character to the dead new Lleech (`coherence`: a state outliving its source). Repro (before):
+`python -m clocktower fuzz repro --seed 9100229 --players 11 --judge rules --chars preacher,gossip,philosopher,lycanthrope,cannibal,fool,sailor,engineer,minstrel,choirboy,tealady,chambermaid,savant,hermit,drunk,barber,sweetheart,summoner,boffin,marionette,harpy,lleech,alhadikhia,leviathan,nodashii --setup cannibal,preacher,summoner,engineer,savant,hermit,sailor,lycanthrope,marionette,choirboy,chambermaid`.
+Fix: a Lleech handed to a dead player keeps no poison (a dead Lleech has no ability).
+
+B20. **Fixed (batch 4 commit; found by the uniform run).** **The red herring could be the evil Townsfolk.** The
+scripted Storyteller's red herring is usually a Townsfolk, taken from every Townsfolk, so with the Bounty Hunter's
+evil one it could pick an evil player, an illegal value (`crash`, 7 in 7,000 games). Repro (before): `python -m clocktower fuzz repro --seed 9006620 --players 6 --judge scripted --chars mathematician,sailor,general,nightwatchman,towncrier,fortuneteller,balloonist,acrobat,chef,bountyhunter,philosopher,juggler,poppygrower,hatter,zealot,hermit,mutant,fearmonger,spy,devilsadvocate,assassin,ojo,shabaloth,vigormortis,lleech`.
+Fix: only good Townsfolk (`state.red_herring_choice`; at setup on the base scripts every Townsfolk is good, so they
+replay identically).
+
+B21. **Fixed (batch 4 commit; found by the targeted run).** **A spent Assassin killed with another ability's choice.**
+Assassin + Plague Doctor (the Fearmonger jinx: the Assassin gains the Fearmonger's ability): each night the player's
+Fearmonger choice was still in tonight's choices at the Assassin's step, and the spent Assassin acted on it, killing
+every night (`once-twice`, 8 flags in one game). Repro (before): `python -m clocktower fuzz repro --seed 9101342 --players 15 --judge scripted --chars balloonist,slayer,seamstress,shugenja,minstrel,empath,artist,snakecharmer,cannibal,steward,mathematician,highpriestess,chef,puzzlemaster,politician,plaguedoctor,moonchild,fearmonger,spy,scarletwoman,assassin,imp,alhadikhia,po,leviathan --setup cannibal,artist,minstrel,slayer,balloonist,scarletwoman,alhadikhia,plaguedoctor,chef,spy,empath,highpriestess,moonchild,politician,assassin`.
+Fix: a spent Assassin does not act (BMR replays identically: its one Assassin is never woken once spent). The same
+shape (a player's choice tonight read by a step they were not woken for) is guarded elsewhere by each once-per-game
+ability's own spent check.
+
+B22. **Fixed in the new code before the batch 4 commit (targeted run).** **The Storyteller summoned a Demon in play.**
+Engineer + Summoner + Kazali: the Kazali made a Summoner, the Engineer turned it into a Witch, and on the third night the
+Storyteller (holding the Summoner's ability) made a second Kazali (`coherence`). The Storyteller now summons only a
+Demon not in play (ruling 104).
+
 ## Unruled interactions (the engine does something defensible; a ruling would settle it)
 
 U1. **The Undertaker learns the executed player's character after it changed.** Undertaker + Pit-Hag or Barber (also
@@ -395,6 +445,13 @@ both might die" is one penalty); stopping after the first would also change five
 is left as is, and the fuzzer now counts a death decided at the step that ended the source's kept ability as made
 with it. Suggested ruling: keep it (both die together). Option: stop at the first death that ends the game or the
 ability.
+
+U11. **The Noble with nothing true to show, the Bounty Hunter's way.** Noble + Bounty Hunter at 5 players: the evil
+Townsfolk makes three evil players among the Noble's four others, so no three hold exactly one evil player (as U9, the
+Lycanthrope's Faux Paw; `engine-truth`, 4 games in 4,000 forced before the change). Repro: `python -m clocktower fuzz repro --seed 9200266 --players 5 --judge scripted --chars bountyhunter,dreamer,general,pixie,king,steward,preacher,noble,acrobat,gossip,monk,minstrel,lycanthrope,hermit,klutz,moonchild,butler,mastermind,marionette,organgrinder,summoner,imp,ojo,kazali,vigormortis --setup organgrinder,pixie,noble,bountyhunter,ojo`.
+The scripted Storyteller (and the judge's default) now picks an evil Townsfolk that leaves the Noble a true answer
+when one exists (the Noble itself may be it); a judge may still choose otherwise. Suggested ruling: as U9, the
+Storyteller must not make the Noble's information impossible.
 
 ## Advisories (counted, not violations)
 

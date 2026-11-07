@@ -338,6 +338,12 @@ POLICY = {
     'cult_leader_evil': 0.5,        # a Cult Leader between a good and an evil alive neighbour turns (or stays) evil
     'typhon_outsiders_same': 0.6,   # the Lord of Typhon's Outsiders stay as dealt,
     'typhon_outsiders_fewer': 0.75,  # else one fewer (to offset the extra Minion; else one more)
+    # batch 4 (docs/carousel-rulings.md). Default, for review.
+    'bounty_philosopher_evil': 0.5,  # the Bounty Hunter/Philosopher jinx: a Townsfolk turns evil
+    'hermit_fewer_outsider': 0.5,   # the Hermit's [-0 or -1 Outsider]: one fewer
+    'psychopath_roshambo_win': 0.5,  # the executed Psychopath wins the roshambo (and survives)
+    'vizier_registers_evil': 0.5,   # a voter who may register either way (a Spy, a Recluse, the jinxes' Politician and
+    #                                 Zealot) registers as evil to the Vizier
     # the Storyteller judge (judge.py, when one is chosen; never in TB's protocol v17): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
@@ -896,7 +902,8 @@ def red_herring_choice(g):
     """A good player who registers as the Demon to the Fortune Teller: usually a Townsfolk other than
     the Fortune Teller (so a good player is framed), else any good player."""
     good = [p.name for p in g.players if not p.evil]
-    townsfolk = [p.name for p in g.players if kind(p.character) == 'Townsfolk' and p.character != 'Fortune Teller']
+    townsfolk = [p.name for p in g.players if kind(p.character) == 'Townsfolk' and p.character != 'Fortune Teller'
+                 and not p.evil]  # (custom scripts: the Bounty Hunter's evil Townsfolk is never one)
 
     def style(r):
         pool = townsfolk if townsfolk and r.random() < POLICY['herring_townsfolk'] else good
@@ -1266,6 +1273,7 @@ from . import carousel  # noqa: E402  (after snv: the experimental characters an
 from . import carousel2  # noqa: E402  (after carousel: batch 2 of the experimental characters)
 from . import carousel3  # noqa: E402  (after carousel2: batch 3 of the experimental characters)
 from . import carousel4  # noqa: E402  (after carousel3: batch 3b of the experimental characters)
+from . import carousel5  # noqa: E402  (after carousel4: batch 4 of the experimental characters)
 
 # (a use, so pyflakes sees the imports are wanted)
-BMR, SNV, CAROUSEL = bmr, snv, (carousel, carousel2, carousel3, carousel4)
+BMR, SNV, CAROUSEL = bmr, snv, (carousel, carousel2, carousel3, carousel4, carousel5)

@@ -15,7 +15,7 @@ from __future__ import annotations
 from itertools import combinations
 
 from . import bmr, snv
-from .characters import CHARACTERS, Choose, Demon, Minion, Outsider, Townsfolk, jinx, kind, rules
+from .characters import CHARACTERS, Choose, Demon, Minion, Outsider, Townsfolk, holds, jinx, kind, rules
 from .state import POLICY, Choice, State, judged, yes_choice
 
 
@@ -201,12 +201,27 @@ class Magician(Townsfolk):
     name = 'Magician'
     ability = ability(name)
 
+    @staticmethod
+    def vizier_nulled(g):
+        """The Vizier jinx (batch 4): with the Vizier in play, the Magician has no ability."""
+        return g.script.jinxed('Magician', 'Vizier') and any(q.character == 'Vizier' for q in g.players)
+
+    def execution(self, game, me, executed):
+        # the Wraith jinx (batch 4): after each execution (dying or not), the living Magician may publicly guess a
+        # living player as the Wraith; right, the Demon must choose them tonight
+        g = game.g
+        if g.script.jinxed(self.name, 'Wraith') and me.alive and me.character == self.name \
+                and not self.vizier_nulled(g):
+            from .carousel5 import wraith_guess
+            game.later(lambda game: wraith_guess(game, me, self.name))
+        return None
+
     def shown_to_evil(self, g, me, viewer):
         # the first night's evil information only (Game.setup): the Demon sees the Magician among its Minions, the
         # Minions see the Magician and the Demon as "the Demon" (with no Demon in play, the Magician alone). A
         # Magician poisoned from the start (the No Dashii's neighbour) does nothing. How they register to abilities
         # is untouched (a reading: the ability names what evil "thinks", not registration)
-        if g.impaired(me):
+        if g.impaired(me) or self.vizier_nulled(g):
             return None
         return 'Minion' if viewer.is_demon else 'Demon' if kind(viewer.character) == 'Minion' else None
 
@@ -347,7 +362,7 @@ class Damsel(Outsider):
     def ongoing(self, g, me):
         # the Spy and Widow jinxes: "If the Spy (the Widow) is (or has been) in play, the Damsel is poisoned", for the
         # rest of the game
-        if me.character == self.name and any(g.script.jinxed(self.name, c) and self.spy_seen(g, c)
+        if holds(me, self.name) and any(g.script.jinxed(self.name, c) and self.spy_seen(g, c)
                                              for c in ('Spy', 'Widow')):
             return [State('poisoned', me.name, until=None)]
         return []
@@ -427,7 +442,7 @@ class Politician(Outsider):
     def ended(self, g, me, winner, reason):
         # even if dead; while they have their ability (not drunk or poisoned); an evil player the Pit-Hag made the
         # Politician can't turn good this way (the jinx)
-        if me.character != self.name or me.alignment == winner or g.impaired(me):
+        if not holds(me, self.name) or me.alignment == winner or g.impaired(me):  # (the Hermit's too: batch 4)
             return None
         if winner == 'good' and me.name in g.notes.get('Evil Politicians', ()):
             return None
@@ -494,7 +509,7 @@ class Hatter(Outsider):
 # night, which has passed or would end the Demon's game): the Storyteller picks among the others.
 PLAGUE_STEPS = ('Poisoner', 'Godfather', "Devil's Advocate", 'Assassin', 'Witch', 'Cerenovus')
 PLAGUE_JINXED = ('Spy', 'Scarlet Woman', 'Baron', 'Evil Twin', 'Goblin', 'Marionette',  # (the last two: batch 2)
-                 'Boomdandy', 'Fearmonger')  # (batch 3)
+                 'Boomdandy', 'Fearmonger', 'Wraith')  # (batch 3; the Wraith: batch 4)
 PLAGUE_USABLE = PLAGUE_STEPS + PLAGUE_JINXED + ('Mastermind',)
 
 
@@ -541,7 +556,7 @@ class PlagueDoctor(Outsider):
         game.emit('text', {'text': f'[the Storyteller gains the {m} ability]'}, 'audit')
         if m in PLAGUE_STEPS:
             g.notes.setdefault('Storyteller abilities', {})[m] = self.name
-        elif m in ('Spy', 'Scarlet Woman', 'Goblin', 'Fearmonger'):
+        elif m in ('Spy', 'Scarlet Woman', 'Goblin', 'Fearmonger', 'Wraith'):
             await self.minion_gains(game, m)
         elif m == 'Boomdandy':
             from .carousel3 import boomdandy_made

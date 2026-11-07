@@ -7,7 +7,7 @@ from __future__ import annotations
 from itertools import combinations
 import re
 
-from .characters import CHARACTERS, Choose, Demon, Minion, Outsider, Townsfolk, kind, rules
+from .characters import CHARACTERS, Choose, Demon, Minion, Outsider, Townsfolk, holds, kind, rules
 from .state import POLICY, Choice, State, judged, setup_changes, team_sizes, yes_choice
 
 
@@ -148,7 +148,7 @@ class Assassin(Minion):
         for a in [p for p in g.players if self.name in g.abilities(p) and (p.alive or g.keeps_ability(p))
                   and p.name in night.chosen]:
             t = (night.chosen[a.name] or [None])[0]
-            if not t:
+            if not t or self.used(g, a):  # (spent: a choice tonight was another ability's, finding B21)
                 continue
             works = g.works(a, self.name)  # as it chooses: a Goon chosen by a sober Assassin dies, and turns evil
             game.pick(night, a, t)
@@ -1010,6 +1010,12 @@ class Tinker(Outsider):
     async def resolve_night(self, game, night):
         g = game.g
         t = g.with_character(self.name)
+        for h in [q for q in g.players if q.alive and q is not t and holds(q, self.name)]:  # (custom scripts: a
+            await self.dies_tonight(game, night, h)  # Hermit, who has the Tinker's ability too)
+        await self.dies_tonight(game, night, t)
+
+    async def dies_tonight(self, game, night, t):
+        g = game.g
         if not (t and self.can_die(g, t)):
             return
         quiet = not night.first and not night.deaths  # no death yet tonight: it would pass for the Demon's kill

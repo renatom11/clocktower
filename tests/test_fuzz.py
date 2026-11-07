@@ -151,6 +151,23 @@ class FuzzTests(unittest.TestCase):
             'ABCDEFG', ['Spy', 'Knight', 'Lord of Typhon', 'Poisoner', 'Chef', 'Monk', 'Soldier'])])
         self.assertEqual([v['type'] for v in g.fz.violations], ['setup'])
 
+    def test_the_batch_4_checks(self):
+        script = fuzz.make_script(['Bounty Hunter', 'Chef', 'Monk', 'Mayor', 'Soldier', 'Empath', 'Librarian', 'Hermit',
+                                   'Recluse', 'Vizier', 'Psychopath', 'Poisoner', 'Imp'])
+        g = self.game(['Bounty Hunter', 'Chef', 'Imp', 'Monk', 'Vizier', 'Hermit', 'Soldier', 'Mayor'], script)
+        m, bh = g.fz, g.g['Alex']
+        for q in g.g.players:  # (the evil Townsfolk, if any, is made good again for the test)
+            if fuzz.kind(q.character) == 'Townsfolk':
+                q.alignment = 'good'
+        self.assertIsNone(fuzz.bounty_hunter(m, bh, {}, {'players': ['Casey']}))
+        self.assertIsNotNone(fuzz.bounty_hunter(m, bh, {}, {'players': ['Blair']}))
+        self.assertIsNotNone(fuzz.bounty_hunter(m, bh, {}, {'players': ['Alex']}))
+        self.assertTrue(fuzz.misreg(g.g['Frankie']))  # the Hermit holds the Recluse's ability
+        self.assertIsNotNone(fuzz.evil_townsfolk(m, {}, {'players': ['Alex']}))
+        self.assertIsNone(fuzz.evil_townsfolk(m, {}, {'players': ['Blair']}))
+        g.fz.batch4_death(g.g['Ellis'], 'execution', None)  # a working Vizier dying by day
+        self.assertEqual([v['type'] for v in g.fz.violations], ['vizier'])
+
     def test_extra_abilities_need_a_gains_event(self):
         g = self.game(['Empath', 'Chef', 'Imp', 'Soldier', 'Monk', 'Mayor', 'Poisoner'])
         g.g['Alex'].extra.append('Monk')

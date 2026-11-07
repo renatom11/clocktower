@@ -199,12 +199,12 @@ class PitHag(Minion):
         await game.change(target, character=c)  # a dead player too; their alignment stays
         if extra_idiot:  # the jinx (batch 3): with another Village Idiot, the drunk one might change
             await rules(c).mark_drunk(game, again=True)
-        if c in ('Goon', 'Politician', 'Cult Leader') and g.script.jinxed(self.name, c):
+        if c in ('Goon', 'Politician', 'Cult Leader', 'Ogre') and g.script.jinxed(self.name, c):
             # the jinxes (custom scripts): an evil player made the Goon (or the Politician, or the Cult Leader) can't
             # turn good by its own ability; a good one made it later is free again (docs/carousel-rulings.md, 9, batch
             # 1 and batch 3b)
-            locked = g.notes.setdefault({'Goon': 'Evil Goons', 'Politician': 'Evil Politicians'}.get(
-                c, 'Evil Cult Leaders'), [])
+            locked = g.notes.setdefault({'Goon': 'Evil Goons', 'Politician': 'Evil Politicians',
+                                         'Ogre': 'Evil Ogres'}.get(c, 'Evil Cult Leaders'), [])
             if target.evil and target.name not in locked:
                 locked.append(target.name)
             elif not target.evil and target.name in locked:
