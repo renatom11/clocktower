@@ -108,6 +108,9 @@ class Character:
     duplicates = 1           # how many players may have it at once (the Village Idiot's [+0 to +2 Village Idiots]: 3)
     extra_minions = 0        # setup modifier (a Demon's): Minions dealt beyond the table's, in Townsfolk seats (the
     #                          Lord of Typhon's +1)
+    listens = False          # its ability is triggered by what players say (`heard`: the Mezepheles's secret word)
+    wakes_before = ''        # a character type: its step moves to just before the first step of that type on the
+    #                          script's night order (the Amnesiac's, before the Demons: its ability may protect)
 
     @property
     def evil(self):
@@ -315,6 +318,16 @@ class Character:
         """The vote on `nominee` is over (its tally recorded on the last of g.nominations); `me` has this ability:
         True to execute `nominee` at once, today's execution, which ends the day's nominations (the Vizier's)."""
         return False
+
+    def heard(self, game, speaker, text, public, seq):
+        """With `listens`: player `speaker` just said `text` (event number `seq`), aloud if `public`, else in a whisper.
+        Called once for this character (not per player: the hook finds who has the ability), as each word is said, so
+        it only records; what the words do happens later (Game.later, or a night step)."""
+
+    def chatter(self, game, name):
+        """With `listens`: lines the random bots may say on `name`'s turns (Request.chatter), so that random play can
+        trigger this ability; [] for none. Only random bots read them."""
+        return []
 
     async def storyteller_step(self, game, night, character):
         """At `character`'s step tonight, the Storyteller uses `character`'s ability, gained through `me`'s (the
@@ -763,6 +776,11 @@ def after(order):
             if other in order and order.index(other) > order.index(c):
                 order.remove(c)
                 order.insert(order.index(other) + 1, c)
+    for c in [c for c in order if rules(c).wakes_before]:  # (custom scripts: the Amnesiac, before the Demons)
+        first = next((x for x in order if kind(x) == rules(c).wakes_before), None)
+        if first is not None and order.index(first) < order.index(c):
+            order.remove(c)
+            order.insert(order.index(first), c)
     return order
 
 
@@ -810,6 +828,7 @@ class Script:
         self.falsifiers = [n for n in self.all if rules(n).falsifies_info]  # characters that can falsify information
         self.visitable = [n for n in self.all if rules(n).visit]  # abilities used by visiting the Storyteller
         self.guessable = [n for n in self.all if rules(n).public_guesses]  # public abilities that take guesses
+        self.listeners = [n for n in self.all if rules(n).listens]  # abilities triggered by what is said
 
     @classmethod
     def of(cls, name, characters, first_night=(), other_nights=(), jinxes=()):

@@ -56,6 +56,8 @@ JINXES5 = [('Alchemist', 'Wraith'), ('Al-Hadikhia', 'Princess'), ('Boffin', 'Ogr
            ('Pit-Hag', 'Ogre'), ('Plague Doctor', 'Wraith'), ('Recluse', 'Ogre'), ('Spy', 'Ogre'),
            ('Summoner', 'Engineer'), ('Vizier', 'Alsaahir'), ('Vizier', 'Courtier'), ('Vizier', 'Fearmonger'),
            ('Vizier', 'Investigator'), ('Vizier', 'Politician'), ('Vizier', 'Preacher'), ('Vizier', 'Zealot')]
+# batch 5's (tests/test_carousel5.py)
+JINXES6 = [('Yaggababble', 'Exorcist')]
 
 
 def run(coro):
@@ -205,7 +207,8 @@ class JinxFrameworkTests(unittest.TestCase):
     def test_every_official_jinx_between_built_characters_is_implemented(self):
         built = {frozenset(p) for p in official.jinxes() if set(p) <= set(ch.CHARACTERS)}
         self.assertEqual(built, set(ch.IMPLEMENTED_JINXES))
-        self.assertEqual(built, {frozenset(p) for p in JINXES + JINXES1 + JINXES2 + JINXES3 + JINXES4 + JINXES5})
+        self.assertEqual(built, {frozenset(p) for p in JINXES + JINXES1 + JINXES2 + JINXES3 + JINXES4 + JINXES5
+                                                 + JINXES6})
         with self.assertRaises(ValueError):
             ch.jinx('Imp', 'Washerwoman', 'nowhere')
 
@@ -250,8 +253,8 @@ class JinxTest(unittest.TestCase):
 
     def script(self, chars, jinxed):
         real = [c for c in dict.fromkeys(chars) if c not in {f.name for f in FILLERS}]
-        on = [p for p in JINXES + JINXES1 + JINXES2 + JINXES3 + JINXES4 + JINXES5 if set(p) <= set(real)] if jinxed \
-            else []
+        on = [p for p in JINXES + JINXES1 + JINXES2 + JINXES3 + JINXES4 + JINXES5 + JINXES6 if set(p) <= set(real)] \
+            if jinxed else []
         return ch.Script.of('carousel-test', [f.name for f in FILLERS] + real, official.night_order(real, True),
                             official.night_order(real, False), jinxes=on)
 

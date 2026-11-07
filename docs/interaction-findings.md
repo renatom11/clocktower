@@ -1,7 +1,7 @@
 # Interaction findings: what the fuzzer found
 
-`clocktower/fuzz.py` plays random-bot games on random scripts drawn from every built character (today 130: the
-Trouble Brewing, BMR and S&V characters and the experimental ones of carousel.py to carousel5.py; each script has
+`clocktower/fuzz.py` plays random-bot games on random scripts drawn from every built character (today 133: the
+Trouble Brewing, BMR and S&V characters and the experimental ones of carousel.py to carousel6.py; each script has
 13 Townsfolk, 4 Outsiders, 4 Minions, 4 Demons, loaded as custom script JSON, so the night order and jinxes are the
 official ones),
 under the scripted Storyteller and the rules judge alternately, and checks invariants after every night step, every
@@ -20,6 +20,26 @@ How to rerun (about 80 games a second on four cores):
 
 Each run writes `summary.md` (violations grouped, with a first example and its repro; advisories; pair coverage; the
 information checked), `violations.jsonl` (every violation with its repro) and `coverage.json`.
+
+## The sixth runs (2026-11-07, all 133 built characters: batch 5 added)
+
+The pool now holds batch 5's three (carousel6.py). New checks, at each dawn on a script with a listening ability,
+against the events read independently (`Monitor.speech`): the player the Mezepheles recorded as the first good player
+to say its word did say it in that event (or a near miss a judge counted); the Yaggababble's ability killed at most once
+for each time its player said its phrase aloud the day before (plus near misses a judge counted). The Amnesiac's
+information is checked by its model character's oracle (an Empath-like ability by the Empath's), and its Ravenkeeper
+and Sage abilities may act on its death. The random bots say the speech lists' lines on these scripts (ruling 126), so
+the words, phrases and near misses are said in play.
+
+10,000 games: 7,000 uniform (the same seeds as before) and 3,000 `--target-uncovered`, plus 1,200 games with one of
+the three forced into play (`--force`, 400 each), under the scripted Storyteller and the rules judge alternately.
+First passes found one engine fault, B23 below (a crash in the targeted run), fixed, and two interactions of earlier
+batches the new scripts happened to deal, U12 and U13 (neither involves the three). After the fix: 7 violations in the
+uniform run (U1 x3, U2, U12 twice in one game, U13) and 5 in the targeted one (U1 x4, U7), all recorded; 1 in the forced runs (U1).
+All 8,778 pairs of the 133 characters were in play together, and 8,743 with both acting, after the targeted run. In
+the uniform run the Mezepheles was in play in 763 games, the Yaggababble in 665 and the Amnesiac in 912; the
+Amnesiac's information was checked 1,492 times by the engine's truth test and 560 by an independent oracle, with no
+fault, and the speech checks found none.
 
 ## The fifth runs (2026-11-07, all 130 built characters: batch 4 added)
 
@@ -337,6 +357,12 @@ Engineer + Summoner + Kazali: the Kazali made a Summoner, the Engineer turned it
 Storyteller (holding the Summoner's ability) made a second Kazali (`coherence`). The Storyteller now summons only a
 Demon not in play (ruling 104).
 
+B23. **Fixed in the new code before the batch 5 commit (targeted run).** **The Amnesiac acted on another ability's
+choice.** Philosopher + Amnesiac: a Philosopher who chose the Amnesiac's ability on the first night (and drew a
+Monk-like one) was taken to have chosen, at the Amnesiac's step, what they had chosen as the Philosopher (no player),
+and the protection crashed (IndexError). The Amnesiac's step now acts only on a choice asked at its own step tonight,
+and a choice of too few players protects no one. Repro (before): `python -m clocktower fuzz repro --seed 9101287 --players 7 --judge rules --chars choirboy,philosopher,magician,seamstress,fisherman,towncrier,nightwatchman,shugenja,villageidiot,innkeeper,noble,amnesiac,cannibal,recluse,hermit,saint,golem,boomdandy,spy,widow,psychopath,shabaloth,vigormortis,po,ojo --setup nightwatchman,philosopher,choirboy,boomdandy,po,cannibal,villageidiot`.
+
 ## Unruled interactions (the engine does something defensible; a ruling would settle it)
 
 U1. **The Undertaker learns the executed player's character after it changed.** Undertaker + Pit-Hag or Barber (also
@@ -452,6 +478,23 @@ Lycanthrope's Faux Paw; `engine-truth`, 4 games in 4,000 forced before the chang
 The scripted Storyteller (and the judge's default) now picks an evil Townsfolk that leaves the Noble a true answer
 when one exists (the Noble itself may be it); a judge may still choose otherwise. Suggested ruling: as U9, the
 Storyteller must not make the Noble's information impossible.
+
+U12. **The Noble with nothing true to show, the Lord of Typhon's way.** Noble + Lord of Typhon at 5 players: the
+Lord's extra Minion makes three evil players among the Noble's four others (with a good Alchemist the fourth), so no
+three hold exactly one evil player, and the Noble is given three who are not (`engine-truth` and `oracle`, one game in
+7,000). Repro: `python -m clocktower fuzz repro --seed 9002837 --players 5 --judge rules --chars bountyhunter,acrobat,knight,tealady,noble,chef,snakecharmer,nightwatchman,philosopher,banshee,alsaahir,alchemist,king,hermit,ogre,heretic,klutz,fearmonger,mezepheles,boomdandy,summoner,lordoftyphon,vortox,ojo,fanggu`.
+A rules impossibility of the setup, as U9 and U11, but here dealt (the Lord of Typhon's +1 Minion is a setup modifier,
+not a Storyteller's choice). Suggested ruling: the Lord of Typhon is not dealt with the Noble at 5 players (a
+`setup_error`), or the Noble learns nothing. Not changed: either would change how existing scripts deal.
+
+U13. **The Plague Doctor's Marionette jinx can make a dead player the Marionette.** Plague Doctor + Marionette (the
+Storyteller gains the Marionette's ability: "one of the Demon's good neighbours becomes the Marionette"): the
+neighbour picked may be dead. In the game found, the dead neighbour was a Sweetheart whose drunkenness had just been
+placed, so the fuzzer saw a dead Marionette's state (`dead-acts`, 1 in 7,000 games). Repro: `python -m clocktower fuzz repro --seed 9000477 --players 5 --judge rules --chars huntsman,cultleader,slayer,grandmother,pixie,monk,innkeeper,gambler,fool,nightwatchman,lycanthrope,soldier,knight,saint,moonchild,sweetheart,plaguedoctor,cerenovus,baron,mezepheles,marionette,po,yaggababble,zombuul,lordoftyphon`.
+"Neighbours" counts the dead (as the Marionette's own "you neighbour the Demon"), so this is defensible; a Storyteller
+would pick a living one. The fix (a living good neighbour when there is one) was tried and changes one recorded
+replay each of carousel-3 and carousel-4, which must stay identical, so it is left for the owner: suggested ruling,
+a living neighbour first, re-recording those two fingerprint files.
 
 ## Advisories (counted, not violations)
 

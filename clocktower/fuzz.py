@@ -461,7 +461,8 @@ class Monitor:
             return
         value = norm(value)
         has = role in g.abilities(p)
-        if not (p.alive or g.keeps_ability(p)) and role not in DEAD_OK:
+        dead_ok = role in DEAD_OK or (role == 'Amnesiac' and ctx.get('model') in DEAD_OK)  # (its Ravenkeeper's)
+        if not (p.alive or g.keeps_ability(p)) and not dead_ok:
             self.flag('dead-acts', f'dead {p.name} ({p.character}) was given {role} information', [p.character, role])
         gifted = g.gift_impaired(p, role)  # (a Demon's ability through the Boffin's: the Boffin's sobriety counts)
         healthy = has and not (g.impaired(p) if gifted is None else gifted)
@@ -474,7 +475,7 @@ class Monitor:
         if falsified and has and truth is True and not ctx.get('impaired'):  # built as reliable information
             self.flag('falsified-true', f'{p.name} ({role}) was given true information {shown} although it must be '
                                         'false (the Vortox)', [role, *self.falsifiers()])
-        oracle = ORACLES.get(role)
+        oracle = ORACLES.get(role) or (ORACLES.get(ctx.get('model')) if role == 'Amnesiac' else None)
         if healthy and not falsified:
             self.checked['engine:' + role] += 1
         if healthy and not falsified and oracle:
@@ -672,6 +673,8 @@ class Monitor:
         self.step_name = f'{when} {n}'
         if when == 'dawn' and n == 1 and g is not None:
             self.kazali_count()
+        if when == 'dawn' and g is not None and g.script.listeners:
+            self.speech(n)
         if when == 'dawn' and g is not None and not g.winner:
             if any(p.character == 'Leviathan' for p in g.players) and 'Leviathan' not in self.announced:
                 self.flag('announcement', 'the Leviathan is in play and the players were not told', ['Leviathan'])
@@ -691,6 +694,36 @@ class Monitor:
             return
         what = 'no living Demon' if not demon else f'only {alive} players alive'
         self.flag('missed-win', f'{what} at {when} {n}, and no winner', delay or self.context_chars())
+
+    def speech(self, n):
+        """At dawn of day n, against the events (an independent reading of what was said): the player the Mezepheles
+        recorded as the first good player to say its word said it (or a near miss a judge counted), and no good player
+        said it before them since the Mezepheles had it; last night the Yaggababble's ability killed at most once for
+        each time its player said its phrase aloud the day before."""
+        from .game import SPEECH, nearly_said, said
+        g, events = self.g, self.game.events
+        for holder, rec in g.notes.get('Mezepheles', {}).items():
+            first = rec.get('first')
+            if not first:
+                continue
+            ev = events[first['seq']]
+            d = ev['data']
+            if ev['kind'] not in SPEECH or d.get(SPEECH[ev['kind']]) != first['player'] or not (
+                    said(d.get('text'), rec['secret']) or (first.get('near') and nearly_said(d.get('text'),
+                                                                                             rec['secret']))):
+                self.flag('mezepheles', f'{first["player"]} was taken to have said "{rec["secret"]}" in event '
+                                        f'{first["seq"]}, which does not say it', ['Mezepheles'])
+        for name, rec in g.notes.get('Yaggababble', {}).items():
+            said_it = sum(said(e['data'].get('text'), rec['secret']) for e in events if e['day'] == n - 1
+                          and e['to'] == 'public' and e['kind'] in SPEECH and e['phase'] != 'night'
+                          and e['data'].get(SPEECH[e['kind']]) == name)
+            near = sum(1 for e in events if e['kind'] == 'st_choice' and e['day'] == n - 1
+                       and e['data']['id'] == f'Yaggababble near miss:{name}' and e['data']['value'].get('yes'))
+            kills = sum(1 for e in events if e['kind'] == 'st_choice' and e['day'] == n and e['phase'] == 'night'
+                        and e['data']['id'].startswith(f'Yaggababble:{name}:') and e['data']['value'].get('players'))
+            if kills > said_it + near:
+                self.flag('yaggababble', f'{name} (Yaggababble) said its phrase {said_it} times on day {n - 1} and '
+                                         f'killed {kills} times that night', ['Yaggababble'])
 
     def check_win(self):
         g = self.g

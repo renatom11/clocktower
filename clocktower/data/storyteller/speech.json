@@ -1,0 +1,11 @@
+{
+  "_about": "The secret words and phrases the Storyteller draws from (clocktower/carousel6.py; docs/carousel-rulings.md, batch 5): ordinary table talk, common enough to be said by accident now and then, never so common that saying it is certain (no player names, character names or game words like vote, Demon, evil). Default, for review.",
+  "mezepheles_words": ["honestly", "actually", "definitely", "obviously", "probably", "seriously", "literally",
+                       "absolutely", "basically", "exactly", "interesting", "careful", "confident", "evidence",
+                       "theory", "promise", "worried", "strange", "pattern", "gut"],
+  "yaggababble_phrases": ["to be fair", "to be honest", "at the end of the day", "for what it's worth",
+                          "let's be real", "just saying", "I have a feeling", "mark my words", "the thing is",
+                          "hear me out", "long story short", "believe it or not", "for the record", "fair enough",
+                          "in my experience", "make no mistake", "if you ask me", "all things considered",
+                          "trust me on this", "the bottom line"]
+}

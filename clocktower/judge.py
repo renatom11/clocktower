@@ -348,6 +348,10 @@ class RulesJudge(Judge):
     - sweetheart_drunk: a living good Townsfolk; with evil well ahead, a living evil player (the almanac).
     - the Savant's statements, the Artist's questions the code can't answer, the Barber's Demon: no opinion (the
       scripted style: the Savant's scoring rule, "I don't know"); a model judge ranks them.
+    - speech_near_miss (the Mezepheles's word, the Yaggababble's phrase said not quite exactly): it counts when what
+      was said is the same word in another form (the word and an ending: s, es, 's, d, ed, ing, ly, er), or the phrase
+      with each of its words so; a misspelling, another word that starts the same, or a word added inside a phrase
+      does not.
     - setup calls (the red herring, the Drunk's character, the Demon's and the Lunatic's bluffs, the Grandchild),
       the Sailor's and Innkeeper's drunk, and Gossip statements the code can't read: no opinion (the scripted
       style, which follows the almanacs; there is nothing yet to read, or nothing this judge can read)."""
@@ -424,6 +428,16 @@ class RulesJudge(Judge):
             return [], ''
         yes = lead != ctx['helps']  # yes helps the trailing team
         return [v for v in choice.values if v.get('yes') is yes], f'{lead} is well ahead ({why}): help the other team'
+
+    ENDINGS = ('s', 'es', 'd', 'ed', 'ing', 'ly', 'er', 'r')
+
+    def _speech_near_miss(self, game, choice, ctx):
+        from .game import words
+        said, target = words(ctx.get('form')), words(ctx.get('phrase'))
+        same = len(said) == len(target) and all(a == b or (a.startswith(b) and a[len(b):] in self.ENDINGS)
+                                                for a, b in zip(said, target))
+        return ([v for v in choice.values if v['yes'] is same],
+                f'"{ctx.get("form")}" is {"" if same else "not "}a form of "{ctx.get("phrase")}"')
 
     def _spy_virgin(self, game, choice, ctx):
         claim = claims(game, self.hears).get(ctx['about'])

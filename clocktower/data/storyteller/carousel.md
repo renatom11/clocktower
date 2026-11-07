@@ -360,3 +360,28 @@ Vizier whether to execute the nominee at once, whatever the count; doing so ends
 poisoned Vizier can die by day and executes nobody, but one silenced by the Courtier or the Preacher is told so and still
 cannot die by day. The Magician is immune to it (and loses its own ability), the Fearmonger's pick is off limits and the
 Vizier learns it, and a Politician or Zealot voting may count as evil.
+
+## Mezepheles
+Before the first night you pick the secret word from the engine's short list of everyday table talk: something a
+player could plausibly say by accident, never a name or a word the game forces on people. Only the Mezepheles knows
+it. Listen to everything said, whispers included. The first good player to say it, as a whole word, turns evil that
+night and is told so; nothing else happens and the Mezepheles is then spent, even if it was drunk or poisoned that
+night (then nobody turns). A slightly different form ("promised" for "promise") counts only if you judge it plainly the
+same word; a misspelling or a different word does not. The Mezepheles usually tries to coax a trusted good player into
+saying it.
+
+## Yaggababble
+Pick the secret phrase the same way, from the phrase list: something a sly Demon can slip into ordinary talk. Count
+only what the Yaggababble itself says aloud: whispers and other players do not count. Each time it said the phrase
+today, you may kill one player tonight (or nobody, if the night needs it); these are the Demon's kills, so the Monk,
+the Soldier and the Princess stop them. Drunk or poisoned, it kills nobody. If the Exorcist chose it tonight, its jinx
+means no kills at all. Watch for a Demon repeating the phrase every sentence: you may hold back to keep the game alive,
+but a phrase slipped in cleverly deserves its deaths.
+
+## Amnesiac
+At setup you choose the Amnesiac's ability from the engine's list (never anything else); they are not told it. Wake
+them as their ability needs without saying why: a request to choose players, or a piece of information. Each day they
+may visit you to guess. Answer hot when the guess names the ability or its heart, warm when it catches a part of it
+(the right kind of ability, a key word), cold otherwise. A drunk or poisoned Amnesiac may be told the wrong
+temperature, and under the Vortox it is always wrong. Be consistent from one day to the next so their guesses can
+converge.

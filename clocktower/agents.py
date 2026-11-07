@@ -31,6 +31,9 @@ class Request:
     #                                                the Storyteller (the Savant, the Artist), through the `visit` field
     guesses: list = field(default_factory=list)  # public turns: the characters a claimed ability's guesses may name,
     #                                              when one takes guesses (the Juggler's), else []
+    chatter: list = field(default_factory=list)  # turns on scripts with an ability that listens to what is said (the
+    #                                              Mezepheles's word): lines a random bot may say (Character.chatter);
+    #                                              only random bots read it
 
 
 class ModelSeat:
@@ -72,6 +75,7 @@ class RandomSeat:
             if r.random() < 0.03: a['slayer_shot'] = r.choice(others)
             if request.claimable and r.random() < 0.08: a['ability'] = self.claim(request.claimable, request.guesses)
             if request.visitable and r.random() < 0.15: a['visit'] = self.visit(request.visitable)
+            if request.chatter: self.chat(a, request)
         elif request.kind == 'nominate':
             if request.options and r.random() < 0.4:
                 a['nominate'] = r.choice(request.options)
@@ -79,6 +83,7 @@ class RandomSeat:
         elif request.kind == 'comment':
             if r.random() < 0.3: a['say'] = r.choice(LINES)
             if request.claimable and r.random() < 0.04: a['ability'] = self.claim(request.claimable, request.guesses)
+            if request.chatter: self.chat(a, request)
         elif request.kind == 'defense':
             a['say'] = 'I am good, I promise.'
         elif request.kind == 'vote':
@@ -86,6 +91,18 @@ class RandomSeat:
         elif request.kind == 'decide':  # a yes/no choice an ability asks for (the Al-Hadikhia's live or die)
             a['vote'] = r.random() < 0.5
         return Reply(a)
+
+    def chat(self, a, request):
+        """(Scripts with an ability that listens to what is said: Request.chatter.) Now and then say one of its lines
+        instead, aloud, or in the whisper of a private turn, so random play can trigger it. Scripts without one draw
+        nothing more, so their random play is unchanged."""
+        r = self.rng
+        if r.random() < 0.3:
+            line = r.choice(request.chatter)
+            if request.mode == 'private' and a['whispers']:
+                a['whispers'][0]['text'] = line
+            elif request.mode != 'private':
+                a['say'] = line
 
     def claim(self, claimable, guesses=()):
         """A claimed public ability (scripts beyond Trouble Brewing): a character, a player and a statement of one

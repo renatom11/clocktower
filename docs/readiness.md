@@ -137,17 +137,41 @@ marked for the owner's review (docs/snv-rulings.md).
   Townsfolk, the Vizier's day, the Psychopath's kill and nights whose Demon kills were stopped
   (docs/interaction-findings.md, the fifth runs: five engine faults found and fixed, B18-B22).
 
+**Built in batch 5** (docs/carousel-rulings.md, 120-138):
+- **The Mezepheles, Yaggababble and Amnesiac** in `clocktower/carousel6.py`, the three the brief first kept for a
+  design with the owner, with Storyteller's notes and the one official jinx between them and a built character (the
+  Yaggababble's with the Exorcist). Speech triggers: every word a player says, aloud or in a whisper, reaches the
+  listening abilities on the script (`Character.listens`/`heard`, called from `Game.emit`), and a secret word or phrase
+  is said when its words are said together as whole words, whatever the case or punctuation (`game.said`); a near miss
+  is never counted by the scripted Storyteller and is a judge's call otherwise (the rules judge counts another form of
+  the same word). The words and phrases come from a curated list of ordinary table talk
+  (`data/storyteller/speech.json`); the Mezepheles hears whispers, the Yaggababble only what it says aloud. The random
+  bots say the lists' lines on these scripts only, so the triggers fire in smoke games. The Amnesiac's ability is one
+  of 31 the engine runs (`carousel6.AMNESIAC`: 24 built characters' abilities reworded, 7 small ones of its own),
+  drawn at setup (a judge chooses among them, never inventing one); it guesses by visiting the Storyteller and is
+  told hot, warm or cold. Core changes, all no-ops elsewhere: the speech hook and matching, the bots' chatter
+  (`Request.chatter`), a night-order rule moving the Amnesiac's step before the Demons' (`Character.wakes_before`), a
+  prompt sentence on listening abilities, the rules judge's near-miss heuristic.
+- **Eight more corpus scripts play end to end**: the Carousel Script Collection's haroldholt, insanityintuition,
+  onesyouleastexpect and punchy, and the World Championship's deadcouncil, phantomdetectives, riverstyx and warrens,
+  2,200 random-bot games each under each Storyteller mode with no crash; the earlier ones still play. Seven of the
+  collection's thirteen and ten of the sixteen World Championship scripts now play.
+- **The synthetic `carousel-7`** (the three and the jinx) plays 2,200 games with no crash and has replay fingerprints.
+  The fuzzer draws the new characters, checks the Mezepheles's first player and the Yaggababble's count against the
+  events, and checks the Amnesiac's information by its model character's oracle (docs/interaction-findings.md, the
+  sixth runs: one engine fault found and fixed, B23).
+
 **Still open:**
-- **The experimental characters** (8 more Townsfolk, Outsiders, Minions and Demons in the official data's carousel
-  edition): the Amnesiac, Mezepheles and Yaggababble (batch 5), the Wizard, Legion, Riot, Atheist and Lil' Monsta
-  (batch 6). Across both corpora the scripts need the Amnesiac (10) most; Lil' Monsta waits for the owner's design
-  (ruling 65).
+- **The experimental characters** (5 more in the official data's carousel edition): the Wizard, Legion, Riot, Atheist
+  and Lil' Monsta (batch 6). Lil' Monsta waits for the owner's design (ruling 65); midnightoasis now needs only the
+  Atheist, trainedkiller only Lil' Monsta.
 - **Jinxes** with experimental characters: each with its character. They take about eight forms (bans, setup
   changes, registration and visibility overrides, replacement abilities, alignment locks, kill rulings).
 - **No Demon or several** (the Legion, the Riot, the Atheist): victory checks and evil's first-night information.
-- **Speech-triggered abilities** (the Yaggababble's phrase, the Mezepheles' word): the judge reads speech.
-- **Storyteller-invented content** (the Wizard's wish, the Amnesiac's ability): a model judge that generates, with
-  code limiting it to effects the engine can carry out.
+- **Speech-triggered abilities** (built in batch 5): what remains is review of the word and phrase lists and of the
+  whisper and near-miss rulings (122-124), and a model judge's near-miss calls in real play.
+- **Storyteller-invented content** (the Wizard's wish; the Amnesiac's ability is drawn from a curated list, batch 5):
+  a model judge that generates, with code limiting it to effects the engine can carry out.
 - **Vote mechanics** (negative, set by a Traveller: the Thief, the Bureaucrat, the Voudon; secret votes are built, the
   Organ Grinder's): the vote is a
   count of raised hands, each one vote unless an ability says more (the Banshee's two).

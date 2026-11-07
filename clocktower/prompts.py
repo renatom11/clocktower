@@ -343,6 +343,11 @@ def custom_text(script):
                       "Storyteller during private time. Anyone may visit, to bluff these characters: the town sees "
                       "that you went to the Storyteller, never why or what was said. A visit takes the place of that "
                       "turn's whisper, and you can visit once a day.")
+    if getattr(script, 'listeners', ()):  # (the Mezepheles, the Yaggababble)
+        public.append(f"Some abilities on this script are triggered by what players say ({_names(script.listeners)}). "
+                      "A secret word or phrase is said when its words are said together, as whole words, whatever the "
+                      "case or punctuation; a near miss is the Storyteller's call. Whispers count too, unless the "
+                      "ability says publicly. Only the player with such an ability learns its word or phrase.")
     fields = []
     if 'slayer_shot' in script.public_actions:
         fields.append(_TB_FIELD)

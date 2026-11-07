@@ -90,6 +90,69 @@ def plain(text):
     return ' '.join(EMOJI.sub('', (text or '').translate(TYPOGRAPHY)).split())
 
 
+# ---- what is said: matching words and phrases (abilities that listen: Character.listens) ---------------------------
+# A word or phrase is said when its words appear, in order and next to each other, as whole words of what a player
+# said: case, punctuation and spacing don't matter, and an apostrophe joins its word ("let's" is "lets").
+def words(text):
+    """The words of `text`, lowercased, with punctuation and spacing collapsed."""
+    return re.sub(r"[^0-9a-z]+", ' ', (text or '').lower().replace("'", '').replace('\u2019', '')).split()
+
+
+def said(text, phrase):
+    """How many times `phrase` is said in `text`, as a whole-word sequence (non-overlapping)."""
+    target, ws = words(phrase), words(text)
+    k, i, n = len(target), 0, 0
+    while target and i + k <= len(ws):
+        if ws[i:i + k] == target:
+            n, i = n + 1, i + k
+        else:
+            i += 1
+    return n
+
+
+def _close(a, b):
+    """Whether word `a` is a near miss for word `b`: another form of it (`b` and up to four more letters, or a shorter
+    word it starts with, of four letters or more), or one letter added, missing or changed (words of five or more)."""
+    if a == b:
+        return False
+    if a.startswith(b) and len(a) - len(b) <= 4:
+        return True
+    if b.startswith(a) and len(a) >= 4 and len(b) - len(a) <= 2:
+        return True
+    if min(len(a), len(b)) < 5 or abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b)) == 1
+    short, long_ = sorted((a, b), key=len)
+    return any(long_[:i] + long_[i + 1:] == short for i in range(len(long_)))
+
+
+def nearly_said(text, phrase):
+    """The near misses for `phrase` in `text` (each as the words said): a run of words each the phrase's word or close
+    to it (_close), not all exact; or, for a phrase of several words, the phrase with one word too many inside it.
+    Exact sayings are not near misses."""
+    target, ws = words(phrase), words(text)
+    k, out = len(target), []
+    if not target:
+        return out
+    for i in range(len(ws) - k + 1):
+        run = ws[i:i + k]
+        if run != target and all(a == b or _close(a, b) for a, b in zip(run, target)):
+            out.append(' '.join(run))
+    if k > 1:
+        for i in range(len(ws) - k):
+            run = ws[i:i + k + 1]
+            if run[0] == target[0] and run[-1] == target[-1] and run[:k] != target and run[1:] != target and any(
+                    run[:j] + run[j + 1:] == target for j in range(1, k)):
+                out.append(' '.join(run))
+    return list(dict.fromkeys(out))
+
+
+# The events whose text a player says, and who says it: aloud (to 'public'), or in a whisper
+SPEECH = {'say': 'speaker', 'nomination': 'nominator', 'defense': 'nominee', 'vote': 'voter', 'ability': 'player',
+          'whisper': 'from'}
+
+
 def clip(text, words):
     text = plain(text)
     w = text.split(' ')
@@ -153,12 +216,30 @@ class Game:
         ev = {'seq': len(self.events), 'time': round(time.time(), 2), 'day': self.day, 'phase': self.phase,
               'kind': kind, 'data': data, 'to': to, 'dead': sorted(dead)}
         self.events.append(ev)
+        if kind in SPEECH and self.g is not None and getattr(self.g.script, 'listeners', ()):
+            self.heard(ev)  # (custom scripts: abilities that listen to what is said)
         for n in self.names:
             text = render(ev, n, dead)
             if text is not None:
                 self.buf[n].append(text)
         self._write('events.jsonl', json.dumps(ev))
         self._write('transcript.md', render(ev, 'omniscient', dead))
+
+    def heard(self, ev):
+        """A player said something (a SPEECH event): every listening ability on the script hears it (Character.heard),
+        aloud or in a whisper, with the event's number, so "the first to say" can be told."""
+        d = ev['data']
+        speaker, text = d.get(SPEECH[ev['kind']]), d.get('text') or ''
+        if speaker in self.g.by_name and text:
+            for c in self.g.script.listeners:
+                rules(c).heard(self, speaker, text, ev['to'] == 'public', ev['seq'])
+
+    def chatter(self, name):
+        """Lines a random bot may say on `name`'s turn, from the listening abilities on the script (Character.chatter);
+        [] on any script without one."""
+        if self.g is None or not getattr(self.g.script, 'listeners', ()):
+            return []
+        return [line for c in self.g.script.listeners for line in rules(c).chatter(self, name)]
 
     def record_call(self, record):
         self.calls.append(record)
@@ -773,7 +854,8 @@ class Game:
                                          mode='private' if private else 'public',
                                          claimable=[] if private else list(g.script.claimable),
                                          visitable=list(visitable) if private else [],
-                                         guesses=[] if private or not guessable else list(g.script.all))
+                                         guesses=[] if private or not guessable else list(g.script.all),
+                                         chatter=self.chatter(name))
             acts = await self.ask_many(requests)
             if private:
                 for name in wave:

@@ -168,6 +168,32 @@ class FuzzTests(unittest.TestCase):
         g.fz.batch4_death(g.g['Ellis'], 'execution', None)  # a working Vizier dying by day
         self.assertEqual([v['type'] for v in g.fz.violations], ['vizier'])
 
+    def test_the_batch_5_checks(self):
+        script = fuzz.make_script(['Amnesiac', 'Chef', 'Monk', 'Mayor', 'Soldier', 'Empath', 'Librarian', 'Recluse',
+                                   'Mezepheles', 'Poisoner', 'Yaggababble'])
+        g = self.game(['Amnesiac', 'Chef', 'Yaggababble', 'Monk', 'Mezepheles', 'Soldier', 'Mayor'], script)
+        m = g.fz
+        word = g.g.notes['Mezepheles']['Ellis']['secret']
+        phrase = g.g.notes['Yaggababble']['Casey']['secret']
+        g.day, g.phase = 1, 'day'
+        g.emit('say', {'speaker': 'Blair', 'text': 'nothing to see'})
+        g.g.notes['Mezepheles']['Ellis']['first'] = {'player': 'Blair', 'seq': len(g.events) - 1}
+        g.emit('say', {'speaker': 'Casey', 'text': phrase})
+        g.day, g.phase = 2, 'night'
+        for k in (1, 2):
+            g.emit('st_choice', {'id': f'Yaggababble:Casey:{k}', 'value': {'players': ['Alex']}, 'valid': True},
+                   'audit')
+        m.speech(2)
+        self.assertEqual(sorted(v['type'] for v in m.violations), ['mezepheles', 'yaggababble'])
+        self.assertTrue(word)
+        # the Amnesiac's information is checked by its model character's oracle
+        g.g.notes['Amnesiac']['Alex']['gift'] = 'Each night, you learn how many of your 2 alive neighbours are evil.'
+        from clocktower import carousel6
+        choice = carousel6.info_for(g, g.g['Alex'], carousel6.Amnesiac.gift(g.g, g.g['Alex']), g.tonight or
+                                    type('N', (), {'n': 2, 'first': False})())[0]
+        m.decided(choice, {'number': 2})
+        self.assertTrue([v for v in m.violations if v['type'] == 'oracle'])
+
     def test_extra_abilities_need_a_gains_event(self):
         g = self.game(['Empath', 'Chef', 'Imp', 'Soldier', 'Monk', 'Mayor', 'Poisoner'])
         g.g['Alex'].extra.append('Monk')

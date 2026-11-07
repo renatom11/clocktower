@@ -344,6 +344,8 @@ POLICY = {
     'psychopath_roshambo_win': 0.5,  # the executed Psychopath wins the roshambo (and survives)
     'vizier_registers_evil': 0.5,   # a voter who may register either way (a Spy, a Recluse, the jinxes' Politician and
     #                                 Zealot) registers as evil to the Vizier
+    # batch 5 (docs/carousel-rulings.md). Default, for review.
+    'yaggababble_kill': 0.75,       # each time the Yaggababble said its phrase publicly today, a player dies tonight
     # the Storyteller judge (judge.py, when one is chosen; never in TB's protocol v17): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
@@ -1274,6 +1276,7 @@ from . import carousel2  # noqa: E402  (after carousel: batch 2 of the experimen
 from . import carousel3  # noqa: E402  (after carousel2: batch 3 of the experimental characters)
 from . import carousel4  # noqa: E402  (after carousel3: batch 3b of the experimental characters)
 from . import carousel5  # noqa: E402  (after carousel4: batch 4 of the experimental characters)
+from . import carousel6  # noqa: E402  (after carousel5: batch 5, the Mezepheles, Yaggababble and Amnesiac)
 
 # (a use, so pyflakes sees the imports are wanted)
-BMR, SNV, CAROUSEL = bmr, snv, (carousel, carousel2, carousel3, carousel4, carousel5)
+BMR, SNV, CAROUSEL = bmr, snv, (carousel, carousel2, carousel3, carousel4, carousel5, carousel6)

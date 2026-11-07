@@ -897,3 +897,140 @@ Amnesiac, Mezepheles and Yaggababble are batch 5; the Wizard, Legion, Riot, Athe
 New weights: `bounty_philosopher_evil` 0.5, `hermit_fewer_outsider` 0.5, `psychopath_roshambo_win` 0.5,
 `vizier_registers_evil` 0.5. The rules judge has no heuristic of its own for the new calls (the scripted style
 decides).
+
+## Batch 5: the Mezepheles, the Yaggababble and the Amnesiac
+
+The three characters the brief kept for a design agreed with the owner, brought in by its batch 5 update
+(`clocktower/carousel6.py`, loaded after carousel5; tests in `tests/test_carousel5.py`, Storyteller's notes in
+`clocktower/data/storyteller/carousel.md`). Two are triggered by speech, through a core hook that does nothing on any
+script without them; the Amnesiac's ability is drawn from a curated list the engine can run. With them the Carousel
+Script Collection's Harold Holt, Insanity Intuition, Ones You Least Expect and Punchy play end to end, and the World
+Championship corpus's Dead Council, Phantom Detectives, River Styx and Warrens. The one official jinx between them
+and a built character (the Yaggababble's with the Exorcist) is implemented. The Wizard, Legion, Riot, Atheist and Lil'
+Monsta are batch 6.
+
+### Hearing what is said
+
+120. **What counts as saying.** Every word a player says to other players reaches the listening abilities on the
+     script (`Character.listens`, `heard`, called from `Game.emit` for the speech events, `game.SPEECH`): the town
+     square, nomination accusations, defenses, comments, the remark with a vote and the text of a public ability
+     claim, aloud; whispers, in private (and a remark with a secret vote under the Organ Grinder, which only the
+     Storyteller hears, counts as private). What a player tells the Storyteller on a visit (the Savant's, the Artist's,
+     the Amnesiac's guess) and night choices are not said to anyone, so they never count. Option: count visits too.
+121. **The match.** A word or phrase is said when its words appear next to each other, in order, as whole words of
+     what was said: lowercased, an apostrophe joining its word ("let's" is "lets"), every other run of punctuation or
+     spacing one break (`game.words`, `game.said`). "Trusted" is not "trust", "distrust" is not "trust". Each
+     non-overlapping occurrence counts (twice in one sentence is twice: the Yaggababble's count).
+122. **Near misses.** A near miss (`game.nearly_said`: the word with up to four more letters, a shorter form of four
+     letters or more, one letter added, missing or changed in a word of five or more; for a phrase, each word so, or one
+     extra word inside it) is never counted by the scripted Storyteller, which is not even asked. With a judge, each is
+     a judged call (`speech_near_miss`) at the next safe point; the rules judge counts another form of the same word (an
+     ending: s, es, 's, d, ed, ing, ly, er), not a misspelling, a different word or an inserted one; a model judge
+     decides as it sees fit. A near miss ruled in counts from when it was said, so "the first" stays the first.
+123. **Whispers.** They count for the Mezepheles ("the 1st good player to say this word": saying is saying, in public
+     or private; the Storyteller here hears every whisper), not for the Yaggababble ("each time you said it
+     publicly"). Option: public speech only for both (a human Storyteller does not hear whispers).
+124. **Choosing the word and the phrase.** From a curated list of ordinary table talk, twenty words for the Mezepheles
+     and twenty phrases for the Yaggababble (`clocktower/data/storyteller/speech.json`, default, for review): each one
+     common enough to be said by accident now and then (honestly, obviously, evidence; to be fair, the thing is, mark my
+     words), none so common that saying it is certain (no player or character names, no game words like vote, Demon or
+     evil). The draw is a judged call among them (a judge chooses, never inventing one); the scripted Storyteller draws
+     at random; never one another player already has. Options: a longer list; one picked per table size.
+125. **Who learns it.** The player with the ability (or who believes they have it: a Lunatic who believes they are the
+     Yaggababble learns a phrase too, and nothing comes of it) is told at their first-night step (that is the step's
+     reminder) and privately reminded at each later dawn, so it stays in view however long the conversation gets.
+     Nobody else learns it: it is not written on the Grimoire the Spy and the Widow see (a reading: the token is a
+     reminder, the word is the Storyteller's). A player who becomes one later (the Pit-Hag's, a Demon's jump, a Snake
+     Charmer's swap) gets a new word or phrase at once; the old player's is theirs. The player prompt says that such
+     abilities exist on the script, how a word counts, and that only the holder learns it.
+126. **Random bots say the words.** The bots' fixed lines never contain them, so on a script with a listening ability
+     (only there) each turn carries the lists' lines (`Request.chatter`, read only by random bots), and a bot says one
+     on about 30% of its turns (in a whisper on a private turn), a few near-miss forms among them, and the Yaggababble's
+     bot its own phrase often. On any other script the bots draw nothing more, so their play and every recorded
+     fingerprint are unchanged.
+
+### Minions
+
+127. **The Mezepheles's first good player.** "The 1st good player to say this word": good as they are when they say
+     it (dead players too: they still talk; the Bounty Hunter's evil Townsfolk not), aloud or in a whisper, while a
+     living player has the ability (drunk or not: that is tested at night). Said after the Mezepheles died, it is
+     nothing. Each Mezepheles has its own word and first player.
+128. **"Becomes evil that night".** At the Mezepheles's step the night after the word was said: the player turns evil
+     and is told ("you are now evil"), and learns nothing else; the Mezepheles is not told. The ability is then spent
+     ("No Ability"), whether or not anyone turned: drunk or poisoned at its step, nobody turns (abnormal, for the
+     Mathematician), and a player already evil stays as they are. Option: the Mezepheles's sobriety as the word is said.
+
+### Demons
+
+129. **The Yaggababble's count.** "For each time you said it publicly today": only what the player with the ability
+     says aloud, alive, each occurrence (another player saying the phrase, or the Yaggababble whispering it, counts for
+     nothing), drunk or not (tested at night). A Lunatic who believes they are it counts nothing.
+130. **"A player might die".** At its step the next night, for each time, a judged call: which player dies, any living
+     player but the Yaggababble (a reading: it is no starpass), not one chosen already tonight, or nobody. The scripted
+     Storyteller kills on 75% of them (POLICY `yaggababble_kill`, default, for review), a random living good player.
+     Each is the Demon's kill (`attempt_kill`, cause 'demon'): the Monk, the Soldier, the Princess and the Pit-Hag's
+     "no one dies" stop it, the Mayor may bounce it, the Sage learns of it. Drunk or poisoned at its step it kills
+     nobody (abnormal); on the first night nothing (no day before). Option: cap the deaths per night.
+131. **The Exorcist jinx.** If the Exorcist chose the Yaggababble tonight, its phrase kills nobody tonight. Without the
+     jinx (a script that leaves it out) an exorcised Yaggababble still kills: it does not wake to kill, the Storyteller
+     does it.
+
+### Townsfolk: the Amnesiac
+
+132. **The list.** The Amnesiac's ability is one of 31 (`carousel6.AMNESIAC`, default, for review), each run by the
+     engine's code: 24 built characters' abilities reworded (the Washerwoman's, Librarian's, Investigator's, Chef's,
+     Clockmaker's, Steward's, Noble's and Shugenja's starting information; the Empath's, Undertaker's, Oracle's,
+     Flowergirl's and Town Crier's nightly; the Fortune Teller's, Dreamer's, Seamstress's and Monk's choices; the
+     Soldier, Fool, Tea Lady, Virgin, the Mayor's three-alive win, the Ravenkeeper and the Sage) and 7 small ones of the
+     Amnesiac's own (how many Outsiders are in play; which Demon is in play; whether a neighbour is the Demon; the
+     executed player's alignment; each night whether a chosen player is a Townsfolk; once, a chosen player's
+     alignment; once, a chosen player cannot die tonight). Left out: public abilities (the Slayer's shot, the Gossip's:
+     the Amnesiac cannot claim what it does not know), madness, setup modifiers, and abilities that change characters.
+     The draw at setup is a judged call among them (a judge chooses, never inventing one); the scripted Storyteller
+     draws at random. The Fortune-Teller-like ability has no red herring of its own (the Fortune Teller's, if one is in
+     play, registers to it as to anyone).
+133. **Not knowing it.** The Amnesiac is never told the text. When its ability needs a choice it is woken with "Your
+     ability asks you to choose a player (not yourself). You are not told why." (the number of players and "not
+     yourself" do show; a reading: a Storyteller's fingers would too); what it learns comes as "your ability tells
+     you: ..." in the model ability's own words, which are no more telling than a Storyteller's info tokens.
+     Introduction: it is told it does not know its ability, and how to guess.
+134. **When it acts.** Its step moves to just before the first Demon's on the night order (`Character.wakes_before`, a
+     core order rule nothing else uses), so a protection works; its information comes at the night's end, after every
+     step (as the Empath's would). "You start knowing": the first night it has the ability (one made later learns at
+     the next night's end); "each night*": not the first. A death trigger (the Ravenkeeper's, the Sage's) acts at the
+     night's end, when it has died tonight.
+135. **The guess.** "Each day, privately guess what it is": a visit to the Storyteller (`visit`, as the Amnesiac, the
+     guess in `text`; once a day, alive; the Savant's and the Artist's channel), answered hot (right, or very nearly),
+     warm (partly) or cold. The scripted Storyteller's closeness (`carousel6.amnesiac_closeness`): hot if the guess
+     names the model character or two of the ability's key words, warm if one key word or the right kind of ability
+     (information, protection, a death, nominations), cold otherwise. Sober, any of the three is legal (it is a
+     judgement; a judge may rule otherwise); drunk or poisoned, the scripted answer is usually wrong (POLICY
+     `poisoned_false`); under the Vortox (a Townsfolk's information) never the code's closeness. An empty guess is
+     not one. Options: a numeric closeness; a guess also changes how the Storyteller runs it (the almanac's "if they
+     guess right, their ability may change"; not done).
+136. **Edges.** A Drunk who believes they are the Amnesiac has a pretend ability drawn the same way: woken and told
+     things at its step (true or false by the Drunk's chance), protecting nobody, its guesses answered as
+     misinformation. A Philosopher or Cannibal who gains the Amnesiac's ability, or a player the Pit-Hag makes one, has
+     a new ability drawn at once. The standing abilities (the Soldier's, Fool's, Tea Lady's, Virgin's) work only for a
+     player who is the Amnesiac (the engine asks those of a player's own character); the rest work for any holder.
+     Once-per-game abilities are spent per player, even drunk or poisoned.
+
+### Core changes and playability
+
+137. **Core changes**, each a no-op on the base scripts and on carousel-1 to carousel-6 (their fingerprints are
+     identical): `Character.listens`, `heard` and `chatter`, `Game.heard` (from `Game.emit`) and `Game.chatter`, the
+     matching in `game.words`, `said` and `nearly_said`, `Script.listeners`, `Request.chatter` and the random bots'
+     lines; `Character.wakes_before` in the night order (`characters.after`); a custom-script prompt sentence on
+     listening abilities; the rules judge's `speech_near_miss` heuristic. The fix the fuzzer found
+     (docs/interaction-findings.md): the Amnesiac's step acts only on a choice asked at its own step tonight (B23). Two
+     interactions of earlier batches it turned up are recorded for the owner, not changed (U12, the Noble and the Lord
+     of Typhon at 5 players; U13, the Plague Doctor's Marionette jinx choosing a dead neighbour, whose fix would change
+     a carousel-3 and a carousel-4 replay).
+138. **The seventh synthetic script** (`clocktower/data/scripts/carousel-7.json`, "Carousel test 7"): the three, with the
+     Exorcist, Philosopher, Monk, Soldier, Empath, Fortune Teller, Virgin, Sage, Mathematician, Chambermaid, Princess and
+     Undertaker; the Drunk, Recluse, Lunatic and Saint; the Pit-Hag, Spy and Poisoner; the Imp, Vortox and Fang Gu. Its
+     one jinx is on it, and every size from 5 to 15 deals. Its replay fingerprints are
+     `tests/data/fingerprints-carousel-7.json`.
+
+New weights: `yaggababble_kill` 0.75. The rules judge's new heuristic: `speech_near_miss` (ruling 122); it has none
+for the word, phrase or ability draws, nor the Amnesiac's closeness (the scripted style decides).

@@ -33,3 +33,9 @@ are protocol `custom-carousel-5`.
 Engineer, Princess, Hermit, Ogre, Psychopath, Wraith, Vizier) with built characters chosen so that all twenty official
 jinxes between them and built characters are on it and every table size from 5 to 15 can be dealt. Its games are
 protocol `custom-carousel-6`.
+
+`carousel-7.json` ("Carousel test 7") is the seventh: the three experimental characters of batch 5 (Amnesiac,
+Mezepheles, Yaggababble) with built characters chosen so that the one official jinx between them and built characters
+(the Yaggababble's with the Exorcist) is on it, the Amnesiac's model characters and the Demon-protecting ones (Monk,
+Soldier, Princess) meet the Yaggababble, and every table size from 5 to 15 can be dealt. Its games are protocol
+`custom-carousel-7`.
