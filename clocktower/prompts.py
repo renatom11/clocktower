@@ -348,6 +348,8 @@ def custom_text(script):
                       "A secret word or phrase is said when its words are said together, as whole words, whatever the "
                       "case or punctuation; a near miss is the Storyteller's call. Whispers count too, unless the "
                       "ability says publicly. Only the player with such an ability learns its word or phrase.")
+    from .characters import rules
+    public += [line for c in script.all for line in rules(c).rule_text(script)]  # (batch 6: Character.rule_text)
     fields = []
     if 'slayer_shot' in script.public_actions:
         fields.append(_TB_FIELD)

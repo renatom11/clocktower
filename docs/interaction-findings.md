@@ -21,6 +21,33 @@ How to rerun (about 80 games a second on four cores):
 Each run writes `summary.md` (violations grouped, with a first example and its repro; advisories; pair coverage; the
 information checked), `violations.jsonl` (every violation with its repro) and `coverage.json`.
 
+## Batch 6 (removable): the runs per character
+
+Each batch 6 character (clocktower/carousel_extra.py) is fuzzed on its own when it is built: about 3,000 games, uniform
+random scripts with it in the pool and games with it forced onto the script and into play. Its findings are numbered on
+from B24 and U14 and written up in its subsection here, not in the lists below, so that reverting the character's commit
+takes them out with it.
+
+### Lil' Monsta
+
+(Not built yet.)
+
+### Atheist
+
+(Not built yet.)
+
+### Wizard
+
+(Not built yet.)
+
+### Legion
+
+(Not built yet.)
+
+### Riot
+
+(Not built yet.)
+
 ## The sixth runs (2026-11-07, all 133 built characters: batch 5 added)
 
 The pool now holds batch 5's three (carousel6.py). New checks, at each dawn on a script with a listening ability,

@@ -196,7 +196,9 @@ def setup_with(script, required, rng, players=None, tries=60):
                 continue
             chars = (towns + rng.sample(spare_t, t - len(towns)) + outs + rng.sample(spare_o, o - len(outs))
                      + minions + demon)
-            if setup_error(chars, script) is None:
+            for c in script.dealers:  # (batch 6: a character that deals the whole setup, Character.deals)
+                chars = rules(c).redeal(rng, chars, n, script) if chars is not None else None
+            if chars is not None and setup_error(chars, script) is None:
                 rng.shuffle(chars)
                 return chars
     return None
@@ -687,7 +689,8 @@ class Monitor:
         alive = sum(1 for p in g.players if p.alive and not p.traveller)
         if demon and alive > 2:
             return
-        delay = [p.character for p in g.players if overrides_end(p.character)]
+        delay = [p.character for p in g.players if overrides_end(p.character)] + [
+            c for c in g.script.dealers if overrides_end(c)]  # (batch 6: one nobody holds, Grimoire.check_victory)
         # a character that can delay the end (the Mastermind, the Evil Twin) is asked on a copy, since asking may
         # change its bookkeeping (the Mastermind's extra day)
         if delay and copy.deepcopy(g).check_victory() is None:

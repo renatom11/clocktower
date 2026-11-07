@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 
 from clocktower import characters as ch
-from clocktower import official, prompts, smoke
+from clocktower import carousel_extra, official, prompts, smoke
 from clocktower.agents import ScriptedStoryteller
 from clocktower.game import ALL_NAMES, NAMES, Game
 from clocktower.llm import Reply
@@ -208,7 +208,7 @@ class JinxFrameworkTests(unittest.TestCase):
         built = {frozenset(p) for p in official.jinxes() if set(p) <= set(ch.CHARACTERS)}
         self.assertEqual(built, set(ch.IMPLEMENTED_JINXES))
         self.assertEqual(built, {frozenset(p) for p in JINXES + JINXES1 + JINXES2 + JINXES3 + JINXES4 + JINXES5
-                                                 + JINXES6})
+                                                 + JINXES6 + carousel_extra.JINXES})
         with self.assertRaises(ValueError):
             ch.jinx('Imp', 'Washerwoman', 'nowhere')
 
@@ -253,8 +253,8 @@ class JinxTest(unittest.TestCase):
 
     def script(self, chars, jinxed):
         real = [c for c in dict.fromkeys(chars) if c not in {f.name for f in FILLERS}]
-        on = [p for p in JINXES + JINXES1 + JINXES2 + JINXES3 + JINXES4 + JINXES5 + JINXES6 if set(p) <= set(real)] \
-            if jinxed else []
+        on = [p for p in JINXES + JINXES1 + JINXES2 + JINXES3 + JINXES4 + JINXES5 + JINXES6 + carousel_extra.JINXES
+              if set(p) <= set(real)] if jinxed else []
         return ch.Script.of('carousel-test', [f.name for f in FILLERS] + real, official.night_order(real, True),
                             official.night_order(real, False), jinxes=on)
 

@@ -1034,3 +1034,39 @@ Monsta are batch 6.
 
 New weights: `yaggababble_kill` 0.75. The rules judge's new heuristic: `speech_near_miss` (ruling 122); it has none
 for the word, phrase or ability draws, nor the Amnesiac's closeness (the scripted style decides).
+
+## Batch 6 (removable): Lil' Monsta, the Atheist, the Wizard, Legion and Riot
+
+The five characters the brief kept for a design with the owner, brought in by its batch 6 update on one condition:
+each can always be taken out again. Each is a section of its own in `clocktower/carousel_extra.py` (loaded last),
+with its tests in `tests/test_carousel_<id>.py`, its Storyteller's notes in `clocktower/data/storyteller/extra-<id>.md`,
+its synthetic script (one character each: never two of them on one script, so each replays on its own) and its rulings
+in its subsection below, all in one commit, so `git revert` of that commit removes it and leaves the others. Nothing
+outside its section names it; each core hook it needs does nothing on a script without it, and every recorded
+fingerprint (TB, BMR, S&V, carousel-1 to carousel-7) replays identically with it in or out. The generic hooks two or more
+of them use were added first, in a commit of their own that no character needs reverting with: `Character.deals`
+(`deal_error`, `redeal`: a character whose presence changes the whole deal, asked by `state.setup_error`,
+`state.random_setup` and the fuzzer's forced setups; a redeal may return None to draw again, and a deal's character may
+hold or change the end, `Grimoire.check_victory` asking its `overrides_end` with nobody holding it) and
+`Character.rule_text` (sentences the custom-script prompt adds for a rule a character brings). A character that could not be kept isolated would be reverted and left here as a design
+note instead.
+
+### Lil' Monsta
+
+(Not built yet.)
+
+### Atheist
+
+(Not built yet.)
+
+### Wizard
+
+(Not built yet.)
+
+### Legion
+
+(Not built yet.)
+
+### Riot
+
+(Not built yet.)

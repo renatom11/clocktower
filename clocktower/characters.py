@@ -111,6 +111,8 @@ class Character:
     listens = False          # its ability is triggered by what players say (`heard`: the Mezepheles's secret word)
     wakes_before = ''        # a character type: its step moves to just before the first step of that type on the
     #                          script's night order (the Amnesiac's, before the Demons: its ability may protect)
+    deals = False            # its presence on the script changes the whole deal, beyond the setup modifiers above
+    #                          (`deal_error`, `redeal`: batch 6, carousel_extra.py)
 
     @property
     def evil(self):
@@ -327,6 +329,24 @@ class Character:
     def chatter(self, game, name):
         """With `listens`: lines the random bots may say on `name`'s turns (Request.chatter), so that random play can
         trigger this ability; [] for none. Only random bots read them."""
+        return []
+
+    def deal_error(self, characters, script):
+        """With `deals`: for `characters`, a setup dealt on `script` (this character need not be among them: one that is
+        never dealt), None if this character's deal does not apply to it, '' if it is legal by its rules, else why
+        not (state.setup_error asks before its own rules)."""
+        return None
+
+    def redeal(self, rng, characters, players, script):
+        """With `deals`: `characters`, a random setup as drawn (state.random_setup, fuzz.setup_with), unchanged if this
+        character's deal does not apply to it, else the setup its rules deal instead, or None to draw again (this draw
+        leaves its rules no legal deal: Lil' Monsta's extra Minion with no plain Minion left)."""
+        return characters
+
+    def rule_text(self, script):
+        """Sentences the custom-script player prompt adds about a rule this character brings to `script` (a
+        nomination or a win the sheet's text alone does not explain); [] for none, so other scripts' prompts are
+        unchanged."""
         return []
 
     async def storyteller_step(self, game, night, character):
@@ -829,6 +849,7 @@ class Script:
         self.visitable = [n for n in self.all if rules(n).visit]  # abilities used by visiting the Storyteller
         self.guessable = [n for n in self.all if rules(n).public_guesses]  # public abilities that take guesses
         self.listeners = [n for n in self.all if rules(n).listens]  # abilities triggered by what is said
+        self.dealers = [n for n in self.all if rules(n).deals]  # characters that deal the whole setup (batch 6)
 
     @classmethod
     def of(cls, name, characters, first_night=(), other_nights=(), jinxes=()):

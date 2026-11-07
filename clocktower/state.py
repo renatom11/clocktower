@@ -106,6 +106,10 @@ def setup_error(characters, script=TB):
     if clash: return f'only one of {clash[0]} and {clash[1]} can be in play (their jinx)'
     if 'Drunk' in characters and set(script.townsfolk) <= set(characters):  # (custom scripts: the Kazali's seats)
         return 'the Drunk needs a Townsfolk not in play to believe they are'
+    for c in getattr(script, 'dealers', ()):  # (custom scripts, batch 6: a character that deals the whole setup by
+        verdict = rules(c).deal_error(characters, script)  # rules of its own: Character.deals)
+        if verdict is not None:
+            return verdict or None
     if any(rules(c).no_minions for c in characters):  # the Kazali: no Minions, Townsfolk in their place, and any
         if counts['Minion'] or counts['Demon'] != 1:  # number of Outsiders (the Storyteller's)
             return 'no Minions at the start with the Kazali in play, and one Demon'
@@ -143,10 +147,13 @@ def random_setup(rng, minion=None, players=9, script=TB):
     their draws are unchanged."""
     for _ in range(200):
         chars = _random_setup(rng, minion, players, script)
-        if not (hasattr(script, 'clash') and script.clash(chars)):
+        for c in getattr(script, 'dealers', ()):  # (custom scripts, batch 6: Character.deals; none on the others)
+            chars = rules(c).redeal(rng, chars, players, script) if chars is not None else None
+        if chars is not None and not (hasattr(script, 'clash') and script.clash(chars)):
             return chars
     raise ValueError(f'{script.name}: no setup for {players} players without two characters only one of which can '
-                     'be in play')
+                     'be in play' + (', or that its characters\' own deals allow' if getattr(script, 'dealers', ())
+                                     else ''))
 
 
 def _random_setup(rng, minion, players, script):
@@ -834,6 +841,12 @@ class Grimoire:
             end = 'good', 'The Demon is dead.'
         elif self.alive_count() <= 2:
             end = 'evil', 'Only two players remain alive.'
+        for c in getattr(self.script, 'dealers', ()) if end else ():  # (batch 6: a deal's character, held by nobody
+            changed = rules(c).overrides_end(self, None, *end)  # or not, may hold the end or change it)
+            if changed is False:
+                return None
+            if changed:
+                end = changed
         for p in self.players if end else ():  # a character may keep the game going or change who wins
             changed = rules(p.character).overrides_end(self, p, *end)
             if changed is False:
@@ -1277,6 +1290,7 @@ from . import carousel3  # noqa: E402  (after carousel2: batch 3 of the experime
 from . import carousel4  # noqa: E402  (after carousel3: batch 3b of the experimental characters)
 from . import carousel5  # noqa: E402  (after carousel4: batch 4 of the experimental characters)
 from . import carousel6  # noqa: E402  (after carousel5: batch 5, the Mezepheles, Yaggababble and Amnesiac)
+from . import carousel_extra  # noqa: E402  (last: batch 6, removable by design, one section per character)
 
 # (a use, so pyflakes sees the imports are wanted)
-BMR, SNV, CAROUSEL = bmr, snv, (carousel, carousel2, carousel3, carousel4, carousel5, carousel6)
+BMR, SNV, CAROUSEL = bmr, snv, (carousel, carousel2, carousel3, carousel4, carousel5, carousel6, carousel_extra)
