@@ -68,10 +68,25 @@ marked for the owner's review (docs/snv-rulings.md).
 - **The synthetic `carousel-2`** (the thirteen, and all seventeen jinxes) plays 2,200 games with no crash and has
   replay fingerprints.
 
+**Built in batch 2** (docs/carousel-rulings.md, 40-64):
+- **Fifteen experimental characters** in `clocktower/carousel2.py`: the Pixie, High Priestess, Poppy Grower,
+  Shugenja, Balloonist, General, Preacher, Cannibal, Puzzlemaster, Heretic, Marionette, Widow, Goblin, Kazali and
+  Leviathan, with Storyteller's notes and the thirty-three official jinxes between them and built characters. Core
+  changes, all no-ops on the base scripts: a jinx text that allows only one of a pair in play (`Script.clash`: the
+  Heretic's), no Minions dealt (the Kazali), the evil team kept apart at the start (the Poppy Grower), evil
+  information skipping a Minion who believes they are good (the Marionette, played as the Drunk), result-flipping end
+  hooks last (the Heretic), information roles answering players who gained them (the Pixie, the Cannibal).
+- **The Carousel Script Collection's martianvampires** (Revenge of the Martian Vampires) plays end to end: 2,200
+  random-bot games under each Storyteller mode, no crash. Of the collection's thirteen, it is the only one so far;
+  haroldholt and the World Championship's warrens now need only the Amnesiac (batch 5). The four World Championship
+  scripts of batch 1 still play.
+- **The synthetic `carousel-3`** (the fifteen and all thirty-three jinxes) plays 2,200 games with no crash and has
+  replay fingerprints.
+
 **Still open:**
-- **The experimental characters** (58 more in the official data's carousel edition): later batches, in
-  `clocktower/carousel.py`. The corpus needs Balloonist (7 scripts), Shugenja and Amnesiac (6), High Priestess,
-  Noble and Pixie (5), General, Village Idiot, Puzzlemaster and Farmer (4) most.
+- **The experimental characters** (38 more Townsfolk, Outsiders, Minions and Demons in the official data's carousel
+  edition): later batches. Across both corpora the scripts need the Noble (11 scripts), Amnesiac (10), Farmer and
+  Village Idiot (7), Harpy (6), Alsaahir and Huntsman (5) most.
 - **Jinxes** with experimental characters: each with its character. They take about eight forms (bans, setup
   changes, registration and visibility overrides, replacement abilities, alignment locks, kill rulings).
 - **No Demon or several** (the Legion, the Riot, the Atheist): victory checks and evil's first-night information.

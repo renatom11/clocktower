@@ -48,6 +48,14 @@ class FingerprintTests(unittest.TestCase):
             sha, _ = fingerprint.play(g['players'], g['seed'], g['minion'], script=c2)
             self.assertEqual(sha, g['sha'], f"carousel-2, {g['players']} players, seed {g['seed']}: changed")
 
+    def test_a_sample_of_the_third_carousel_scripts_recorded_seeds_replays_identically(self):
+        from clocktower.characters import Script
+        c3 = Script('carousel-3')
+        recorded = json.loads(fingerprint.file_for(c3).read_text())['games']
+        for g in recorded[::37]:
+            sha, _ = fingerprint.play(g['players'], g['seed'], g['minion'], script=c3)
+            self.assertEqual(sha, g['sha'], f"carousel-3, {g['players']} players, seed {g['seed']}: changed")
+
 
 if __name__ == '__main__':
     unittest.main()

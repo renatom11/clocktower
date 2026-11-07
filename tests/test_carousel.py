@@ -31,6 +31,16 @@ JINXES1 = [('Al-Hadikhia', 'Mastermind'), ('Magician', 'Spy'), ('Pit-Hag', 'Dams
            ('Plague Doctor', 'Spy'), ('Scarlet Woman', 'Al-Hadikhia'), ('Spy', 'Damsel'), ('Summoner', 'Clockmaker'),
            ('Summoner', 'Courtier'), ('Summoner', 'Hatter'), ('Summoner', 'Pit-Hag'), ('Summoner', 'Pukka'),
            ('Summoner', 'Zombuul'), ('Vortox', 'Banshee')]
+# batch 2's (tests/test_carousel2.py)
+JINXES2 = [('Cannibal', 'Butler'), ('Cannibal', 'Juggler'), ('Cerenovus', 'Goblin'), ('Heretic', 'Baron'),
+           ('Heretic', 'Godfather'), ('Heretic', 'Pit-Hag'), ('Heretic', 'Spy'), ('Heretic', 'Widow'),
+           ('Leviathan', 'Banshee'), ('Leviathan', 'Exorcist'), ('Leviathan', 'Grandmother'), ('Leviathan', 'Hatter'),
+           ('Leviathan', 'Innkeeper'), ('Leviathan', 'Mayor'), ('Leviathan', 'Monk'), ('Leviathan', 'Pit-Hag'),
+           ('Leviathan', 'Ravenkeeper'), ('Leviathan', 'Sage'), ('Leviathan', 'Soldier'), ('Magician', 'Marionette'),
+           ('Magician', 'Widow'), ('Marionette', 'Balloonist'), ('Marionette', 'Kazali'), ('Marionette', 'Summoner'),
+           ('Mathematician', 'Marionette'), ('Plague Doctor', 'Goblin'), ('Plague Doctor', 'Marionette'),
+           ('Spy', 'Poppy Grower'), ('Summoner', 'Kazali'), ('Summoner', 'Poppy Grower'), ('Summoner', 'Preacher'),
+           ('Widow', 'Damsel'), ('Widow', 'Poppy Grower')]
 
 
 def run(coro):
@@ -180,7 +190,7 @@ class JinxFrameworkTests(unittest.TestCase):
     def test_every_official_jinx_between_built_characters_is_implemented(self):
         built = {frozenset(p) for p in official.jinxes() if set(p) <= set(ch.CHARACTERS)}
         self.assertEqual(built, set(ch.IMPLEMENTED_JINXES))
-        self.assertEqual(built, {frozenset(p) for p in JINXES + JINXES1})
+        self.assertEqual(built, {frozenset(p) for p in JINXES + JINXES1 + JINXES2})
         with self.assertRaises(ValueError):
             ch.jinx('Imp', 'Washerwoman', 'nowhere')
 
@@ -225,7 +235,7 @@ class JinxTest(unittest.TestCase):
 
     def script(self, chars, jinxed):
         real = [c for c in dict.fromkeys(chars) if c not in {f.name for f in FILLERS}]
-        on = [p for p in JINXES + JINXES1 if set(p) <= set(real)] if jinxed else []
+        on = [p for p in JINXES + JINXES1 + JINXES2 if set(p) <= set(real)] if jinxed else []
         return ch.Script.of('carousel-test', [f.name for f in FILLERS] + real, official.night_order(real, True),
                             official.night_order(real, False), jinxes=on)
 

@@ -322,12 +322,14 @@ class Damsel(Outsider):
 
     def setup(self, game):
         self.spy_seen(game.g)
+        self.spy_seen(game.g, 'Widow')
 
     @staticmethod
-    def spy_seen(g):
-        if any(q.character == 'Spy' for q in g.players):
-            g.notes['Spy in play'] = True
-        return g.notes.get('Spy in play', False)
+    def spy_seen(g, c='Spy'):
+        """Whether a player is or has been the Spy (or, the Widow jinx, the Widow)."""
+        if any(q.character == c for q in g.players):
+            g.notes[f'{c} in play'] = True
+        return g.notes.get(f'{c} in play', False)
 
     def told_evil(self, game, me, viewer):
         return ['A Damsel is in play (you do not know who).'] if kind(viewer.character) == 'Minion' else []
@@ -335,16 +337,18 @@ class Damsel(Outsider):
     def becomes(self, game, me):
         # a new Damsel (the Pit-Hag's, the Plague Doctor's Baron): the Minions learn it at once
         for q in game.g.players:
-            if q.alive and kind(q.character) == 'Minion':
+            if q.alive and kind(q.character) == 'Minion' and rules(q.shown).evil:  # (not a Marionette)
                 game.inform(q, f'{snv.when(game)}: a Damsel is now in play (you do not know who).')
 
     def changed(self, game, me, other):
-        if other.character == 'Spy':
-            game.g.notes['Spy in play'] = True
+        if other.character in ('Spy', 'Widow'):
+            game.g.notes[f'{other.character} in play'] = True
 
     def ongoing(self, g, me):
-        # the Spy jinx: "If the Spy is (or has been) in play, the Damsel is poisoned", for the rest of the game
-        if me.character == self.name and g.script.jinxed(self.name, 'Spy') and self.spy_seen(g):
+        # the Spy and Widow jinxes: "If the Spy (the Widow) is (or has been) in play, the Damsel is poisoned", for the
+        # rest of the game
+        if me.character == self.name and any(g.script.jinxed(self.name, c) and self.spy_seen(g, c)
+                                             for c in ('Spy', 'Widow')):
             return [State('poisoned', me.name, until=None)]
         return []
 
@@ -438,7 +442,11 @@ def tea_party_options(g, p):
     """The characters `p` may become at the Hatter's tea party: another character of their type on the script that
     no other player has now (alive or dead; one another player left earlier tonight is free)."""
     taken = {q.character for q in g.players if q is not p}
-    return [c for c in g.script.all if kind(c) == kind(p.character) and c not in taken and c != p.character]
+    # not the Marionette (it starts beside the Demon, believing it is good: batch 2), nor a character only one of whose
+    # jinxed pair can be in play (the Heretic's), nor the Leviathan after day 5 (its jinx)
+    late = g.script.jinxed('Leviathan', 'Hatter') and g.day > 5
+    return [c for c in g.script.all if kind(c) == kind(p.character) and c not in taken and c != p.character
+            and c != 'Marionette' and not g.script.clash(taken | {c}) and not (late and c == 'Leviathan')]
 
 
 class Hatter(Outsider):
@@ -460,7 +468,8 @@ class Hatter(Outsider):
         g.notes['Tea party'] = None
         # each living Minion and Demon, in seat order, may choose (a reading: the dead don't wake), and is told; a
         # choice is made knowing the earlier ones' (a character just left is free)
-        for p in [q for q in g.players if q.alive and kind(q.character) in ('Minion', 'Demon')]:
+        for p in [q for q in g.players if q.alive and kind(q.character) in ('Minion', 'Demon')
+                  and rules(q.shown).evil]:  # (a Marionette believes they are good: not woken)
             options = tea_party_options(g, p)
             if not options or kind(p.character) not in ('Minion', 'Demon'):
                 continue
@@ -484,7 +493,7 @@ class Hatter(Outsider):
 # character, with nothing for a scripted style to aim at) nor the Summoner's (a second Demon summoned on the third
 # night, which has passed or would end the Demon's game): the Storyteller picks among the others.
 PLAGUE_STEPS = ('Poisoner', 'Godfather', "Devil's Advocate", 'Assassin', 'Witch', 'Cerenovus')
-PLAGUE_JINXED = ('Spy', 'Scarlet Woman', 'Baron', 'Evil Twin')
+PLAGUE_JINXED = ('Spy', 'Scarlet Woman', 'Baron', 'Evil Twin', 'Goblin', 'Marionette')  # (the last two: batch 2)
 PLAGUE_USABLE = PLAGUE_STEPS + PLAGUE_JINXED + ('Mastermind',)
 
 
@@ -531,8 +540,10 @@ class PlagueDoctor(Outsider):
         game.emit('text', {'text': f'[the Storyteller gains the {m} ability]'}, 'audit')
         if m in PLAGUE_STEPS:
             g.notes.setdefault('Storyteller abilities', {})[m] = self.name
-        elif m in ('Spy', 'Scarlet Woman'):
+        elif m in ('Spy', 'Scarlet Woman', 'Goblin'):
             await self.minion_gains(game, m)
+        elif m == 'Marionette':
+            await self.marionette(game)
         elif m == 'Baron':
             await self.baron(game)
         elif m == 'Evil Twin':
@@ -551,6 +562,18 @@ class PlagueDoctor(Outsider):
         game.emit('gains', {'player': p.name, 'character': m}, 'audit')
         game.inform(p, f'{snv.when(game)}: the Plague Doctor has died, and you gain the {m}\'s ability: '
                        f'{rules(m).ability} (You are still the {p.character}.)')
+
+    async def marionette(self, game):
+        """The Marionette jinx: one of the Demon's good neighbours becomes the Marionette (not knowing it)."""
+        from . import carousel2
+        g = game.g
+        demon = g.demon()
+        pool = [q.name for q in carousel2.seat_neighbours(g, demon) if not q.evil] if demon else []
+        if pool:
+            x = (await game.decide_judged(player_choice('Plague Doctor:Marionette', 'plague_marionette',
+                                                        'Which of the Demon\'s good neighbours becomes the Marionette?',
+                                                        pool, lambda r: {'players': [r.choice(pool)]})))['players'][0]
+            await carousel2.make_marionette(game, g[x], demon)
 
     async def baron(self, game):
         """The Baron jinx: up to two players become Outsiders: living good Townsfolk (the Storyteller's choice, two
@@ -750,8 +773,15 @@ class Summoner(Minion):
             if night.n == 2 and not (target and c == 'Pukka'):
                 continue  # waiting for the 3rd night
             demons = ['Pukka'] if night.n == 2 else list(g.script.demons)
+            if g.script.jinxed(self.name, 'Poppy Grower') and any(q.alive and q.character == 'Poppy Grower'
+                                                                   for q in g.players) and c in demons:
+                # the jinx (batch 2): with the Poppy Grower alive, the Summoner chooses the Demon, not the player
+                from .carousel2 import summoned_player_choice
+                target = (await game.decide_judged(summoned_player_choice(g, s, c)))['players'][0]
             if not g.works(s, self.name):
-                if not g.script.jinxed(self.name, 'Courtier'):
+                from .carousel2 import preached
+                if not (g.script.jinxed(self.name, 'Courtier')
+                        or (g.script.jinxed(self.name, 'Preacher') and preached(g, s))):
                     snv.failed(game, s, self.name, 'no Demon summoned')
                     g.notes['Summoned'] = 'failed'  # (no Demon will come: good wins, unless one is in play)
                     return
@@ -771,7 +801,10 @@ class Summoner(Minion):
             # the jinx: a dead player summoned into the Zombuul has already "died once": alive, registering as dead
             t.alive, t.seems_dead = True, True
             g.spend('Zombuul')
-        if others and t.alive and (g.script.jinxed(self.name, 'Pit-Hag') or g.script.jinxed(self.name, 'Hatter')):
+        if g.notes.get('Marionette waiting'):  # the Marionette jinx (batch 2): it enters play beside the new Demon
+            from .carousel2 import marionette_enters
+            await marionette_enters(game, t)
+        if others and t.alive and any(g.script.jinxed(self.name, x) for x in ('Pit-Hag', 'Hatter', 'Kazali')):
             # the Pit-Hag and Hatter jinxes: a second living Demon: deaths tonight are arbitrary (as the Pit-Hag's)
             plan = await game.decide_judged(snv.arbitrary_deaths_choice(g, s, t, False, by='Summoner'))
             if not plan['yes']:

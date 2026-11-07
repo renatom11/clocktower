@@ -13,3 +13,8 @@ Trouble Brewing, Bad Moon Rising and Sects & Violets, chosen so that all seven o
 Steward, Nightwatchman, Al-Hadikhia, Magician, Golem, Summoner, Ojo, Fisherman, Plague Doctor, Hatter, Politician) with
 built characters chosen so that all seventeen official jinxes between them and built characters are on it and every
 table size from 5 to 15 can be dealt. Its games are protocol `custom-carousel-2`.
+
+`carousel-3.json` ("Carousel test 3") is the third: the fifteen experimental characters of batch 2 (Pixie, High
+Priestess, Poppy Grower, Shugenja, Balloonist, General, Preacher, Cannibal, Puzzlemaster, Heretic, Marionette, Widow,
+Goblin, Kazali, Leviathan) with built characters chosen so that all thirty-three official jinxes between them and built
+characters are on it and every table size from 5 to 15 can be dealt. Its games are protocol `custom-carousel-3`.

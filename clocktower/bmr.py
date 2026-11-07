@@ -580,6 +580,8 @@ def grandmother_choice(g, gm, child):
     impaired = g.impaired(gm)
     others = [q.name for q in g.players if q is not gm]
     values = [{'players': [x], 'character': c} for x in others for c in g.script.good] if impaired else [true]
+    if true not in values:  # (custom scripts: a Grandchild the Kazali made a Minion before the first night)
+        values.append(true)
 
     def style(r):
         if impaired and g.misinformed(gm, r):

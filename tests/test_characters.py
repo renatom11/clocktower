@@ -80,10 +80,10 @@ class ScriptTests(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / 'carousel.json'
-            path.write_text(json.dumps(['washerwoman', 'balloonist', 'imp']))  # an official character not built yet
+            path.write_text(json.dumps(['washerwoman', 'noble', 'imp']))  # an official character not built yet
             with self.assertRaises(ValueError) as e:
                 characters.Script(path)
-            self.assertIn('Balloonist', str(e.exception))
+            self.assertIn('Noble', str(e.exception))
 
     def test_each_script_is_its_own_protocol(self):
         from clocktower.cli import PROTOCOL, protocol
@@ -108,11 +108,12 @@ class ImportTests(unittest.TestCase):
         import subprocess
         import sys
         root = Path(characters.__file__).parent.parent
-        for module in ('state', 'characters', 'bmr', 'snv', 'carousel', 'game', 'judge', 'official', 'cli',
-                       'fingerprint', 'smoke'):
+        for module in ('state', 'characters', 'bmr', 'snv', 'carousel', 'carousel2', 'game', 'judge', 'official',
+                       'cli', 'fingerprint', 'smoke'):
             r = subprocess.run([sys.executable, '-c', f'import clocktower.{module}; '
                                 'from clocktower.characters import CHARACTERS, IMPLEMENTED_JINXES; '
-                                'assert "Zombuul" in CHARACTERS and "Vortox" in CHARACTERS and IMPLEMENTED_JINXES'],
+                                'assert "Zombuul" in CHARACTERS and "Vortox" in CHARACTERS and IMPLEMENTED_JINXES; '
+                                'assert "Leviathan" in CHARACTERS'],
                                cwd=root, capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, f'importing clocktower.{module} first: {r.stderr[-400:]}')
 

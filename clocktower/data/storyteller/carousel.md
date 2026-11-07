@@ -89,3 +89,95 @@ player who chooses to live comes back. A drunk or poisoned Al-Hadikhia's targets
 Mastermind, an executed Al-Hadikhia (Mastermind alive) picks three good players that night: if all three choose to
 live, evil wins, otherwise good. With the Scarlet Woman, a dead Demon brought back while she holds the Demon makes her
 the Scarlet Woman again.
+
+## Pixie
+On the first night the Pixie is shown one Townsfolk character that someone really has, and must then act as if
+they were that character, convincingly, all game. If the player who has it dies while the Pixie is alive, sober
+and has kept up the act, the Pixie gains that ability for good. Judge the act on the whole game: a Pixie who never
+claimed it, denied it or confessed gets nothing. A drunk or poisoned Pixie, or one under the Vortox, is shown a
+Townsfolk nobody has.
+
+## High Priestess
+Each night you point the High Priestess at the one player you think they should spend their time talking to. For a
+good one, pick a living good player whose information or reasoning would help them most, ideally someone they have
+not spoken with much; never use it to name the Demon outright. A drunk or poisoned High Priestess may be sent to
+anyone, often an evil player; under the Vortox it must be someone they should not trust.
+
+## Poppy Grower
+While the Poppy Grower lives and is sober, the Minions and Demon start without knowing each other: the Demon still
+gets three bluffs. Once the Poppy Grower dies (or loses the ability), evil learns who is who that night. A drunk
+player who only thinks they are the Poppy Grower changes nothing. Jinxes: no Grimoire for the Spy or the Widow while
+the Poppy Grower has the ability; with the Summoner, you pick which player becomes the Demon the Summoner names.
+
+## Shugenja
+On the first night the Shugenja learns whether the nearest evil player sits clockwise or anticlockwise, counting
+seats. When two evil players are the same distance either way, pick freely. A Spy may count as good and a Recluse
+as evil here. A drunk or poisoned Shugenja is pointed the wrong way, as is one under the Vortox.
+
+## Balloonist
+Each night show the Balloonist one other player, whose character type must differ from the type you showed the
+night before (a Spy or Recluse may count as whatever they can register as). On the first night anyone will do. A
+drunk or poisoned Balloonist may be shown a player of the same type again. At setup you may add one Outsider.
+
+## General
+Each night tell the General which team you honestly think is winning: good, evil, or neither when it is close. The
+engine offers its own reading of the Grimoire (deaths, executions, who is on the block); overrule it when you see
+the game differently. A drunk or poisoned General is usually told something else; under the Vortox, never your view.
+
+## Preacher
+Each night the Preacher picks a player. If it is a Minion, that Minion is woken and told the Preacher chose them,
+and has no ability for as long as the Preacher keeps theirs (alive, sober). A player who only thinks they are a good
+character (the Marionette) loses the ability without being told. A drunk Preacher does nothing. With the Summoner,
+you summon in place of a living Summoner the Preacher silenced.
+
+## Cannibal
+The Cannibal has the ability of the most recent player killed by execution. If that player was good, the Cannibal
+simply has their ability. If evil, the Cannibal is poisoned until a good player is executed and dies, and you choose
+a good ability to pretend they have, usually the one the executed player claimed, so their false information looks
+right. Jinxes: a Cannibal who gains the Butler's ability is told; one who ate a Juggler executed on their first day,
+having guessed, learns that night how many guesses were right.
+
+## Puzzlemaster
+At setup mark one other player, usually a good Townsfolk, as drunk for the whole game, even after the Puzzlemaster
+dies (but sober while the Puzzlemaster is drunk or poisoned). Once per game the Puzzlemaster may visit you and name
+a player: if they name the drunk, show them the Demon; if not, show them someone who is not the Demon. Never say
+whether the guess was right.
+
+## Heretic
+While a sober Heretic is in play, alive or dead, the result of the game is reversed at the end: the team that would
+win loses, whatever the reason (a Saint's or a Goblin's ending too). The Heretic is never in play with the Spy, the
+Baron, the Godfather, the Pit-Hag or the Widow: those jinxes allow only one of each pair.
+
+## Marionette
+The Marionette sits beside the Demon and believes they are a good character; treat their information like a
+Drunk's, false and consistent. The Demon is told who the Marionette is (only that one of its two neighbours is, while
+a Magician lives). Other Minions are not told about them. With the Summoner, the Marionette enters play beside the
+summoned Demon instead; with the Kazali, only a neighbour may become the Marionette; with the Plague Doctor, one of the
+Demon's good neighbours does. A Marionette who thinks they are the Balloonist may come with an extra Outsider.
+
+## Widow
+On the first night the Widow looks at the whole Grimoire and poisons one player for as long as she keeps her
+ability. Then you wake one good player, usually a Townsfolk, and show them that a Widow is in play. Jinxes: no
+Grimoire while a Poppy Grower has the ability; the Demon's and the Magician's tokens are hidden from her; a Damsel
+is poisoned once a Widow has been in play; never with the Heretic.
+
+## Goblin
+If the Goblin publicly claims to be the Goblin once nominated (in the defence, aloud or by claiming the ability)
+and is executed that day, the Goblin's team wins at once. A claim made before the nomination does not count, nor
+does one by a drunk or poisoned Goblin. The Cerenovus may make someone mad that they are the Goblin; with the Plague
+Doctor, a Minion may receive the Goblin's ability.
+
+## Kazali
+No Minions are dealt: Townsfolk fill their seats, and you may add or remove an Outsider. On the first night the
+Kazali points at players and names a Minion for each; they turn evil, learn their new character and the Demon (not
+if a Poppy Grower is keeping evil apart). Only a neighbour may be made the Marionette, and it keeps believing it is
+good. Never a Minion that cannot share play with the Heretic. After that, the Kazali kills each night.
+
+## Leviathan
+Everyone learns at once that the Leviathan is in play. It kills nobody. If a second good player is executed, or day
+5 ends with the Leviathan alive, evil wins; killing it wins for good. Jinxes with protection characters reward good:
+the Leviathan nominating and executing the Soldier, or the player the Monk, Innkeeper or Exorcist chose last night,
+gives good the win; with the Mayor alive on day 5 and no execution, good wins. With the Grandmother, an executed
+Grandchild loses for good. With the Banshee, Sage or Ravenkeeper, the Leviathan picks a new living player each night:
+a Banshee chosen dies (and gets her powers), a Sage or Ravenkeeper chosen uses their ability without dying. It cannot
+be made after day 5 by the Pit-Hag or a tea party.

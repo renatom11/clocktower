@@ -5,6 +5,7 @@ the entry takes, and why (docs/snv-rulings.md lists them for review).
 """
 from __future__ import annotations
 from itertools import combinations, product
+import dataclasses
 import re
 
 from .characters import CHARACTERS, SETUPS, Choose, Demon, Minion, Outsider, Townsfolk, kind, rules, settle
@@ -102,6 +103,11 @@ class Cerenovus(Minion):
                                  'that they are this character, trying to convince the group, or they might be '
                                  'executed.')
 
+    def night_spec(self, game, me, night):
+        if game.g.script.jinxed(self.name, 'Goblin'):  # the jinx (custom scripts): the Goblin may be named too
+            return dataclasses.replace(self.night_choice, also=('Goblin',))
+        return self.night_choice
+
     async def resolve_night(self, game, night):
         g = game.g
         c, t = night.choice_of(g, self.name)
@@ -173,6 +179,12 @@ class PitHag(Minion):
             return
         if any(q.character == c for q in g.players):
             return  # in play (a dead player's character too; a Drunk's apparent one is not): nothing happens
+        if c == 'Marionette' and 'Marionette' in g.script.all:
+            return  # (custom scripts: the Marionette starts beside the Demon or not at all, docs/carousel-rulings.md)
+        if g.script.clash({q.character for q in g.players if q.name != t} | {c}):
+            return  # the Heretic jinxes (custom scripts): only one of the pair can be in play
+        if c == 'Leviathan' and g.script.jinxed(self.name, c) and g.day > 5:
+            return  # the jinx (custom scripts): the Leviathan cannot enter play after day 5
         if not g.works(ph, self.name):
             failed(game, ph, self.name, 'no change')
             return
@@ -1222,6 +1234,11 @@ class Juggler(Townsfolk):
                 await learn(game, p, self.name, juggler_choice(g, p, record),
                             lambda v: f'{plural(v["number"], "of your guesses was", "of your guesses were")} '
                                       'correct.')
+        for name, record in list(g.notes.pop('Cannibal Juggler', {}).items()):
+            # the Cannibal jinx (custom scripts): the executed Juggler's guesses, learnt by the living Cannibal
+            if g[name].alive and g.script.jinxed('Cannibal', self.name):
+                await learn(game, g[name], self.name, juggler_choice(g, g[name], record), lambda v: 'the Juggler '
+                            f'you ate made {plural(v["number"], "correct guess", "correct guesses")}.')
 
 
 # ---- Outsiders -------------------------------------------------------------------------------------------------

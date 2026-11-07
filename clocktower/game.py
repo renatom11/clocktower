@@ -102,6 +102,8 @@ def fmt(value):
 
 def demon_info(minions, bluffs):
     """What the Demon is told before the first night (and the Lunatic, who believes they are one)."""
+    if not minions:  # (the Kazali, who chooses its Minions on the first night)
+        return f'No player is a Minion yet. Three good characters not in play, for evil to bluff: {", ".join(bluffs)}.'
     return (f'Your Minion{"" if len(minions) == 1 else "s"}: {", ".join(minions)} (you do not know which Minion '
             f'characters). Three good characters not in play, for evil to bluff: {", ".join(bluffs)}.')
 
@@ -377,16 +379,23 @@ class Game:
         self.emit('setup', {'seats': [{'name': p.name, 'character': p.character, 'shown': p.shown} for p in g.players],
                             'red_herring': g.red_herring, 'bluffs': g.bluffs}, 'audit')
 
+        # a Poppy Grower with their ability keeps the Minions and Demon from learning each other
+        apart = any(rules(q.character).keeps_evil_apart(g, q) for q in g.players)
         for p in g.players:
             left, right = names[(p.seat - 1) % len(names)], names[(p.seat + 1) % len(names)]
             lines = [f'You are {p.name}. The players, clockwise: {seating} (and back to {names[0]}). '
                      f'You sit between {left} and {right}.',
                      f'Your character: {card(p.shown)}']
             minions = [q.name for q in g.players if kind(q.character) == 'Minion']
-            if p.is_demon:  # Demon info and Minion info
+            knows = rules(p.shown).evil  # a Minion who believes they are good (the Marionette) learns nothing evil
+            if apart and knows and (p.is_demon or kind(p.character) == 'Minion'):
+                lines.append('You do not learn who the other evil players are.' + (
+                    f' Three good characters not in play, for evil to bluff: {", ".join(g.bluffs)}.'
+                    if p.is_demon else ''))
+            elif p.is_demon:  # Demon info and Minion info
                 lines.append(demon_info(self.evil_shown(p, minions, 'Minion'), g.bluffs))
-            elif kind(p.character) == 'Minion':
-                others = [m for m in minions if m != p.name]
+            elif kind(p.character) == 'Minion' and knows:
+                others = [m for m in minions if m != p.name and rules(g[m].shown).evil]
                 demon = g.demon()
                 shown = self.evil_shown(p, [demon.name] if demon else [], 'Demon')
                 lines.append((f'The Demon is {shown[0]}.' if len(shown) == 1 else
@@ -394,7 +403,7 @@ class Game:
                               'No player is the Demon yet.')
                              + (f' Your fellow Minion{"" if len(others) == 1 else "s"}: {", ".join(others)} (you do not '
                                 'know which Minion characters).' if others else ''))
-            if p.evil:
+            if p.evil and knows:
                 for q in g.players:  # what evil learns because a character is in play (the Damsel)
                     lines += rules(q.character).told_evil(self, q, p)
             lines += rules(p.character).intro(self, p)  # a character's own first information (the Lunatic's)
@@ -613,8 +622,8 @@ class Game:
             requests[p.name] = Request('night', f'Night {night.n} — {role}: {spec.prompt} {how}', night.n,
                                        n_targets=spec.players, options=options,
                                        min_targets=0 if spec.optional else spec.players,
-                                       characters=[c for c in g.script.all if not spec.kinds or kind(c) in spec.kinds]
-                                       if spec.character else [])
+                                       characters=[c for c in g.script.all if not spec.kinds or kind(c) in spec.kinds
+                                                   or c in spec.also] if spec.character else [])
         acts = await self.ask_many(requests)
         for name, req in requests.items():
             if g.script.id != 'tb':  # a required choice is asked again, never made for the player (TB: v17's fill)

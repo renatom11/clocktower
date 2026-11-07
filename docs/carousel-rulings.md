@@ -310,3 +310,174 @@ New weights: `golem_recluse_demon` 0.2, `nightwatchman_shown_other` 0.5, `ojo_no
 `fisherman_helpful_weight` 3, `summoner_st_honours` 0.8, `damsel_pithag_target` 0.3, `plague_poison_info` 0.8,
 `plague_assassin_night` 0.25, `plague_protect_evil` 0.8, `plague_baron_two` 0.7. The rules judge has no heuristic of
 its own for the new calls (the scripted style decides, or its balance for the yes/no ones that help a team).
+
+## Batch 2: fifteen experimental characters
+
+The Pixie, High Priestess, Poppy Grower, Shugenja, Balloonist, General, Preacher, Cannibal, Puzzlemaster, Heretic,
+Marionette, Widow, Goblin, Kazali and Leviathan (`clocktower/carousel2.py`, tests in `tests/test_carousel2.py`,
+Storyteller's notes in `clocktower/data/storyteller/carousel.md`). With them the Carousel Script Collection's Revenge
+of the Martian Vampires plays end to end. The thirty-three official jinxes between them and built characters are all
+implemented.
+
+### Townsfolk
+
+40. **The Pixie.** On the first night the Pixie learns a Townsfolk character another player truly has (never the
+    Pixie's own); drunk, poisoned or under the Vortox, one nobody has. They are marked mad about it for the game
+    (shown on the Grimoire), but breaking it is never punished by execution. When the player who has that character
+    dies, and the Pixie then has their own ability (alive, sober, still the Pixie), the Storyteller judges whether
+    they were mad, over everything said aloud since day 1 (the Cerenovus's floor: they claimed it aloud, their latest
+    claim was it, and they never denied it or confessed); if so they gain the ability on top of their own (as the
+    Philosopher's, without making anyone drunk), and a "you start knowing" ability acts at once. Options: judge only
+    the days before the death; let a dead Pixie gain. Why: "if you were mad" reads as the whole game.
+41. **The High Priestess.** Each night (the first too) the Storyteller points at one player. The scripted heuristic,
+    and the truth for the Vortox and the Mathematician: a living player of the High Priestess's team, weighted three
+    to one towards players with information (`priestess_info_weight`) and against players they have whispered with
+    often. A drunk or poisoned one may be pointed at anyone (usually the other team); under the Vortox, only the other
+    team. A judge ranks the same players. Options: count dead players; point a good High Priestess at the Demon
+    sometimes (the wiki allows it). Why: "should talk to most" is about who helps them.
+42. **The Poppy Grower.** While a Poppy Grower has the ability at the start (alive, sober: a Drunk who thinks they
+    are one does nothing), the Demon learns only its bluffs, and the Minions nothing about the evil team ("You do not
+    learn who the other evil players are"). At the Poppy Grower's step each later night, if no Poppy Grower has the
+    ability any more (dead, drunk or poisoned at that moment, or changed), every living Minion learns the Demon and
+    each other, and the Demon its Minions (the Marionette named, who learns nothing); this happens once. A death by
+    day is learnt that night; a death later in the night, the next night. Options: only a death triggers it (a
+    poisoned Poppy Grower keeps evil apart). Why: "Minions & Demons do not know each other" is the ability working.
+43. **The Shugenja.** Seats are counted round the circle, the dead included. Registration counts: an answer is true
+    if a way the Spy and Recluse can register makes it the closer side (or equidistant), so a sober Shugenja may have
+    two legal answers; the scripted style draws who registers as evil this time, and picks at random when
+    equidistant. Misinformed: the other side; under the Vortox, the false side when one is. A new Shugenja (Pit-Hag)
+    learns at once.
+44. **The Balloonist.** Each night (the first too) another player, alive or dead, never themself; after the first
+    night, one who can register as a type other than the one shown the night before (the type they were shown as is
+    recorded: the true type where it qualifies, else one they can register as). Misinformed (and under the Vortox,
+    always): a player of last night's type. The "[+0 or +1 Outsider]" is a setup step, not part of the draw: in a dealt
+    game, half the time (`balloonist_outsider` 0.5), a Townsfolk becomes an Outsider not in play (not the Drunk or
+    the Lunatic) before anyone learns their character; a forced setup is kept as given. The setup checks accept both
+    counts. Options: draw the extra Outsider in `random_setup`; allow the Balloonist to be shown themself.
+45. **The General.** Each night: good, evil or neither. The scripted heuristic is the rules judge's `standing` (good
+    or evil "well ahead", else neither). The answer is the Storyteller's belief, so for a sober General every value
+    is legal and a model judge may answer otherwise (no abnormal result either way); drunk or poisoned, usually
+    another answer, under the Vortox never the heuristic's. Option: hold a sober General to the heuristic.
+46. **The Preacher.** A Minion is the true type (a Spy is one, a Recluse is not). A chosen Minion is told at once and
+    has no ability while the Preacher has theirs: dead, drunk or poisoned, the Minions get theirs back (a reading of
+    the present tense). "No ability" is played as drunk, plus a `no ability` state the Poisoner checks (ruling 63). A
+    Marionette chosen loses nothing they have and is not told (being told would reveal them: a reading, for review).
+    A drunk Preacher's choice does nothing (abnormal for the Mathematician). Option: the Minions stay silenced after
+    the Preacher dies.
+47. **The Cannibal.** "The recently killed executee" is the latest player killed by execution (one who survived it
+    does not count), as the character they were. Good: the Cannibal has that ability as an extra one (woken at its
+    step, a "you start knowing" one acting at once); any Cannibal poison ends. Evil: the Cannibal is poisoned until a
+    good player dies by execution, and the Storyteller's lie is the ability they have meanwhile: a good character,
+    usually the one the executee claimed aloud (`cannibal_lie_claim` 0.8), else a random Townsfolk, whose ability then
+    misfires (they are poisoned). The Cannibal is not told the character, but being woken as it shows it (an engine
+    limit: night prompts name the role). A dead Cannibal gains nothing. An ability that only acts through its own
+    character's hooks (the Saint's loss, the Soldier's safety) does not act for the Cannibal or any player who gained
+    it (an existing engine limit, shared with the Philosopher).
+48. **The Cannibal's jinxes.** Butler: the Cannibal is told they have the Butler's ability (the vote rule still binds
+    only a true Butler: the engine limit above). Juggler: a Juggler who guessed on their first day and is executed
+    that same day lets the living Cannibal learn, that night at the Juggler's step, how many guesses were right.
+
+### Outsiders
+
+49. **The Puzzlemaster.** At setup the Storyteller marks another player as drunk (usually a good Townsfolk:
+    `puzzle_townsfolk` 0.8), for the whole game, the Puzzlemaster's death included; while the Puzzlemaster is drunk or
+    poisoned that player is sober (a reading). The guess is made privately, by visiting the Storyteller and naming one
+    other player (a visit naming none or several is no guess and is not spent); once per game, spent drunk or not. A
+    right guess shows a player who registers as the Demon; a wrong one shows a player who does not (false
+    information); a drunk or poisoned Puzzlemaster may be shown anyone. They are never told whether they were right.
+    A new Puzzlemaster (Pit-Hag, Philosopher) has a drunk of their own. Options: a public guess; tell them right or
+    wrong.
+50. **The Heretic.** At the very end (`Character.ended`, now run with the result-flippers last: a core change, so
+    the Politician's change comes first), a Heretic who is the Heretic and sober, dead or alive, reverses the winner,
+    whatever ended the game. Option: let the Politician act on the reversed result.
+51. **The Heretic's jinxes** ("Only 1 jinxed character can be in play": the Baron, Godfather, Pit-Hag, Spy, Widow).
+    A core rule from the jinx text (`Script.exclusive`, `Script.clash`): `random_setup` draws again when both are
+    dealt, `setup_error` refuses them, the Pit-Hag cannot make one while the other is in play (nothing happens), a
+    tea party cannot choose one, and the Kazali cannot make one. A gained ability (the Plague Doctor's Spy) is not
+    "in play".
+
+### Minions
+
+52. **The Marionette's setup.** The Marionette is dealt like any Minion, then (a setup step) swaps seats with one of
+    the Demon's neighbours if not already beside it, and believes they are a good character nobody has or believes
+    they have (a Townsfolk 80%, `marionette_townsfolk`, information roles three times as likely; never the Drunk or
+    the Lunatic). They are played as the Drunk is (`always_drunk`: their apparent ability is the Storyteller's
+    misinformation, one false story all game). They get no evil information and are told nothing as a Minion; the
+    Demon learns "X is the Marionette" in its first-night information (and X among its Minions); the other Minions
+    are not told about them. They cannot be created by the Pit-Hag or chosen at a tea party (the Marionette starts
+    beside the Demon, believing it is good, or not at all). Options: let the other Minions see them; let the Pit-Hag
+    create one (told, so useless).
+53. **The Marionette's jinxes.** Magician: while a Magician is alive, the Demon learns only "one of your neighbours,
+    X or Y, is the Marionette". Mathematician: the Marionette's false information counts as abnormal (the Drunk's
+    jinx code, made generic). Balloonist: a Marionette who believes they are the Balloonist may bring the extra
+    Outsider (the Balloonist's setup step). Summoner: with no Demon at setup, the dealt Marionette's player is, for
+    now, the good character they believe they are; when the Summoner makes a Demon, one of its good neighbours (the
+    Storyteller's choice) becomes the Marionette without being told, keeping their character in mind, and the Demon
+    learns it. Kazali: the Kazali may make only a neighbour the Marionette (asked again otherwise); that player keeps
+    believing their character. Plague Doctor: the Storyteller "gaining" the Marionette makes one of the Demon's good
+    neighbours the Marionette the same way.
+54. **The Widow.** The first night only (the night order has no later step: a Widow made later does nothing). They
+    see the whole Grimoire as they wake, then choose a player: poisoned for the rest of the game, while the Widow has
+    the ability (dead, the poison ends; drunk, it is not made). Then a living good player (by alignment; usually a
+    Townsfolk) learns "a Widow is in play", whatever the Widow's sobriety (a reading: it is true). Options: no
+    knower when the Widow is drunk; the knower may be a Spy registering as good.
+55. **The Widow's jinxes.** Poppy Grower: no Grimoire while a Poppy Grower has the ability (she still chooses). Magician:
+    the Demon's and the Magician's tokens are removed, as for the Spy (ruling 22). Damsel: the Damsel is poisoned once
+    a Widow is or has been in play, as with the Spy (ruling 17). Heretic: ruling 51.
+56. **The Goblin.** The claim is public and made once nominated: from the Goblin's first nomination of the day on,
+    anything they say aloud claiming to be the Goblin ("I am the Goblin", in their defence or a comment) or a public
+    use of the Goblin's ability through the shared `ability` field. A claim before the nomination does not count. If
+    they are executed that day (dying or not), alive and with the ability then, their team (their alignment) wins at
+    once. Options: only the defence counts; a later nomination's claim must be the one executed.
+57. **The Goblin's jinxes.** Cerenovus: the Goblin may be named as the madness (a new `Choose.also`). Plague Doctor:
+    a living Minion gains the Goblin's ability and is told, as for the Spy.
+
+### Demons
+
+58. **The Kazali's setup.** No Minions are dealt: their seats are Townsfolk (`no_minions`, in the dealing and the setup
+    checks). "-? to +? Outsiders": as a setup step, the Storyteller keeps the dealt Outsiders (60%,
+    `kazali_outsiders_same`) or adds or removes one. Its introduction says no player is a Minion yet.
+59. **The Kazali's first night.** At its step (the first of the night), the Kazali chooses, one at a time, as many
+    players as the table has Minions, each with a Minion character on the script not in play; each turns evil and is
+    told their character; then each learns the Demon (the Magician may be shown too) and the others (not while a
+    Poppy Grower keeps evil apart). It happens whatever the Kazali's sobriety (it is setup). Required: asked again
+    until legal. Later nights it kills like any Demon. A Baron chosen adds no Outsiders (they were settled at setup).
+    Setup choices made before (the red herring, the Grandchild) stay with players who became Minions (the
+    Grandmother is then shown her Grandchild's Minion character: a core fix).
+60. **The Kazali's jinxes.** Summoner: a summon that makes a second living Demon makes tonight's deaths arbitrary
+    (as the Pit-Hag's and Hatter's jinxes). Marionette: ruling 53. Heretic: ruling 51.
+61. **The Leviathan.** All players learn it is in play when the first night is played (or whenever it enters play).
+    It never kills. Every execution of a good player (by alignment, dying or not) while it is in play counts; at the
+    second, with the Leviathan alive and working, evil wins. At the end of day 5 (or a later day, if it was drunk or
+    poisoned then), with the Leviathan alive and working, evil wins. Options: count only executions that kill; count
+    executions from before a Pit-Hag made it.
+62. **The Leviathan's jinxes.** Banshee, Sage, Ravenkeeper: each night but the first the Leviathan must choose a
+    living player it has not chosen before (it does not know who is good: choosing an evil player does nothing); a
+    chosen good Banshee dies (as killed by the Demon: the town is told, and she gains her powers); a chosen good Sage
+    learns that the Leviathan is one of two players; a chosen Ravenkeeper chooses a player and learns their character;
+    neither dies. Exorcist, Innkeeper, Monk, Soldier: the Leviathan nominated, and that day's execution is, the player
+    the Exorcist, Innkeeper or Monk chose last night (that ability working now), or the Soldier: good wins. Grandmother:
+    the Grandchild dies by execution with the Leviathan in play: evil wins. Mayor: day 5 ends with the Mayor and the
+    Leviathan alive and no execution: good wins. Hatter, Pit-Hag: neither can make a Leviathan after day 5.
+
+### Core changes and playability
+
+63. **Core changes**, each a no-op on the base scripts (their fingerprints are identical): a Townsfolk information
+    role also informs a player who gained its ability (the Pixie's, the Cannibal's: Trouble Brewing's roles answered
+    only their own players before); the Drunk's per-game truthfulness and single false world apply to any
+    `always_drunk` character (the Marionette); the first-night evil information skips players who believe they are
+    good and stops when a Poppy Grower keeps evil apart (`Character.keeps_evil_apart`); a Demon with no Minions yet is
+    told so; the Poisoner does nothing while it has a `no ability` state (the Preacher's); the Grandmother's choice
+    always includes the truth. Noticed, not changed: a Poisoner made drunk by another ability (the Courtier, the
+    Innkeeper, the Puzzlemaster) still poisons; fixing that would change carousel-1's fingerprints, so it is left for
+    the owner.
+64. **The third synthetic script** (`clocktower/data/scripts/carousel-3.json`, "Carousel test 3"): the fifteen, with
+    the Magician, Monk, Soldier, Mayor, Sage, Ravenkeeper, Exorcist, Innkeeper, Juggler, Mathematician, Banshee and
+    Grandmother; the Butler, Damsel, Hatter and Plague Doctor; the Spy, Summoner, Cerenovus, Pit-Hag, Baron and
+    Godfather; the Kazali, the Leviathan and the Imp. All thirty-three batch 2 jinxes are on it (forty jinxes in
+    all), and every size from 5 to 15 deals. Its replay fingerprints are
+    `tests/data/fingerprints-carousel-3.json`.
+
+New weights: `priestess_info_weight` 3, `balloonist_outsider` 0.5, `cannibal_lie_claim` 0.8, `puzzle_townsfolk`
+0.8, `marionette_townsfolk` 0.8, `kazali_outsiders_same` 0.6. The rules judge has no heuristic of its own for the new
+calls (the scripted style decides).

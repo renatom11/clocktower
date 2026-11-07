@@ -39,6 +39,7 @@ class Choose:
     not_last: bool = False    # not the player chosen last night (the Exorcist)
     character: bool = False   # a character too (the Gambler) or instead (the Courtier)
     kinds: tuple = ()         # the character types that may be named (the Cerenovus's good characters); () any
+    also: tuple = ()          # characters that may be named beyond those types (the Cerenovus/Goblin jinx's Goblin)
 
 
 async def settle(result):
@@ -100,6 +101,8 @@ class Character:
     public_guesses = 0       # its public day ability takes up to this many (player, character) guesses (the
     #                          Juggler's 5), passed to `act_publicly` as `guesses`
     no_demon = False         # setup modifier: no Demon is dealt, a Townsfolk in its place (the Summoner's [No Demon])
+    no_minions = False       # setup modifier (a Demon's): no Minions are dealt, Townsfolk in their place (the Kazali)
+    flips_result = False     # its end hook turns the result around, so it runs after every other one (the Heretic)
 
     @property
     def evil(self):
@@ -280,6 +283,10 @@ class Character:
         Minions learn a Damsel is in play)."""
         return []
 
+    def keeps_evil_apart(self, g, me):
+        """Whether `me`'s ability stops the Minions and Demon learning each other at the start (the Poppy Grower)."""
+        return False
+
     async def storyteller_step(self, game, night, character):
         """At `character`'s step tonight, the Storyteller uses `character`'s ability, gained through `me`'s (the
         Plague Doctor's): Game.night calls this for each ability in g.notes['Storyteller abilities']."""
@@ -310,8 +317,8 @@ class InfoRole(Townsfolk):
     info = True
 
     async def resolve_night(self, game, night):
-        for p in game.g.players:
-            if p.alive and p.shown == self.name:
+        for p in game.g.players:  # (and a player who gained the ability: the Pixie's, the Cannibal's)
+            if p.alive and (p.shown == self.name or self.name in getattr(p, 'extra', ())):
                 told = self.information(game, p, night)
                 if told:
                     await game.tell(p, self.name, *told)
@@ -573,7 +580,9 @@ class Poisoner(Minion):
 
     async def resolve_night(self, game, night):
         poisoner, t = night.choice_of(game.g, self.name)
-        if t:  # the poison lasts while the Poisoner has their ability: it ends if they die or change character
+        # the poison lasts while the Poisoner has their ability: it ends if they die or change character; none from
+        # a Poisoner with no ability (custom scripts: one the Preacher chose)
+        if t and not game.g.has(poisoner, 'no ability'):
             game.g.add(state.State('poisoned', t, source=poisoner.name, until='night', ends_with_source=True))
 
 
@@ -594,6 +603,9 @@ class Spy(Minion):
         hidden = ([p.name for p in g.players if p.is_demon or p.character == 'Magician']
                   if g.script.jinxed(self.name, 'Magician') else ())
         spy = g.with_character(self.name)
+        if g.script.jinxed(self.name, 'Poppy Grower') and any(  # the jinx (custom scripts): no Grimoire while a
+                rules('Poppy Grower').holds(g, q) for q in g.players):  # Poppy Grower has their ability
+            return
         if spy and spy.alive:
             game.emit('info', {'text': f'Night {night.n} — Spy: you look at the Grimoire.\n'
                                        + g.grimoire_text(hidden=hidden)}, [spy.name])
@@ -760,6 +772,15 @@ class Script:
         for (a, b), text in texts.items():
             s.jinxes[(a, b)] = s.jinxes[(b, a)] = text
         return s
+
+    def exclusive(self, a, b):
+        """Whether the jinx between `a` and `b` says only one of them can be in play (the Heretic's with the Spy)."""
+        return self.jinxes.get((a, b), '').startswith('Only 1 jinxed character')
+
+    def clash(self, characters):
+        """A pair of `characters` that the script's jinxes say cannot both be in play, or None."""
+        return next(((a, b) for a, b in self.jinxes if a in characters and b in characters and self.exclusive(a, b)),
+                    None)
 
     def jinxed(self, a, b):
         """Whether the jinx between characters `a` and `b` is in effect: both are on this script and a jinx between

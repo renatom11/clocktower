@@ -784,7 +784,7 @@ class Carousel2Tests(unittest.TestCase):
         batch = [c for c in ch.CHARACTERS if c in ch.Script('carousel-2').all and ch.rules(c).__module__.endswith(
             'carousel')]
         self.assertEqual(len(batch), 13)
-        self.assertEqual(sorted(sections), sorted(batch))
+        self.assertLessEqual(set(batch), set(sections))  # (and batch 2's: tests/test_carousel2.py)
         self.assertIn('Golem: The Golem nominates', judge.storyteller_notes('custom', ['Golem', 'Imp']))
 
     def test_it_plays_at_every_size(self):

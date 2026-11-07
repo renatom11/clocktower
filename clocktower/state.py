@@ -100,6 +100,14 @@ def setup_error(characters, script=TB):
     bad = [c for c in characters if c not in script.all]
     if bad: return f'not on the script: {bad}'
     counts = {k: sum(1 for c in characters if kind(c) == k) for k in ('Townsfolk', 'Outsider', 'Minion', 'Demon')}
+    clash = script.clash(characters) if hasattr(script, 'clash') else None
+    if clash: return f'only one of {clash[0]} and {clash[1]} can be in play (their jinx)'
+    if any(rules(c).no_minions for c in characters):  # the Kazali: no Minions, Townsfolk in their place, and any
+        if counts['Minion'] or counts['Demon'] != 1:  # number of Outsiders (the Storyteller's)
+            return 'no Minions at the start with the Kazali in play, and one Demon'
+        if counts['Townsfolk'] < 1 or counts['Townsfolk'] + counts['Outsider'] != n - 1:
+            return 'need Townsfolk and Outsiders in every seat but the Demon\'s'
+        return None
     no_demon = any(rules(c).no_demon for c in characters)  # the Summoner's [No Demon]: a Townsfolk in its place
     if no_demon and counts['Demon']:
         return f'no Demon with the {next(c for c in characters if rules(c).no_demon)} in play'
@@ -117,7 +125,18 @@ def setup_error(characters, script=TB):
 
 
 def random_setup(rng, minion=None, players=9, script=TB):
-    """A uniformly random legal setup of `script`; `minion` forces one of the Minions (batches rotate it)."""
+    """A uniformly random legal setup of `script`; `minion` forces one of the Minions (batches rotate it). A draw with
+    two characters whose jinx lets only one be in play (the Heretic's) is drawn again; the base scripts hold none, so
+    their draws are unchanged."""
+    for _ in range(200):
+        chars = _random_setup(rng, minion, players, script)
+        if not (hasattr(script, 'clash') and script.clash(chars)):
+            return chars
+    raise ValueError(f'{script.name}: no setup for {players} players without two characters only one of which can '
+                     'be in play')
+
+
+def _random_setup(rng, minion, players, script):
     mn = SETUPS[players][2]
     minions = ([minion] if minion else []) + rng.sample([m for m in script.minions if m != minion],
                                                         mn - (1 if minion else 0))
@@ -137,6 +156,9 @@ def random_setup(rng, minion=None, players=9, script=TB):
     no_demon = any(rules(m).no_demon for m in minions)  # the Summoner: no Demon, a Townsfolk in its place
 
     def fits(demon):  # the script has enough Townsfolk and Outsiders for these Minions and this Demon
+        if demon and rules(demon[0]).no_minions:  # (the Kazali: Townsfolk in the Minions' seats)
+            t, o, _ = team_sizes(players, setup_change(demon), floor=True)
+            return 0 <= t + mn <= len(script.townsfolk) and 0 <= o <= len(script.outsiders)
         t, o, _ = team_sizes(players, change + setup_change(demon), floor=True)
         return 0 <= t + no_demon <= len(script.townsfolk) and 0 <= o <= len(script.outsiders)
     # a Demon whose modifier can't be dealt with these Minions is not chosen (the Fang Gu's extra Outsider with the
@@ -146,6 +168,8 @@ def random_setup(rng, minion=None, players=9, script=TB):
     if not fits(demon):
         raise ValueError(f'{script.name} cannot be dealt for {players} players with {", ".join(minions + demon)}: '
                          'too few Townsfolk or Outsiders on the script')
+    if demon and rules(demon[0]).no_minions:  # the Kazali chooses its Minions on the first night: none are dealt
+        minions, change, no_demon = [], 0, mn
     change += setup_change(demon)  # a Demon's modifier (the Fang Gu's +1, the Vigormortis's -1)
     tf, os_, _ = team_sizes(players, change, floor=True)
     return rng.sample(script.townsfolk, tf + no_demon) + rng.sample(script.outsiders, os_) + minions + demon
@@ -265,6 +289,13 @@ POLICY = {
     'plague_assassin_night': 0.25,  # the Storyteller's Assassin kills tonight (per night, once per game)
     'plague_protect_evil': 0.8,     # the Storyteller's Devil's Advocate protects an evil player (else a good one)
     'plague_baron_two': 0.7,        # the Baron jinx: two players become Outsiders (else one)
+    # batch 2 (docs/carousel-rulings.md). Default, for review.
+    'priestess_info_weight': 3,     # the High Priestess's player has information, 3x as likely as another
+    'balloonist_outsider': 0.5,     # the Balloonist's "+0 or +1 Outsider": one is added
+    'cannibal_lie_claim': 0.8,      # a Cannibal who ate an evil player is given the ability that player claimed
+    'puzzle_townsfolk': 0.8,        # the Puzzlemaster's drunk is a good Townsfolk (else any other player)
+    'marionette_townsfolk': 0.8,    # the Marionette believes they are a Townsfolk (else an Outsider)
+    'kazali_outsiders_same': 0.6,   # the Kazali's Outsiders stay as dealt (else one more or one fewer)
     # the Storyteller judge (judge.py, when one is chosen; never in TB's protocol v17): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
@@ -637,7 +668,7 @@ class Grimoire:
         poison makes information false. The Drunk keeps one false world all game, so their story holds."""
         v = result(r)
         for _ in range(30):
-            if p.character == 'Drunk' or v not in truths:
+            if rules(p.character).always_drunk or v not in truths:  # (the Drunk; the Marionette)
                 return v
             self.decoys.pop(p.name, None)
             v = result(r)
@@ -651,7 +682,7 @@ class Grimoire:
     def misinformed(self, p, r):
         """Whether the scripted Storyteller gives this impaired player false information now. The
         Drunk's is decided once per game, so their story stays consistent either way."""
-        if p.character == 'Drunk' and not self.falsified(p):
+        if rules(p.character).always_drunk and not self.falsified(p):  # (the Drunk; the Marionette, as the Drunk)
             if p.name not in self.truthful:
                 self.truthful[p.name] = r.random() < POLICY['drunk_truthful']
             return not self.truthful[p.name]
@@ -727,7 +758,8 @@ class Grimoire:
     def finish(self):
         """The game is over (Game.run, however the winner was set): abilities that act as it ends (the Politician's
         change of alignment) may add to the reason."""
-        for p in self.players if self.winner else ():
+        for p in sorted(self.players, key=lambda q: rules(q.character).flips_result) if self.winner else ():
+            # (an ability that turns the result around, the Heretic's, last)
             self.reason = rules(p.character).ended(self, p, self.winner, self.reason) or self.reason
 
     # ---- views ---------------------------------------------------------------------
@@ -1146,5 +1178,6 @@ def info_text(ability, value, target=None):
 from . import bmr  # noqa: E402
 from . import snv  # noqa: E402  (after bmr: Sects & Violets, clocktower/snv.py)
 from . import carousel  # noqa: E402  (after snv: the experimental characters and jinxes, clocktower/carousel.py)
+from . import carousel2  # noqa: E402  (after carousel: batch 2 of the experimental characters)
 
-BMR, SNV, CAROUSEL = bmr, snv, carousel  # (a use, so pyflakes sees the imports are wanted)
+BMR, SNV, CAROUSEL = bmr, snv, (carousel, carousel2)  # (a use, so pyflakes sees the imports are wanted)
