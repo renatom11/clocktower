@@ -504,6 +504,9 @@ class Game:
         for p in self.g.players:
             for c in self.g.abilities(p):
                 await settle(rules(c).moment(self, p, when))
+        for c in self.g.script.all:  # (custom scripts: the base scripts have none)
+            if rules(c).moment_unheld and not any(c in self.g.abilities(p) for p in self.g.players):
+                await settle(rules(c).moment(self, None, when))
 
     def moment(self, when):
         """moment_judged, synchronously (tests; with no judge, or the rules judge)."""
@@ -697,6 +700,9 @@ class Game:
                 if held and c in held:
                     await rules(held[c]).storyteller_step(self, night, c)
                     await self.run_pending()
+                if g.winner:  # a win at night (custom scripts: the Al-Hadikhia's last stand): the game ends now, no
+                    self.tonight = None  # later step wakes anyone (the base scripts have none: their wins come by
+                    return  # day, or at the dawn check)
         g.expire('dawn')  # protections that last only tonight end (the Innkeeper's)
         self.tonight = None
 

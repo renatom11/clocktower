@@ -19384,9 +19384,9 @@
 "players": 14,
 "seed": 14095,
 "minion": "Widow",
-"sha": "7553fd1913f360c6deb5f32b5f7719d36f77a26d190ad5787fb76a72501e8492",
+"sha": "f4b6d436eaf09d62e9ca6b3a34eda7126c322379d1fb6ac9593a10a19a23d602",
 "winner": null,
-"days": 1,
+"days": 10,
 "starting": [
 "Balloonist",
 "Banshee",
@@ -19402,8 +19402,7 @@
 "Ravenkeeper",
 "Sage",
 "Shugenja"
-],
-"crash": "ValueError: illegal Storyteller value for Godfather:Gray: {'players': [], 'character': None, 'number': None, 'yes': None, 'characters': ['Hatter']}"
+]
 },
 {
 "players": 14,

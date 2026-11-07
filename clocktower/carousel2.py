@@ -766,7 +766,9 @@ def kazali_outsiders_choice(g, k):
     free_out = [c for c in g.script.outsiders if c not in in_play and not rules(c).always_drunk
                 and not rules(c).wakes_at_own_step]
     free_town = [c for c in g.script.townsfolk if c not in in_play]
-    values = [0] + ([1] if towns[1:] and free_out else []) + ([-1] if outs and free_town else [])
+    # one fewer leaves a Drunk a Townsfolk not in play to believe they are (else the setup cannot be finished)
+    drunk = any(rules(q.character).always_drunk and kind(q.character) == 'Outsider' for q in g.players)
+    values = [0] + ([1] if towns[1:] and free_out else []) + ([-1] if outs and free_town[drunk:] else [])
 
     def style(r):
         return {'number': 0 if len(values) == 1 or r.random() < POLICY['kazali_outsiders_same'] else

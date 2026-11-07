@@ -103,6 +103,8 @@ def setup_error(characters, script=TB):
     counts = {k: sum(1 for c in characters if kind(c) == k) for k in ('Townsfolk', 'Outsider', 'Minion', 'Demon')}
     clash = script.clash(characters) if hasattr(script, 'clash') else None
     if clash: return f'only one of {clash[0]} and {clash[1]} can be in play (their jinx)'
+    if 'Drunk' in characters and set(script.townsfolk) <= set(characters):  # (custom scripts: the Kazali's seats)
+        return 'the Drunk needs a Townsfolk not in play to believe they are'
     if any(rules(c).no_minions for c in characters):  # the Kazali: no Minions, Townsfolk in their place, and any
         if counts['Minion'] or counts['Demon'] != 1:  # number of Outsiders (the Storyteller's)
             return 'no Minions at the start with the Kazali in play, and one Demon'
@@ -921,6 +923,10 @@ def pair_choice(g, p, ability):
             else:
                 mis.append((q.name, r.choice(sorted(options & set(g.minions_shown())))))
         pool = mis if mis and r.random() < POLICY['misregister_pair'] else real  # with no real one: 'zero'
+        if not pool and impaired and ability != 'Librarian':
+            # nothing true to show (custom scripts: a Marionette who believes they are the Investigator, the only
+            # Minion): a false pair, as when misinformed (only reached where 'zero', not legal for them, was)
+            return false_pair(r, r.choice(others), list(group))
         if not pool:
             return {'players': [], 'character': None}
         n, c = r.choice(pool)

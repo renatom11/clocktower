@@ -1,10 +1,13 @@
 """Interactions between characters of different base scripts that the fuzzer found wrong (docs/interaction-findings.md,
-B1-B4, B5) and their fixes: each meeting only happens on a custom script, so the base scripts play as before."""
+B1-B10) and their fixes: each meeting only happens on a custom script, so the base scripts play as before."""
+import random
 import unittest
+from unittest import mock
 
-from clocktower import bmr
+from clocktower import bmr, carousel2
+from clocktower.characters import rules
 from clocktower.llm import Reply
-from clocktower.state import State
+from clocktower.state import State, pair_choice, setup_error
 
 from test_carousel import BLANK, T1, T2, T3, T4, run
 from test_carousel1 import Batch1Test, Seat
@@ -222,6 +225,51 @@ class DrunkPoisonerTests(Test):
         g.g.expire('night')
         self.assertTrue(g.g.is_poisoned(g.g[D]))
 
+
+class NightWinTests(Test):
+    def test_a_win_at_night_ends_the_night_at_once(self):
+        # (the Al-Hadikhia's last stand, the Mastermind jinx, decides the game at its step; here a stand-in)
+        g = self.game(['Poisoner', T1, T2, T3, 'Monk', 'Imp', 'Soldier'])
+        quiet(self, 2)
+
+        async def wins(self_, game, night):
+            game.g.winner, game.g.reason = 'evil', 'test'
+        with mock.patch.object(type(rules('Poisoner')), 'resolve_night', wins):
+            run(g.night(2))
+        self.assertEqual(g.g.winner, 'evil')
+        self.assertEqual(woken_as(self.seats[F], 'Imp'), [])  # the Demon's step, after the Poisoner's, never came
+        self.assertEqual(woken_as(self.seats[E], 'Monk'), [])
+
+
+class AlHadikhiaAnnouncementTests(Test):
+    def test_announced_at_dawn_after_the_al_hadikhia_has_become_another_character(self):
+        g = self.game(['Al-Hadikhia', T1, T2, T3, 'Poisoner', 'Soldier', T4], extra=['Imp'])
+        g.g.notes['Al-Hadikhia chose'] = [[B, C, D]]
+        g.g.change_character(g.g[A], 'Imp')  # (a Hatter's tea party, after the Al-Hadikhia's step)
+        g.moment('dawn')
+        self.assertEqual(len(self.public('the Al-Hadikhia chose Blair, Casey and Drew')), 1)
+
+
+class NothingTrueToShowTests(Test):
+    def test_a_marionette_investigator_with_no_other_minion_is_shown_a_false_pair(self):
+        g = self.game(['Marionette', T1, T2, 'Imp', T3], extra=['Poisoner', 'Investigator'])
+        g.g[A].shown = 'Investigator'
+        choice = pair_choice(g.g, g.g[A], 'Investigator')
+        for seed in range(30):
+            self.assertTrue(choice.legal(choice.options(random.Random(seed))))
+
+    def test_an_impaired_godfather_with_an_outsider_count_beyond_the_modifiers(self):
+        g = self.game(['Godfather', 'Imp', T1, T2, T3, 'Saint', 'Butler'], extra=['Recluse'])
+        g.g.add(State('poisoned', A, source='test', until=None))
+        choice = bmr.outsiders_choice(g.g, g.g[A])  # seven players: no Outsiders, the Godfather's one more or fewer
+        self.assertIn(['Saint', 'Butler'], [sorted(v['characters'], reverse=True) for v in choice.values])
+
+    def test_the_drunk_always_has_a_townsfolk_to_believe(self):
+        script = self.script(['Kazali', 'Drunk', 'Saint'], True)  # (and the four filler Townsfolk)
+        self.assertIn('Drunk needs', setup_error(['Kazali', 'Drunk', T1, T2, T3, T4, 'Saint'], script) or '')
+        g = self.game(['Kazali', 'Drunk', T1, T2, T3, 'Saint'])
+        values = [v['number'] for v in carousel2.kazali_outsiders_choice(g.g, g.g[A]).values]
+        self.assertNotIn(-1, values)  # one fewer would turn the Saint into T4, the last Townsfolk the Drunk could be
 
 if __name__ == '__main__':
     unittest.main()

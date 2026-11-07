@@ -103,6 +103,8 @@ class Character:
     no_demon = False         # setup modifier: no Demon is dealt, a Townsfolk in its place (the Summoner's [No Demon])
     no_minions = False       # setup modifier (a Demon's): no Minions are dealt, Townsfolk in their place (the Kazali)
     flips_result = False     # its end hook turns the result around, so it runs after every other one (the Heretic)
+    moment_unheld = False    # its `moment` runs (with `me` None) even when no player has the ability: a public duty
+    #                          that outlives its holder (the Al-Hadikhia's dawn announcement of last night's choice)
 
     @property
     def evil(self):

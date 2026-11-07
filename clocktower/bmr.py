@@ -48,6 +48,8 @@ def outsiders_choice(g, p):
     sizes = {team_sizes(len(g.players), d)[1] for d in setup_changes([q.character for q in g.players])}
     values = [list(c) for k in sorted(sizes) if 0 <= k <= len(g.script.outsiders)
               for c in combinations(g.script.outsiders, k)] if impaired else [true]
+    if true not in values:  # (custom scripts: the Kazali's Outsider count, beyond the setup's modifiers)
+        values.append(true)
 
     def style(r):
         if impaired and g.misinformed(p, r):

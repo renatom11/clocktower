@@ -905,6 +905,7 @@ class AlHadikhia(Demon):
                                  'live or die, but if all 3 choose to live, all 3 die. Choosing fewer than 3 is '
                                  'choosing no one.')
     kills_at_night = True
+    moment_unheld = True  # "all players learn who": at dawn, even if the Al-Hadikhia has since become another character
 
     def night_spec(self, game, me, night):
         return None if night.first else self.night_choice
