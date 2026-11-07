@@ -653,11 +653,20 @@ class Grimoire:
         other = [c for c in pool if c not in bluffs and c not in in_play]
         groups = [(x, w) for x, w in ((bluffs, POLICY['as_bluff']), (in_play, POLICY['as_in_play']),
                                       (other, 1 - POLICY['as_bluff'] - POLICY['as_in_play'])) if x]
+        if not groups:  # every character avoided (a Spy, who may register as any of them): any of the kinds
+            return r.choice([c for k in kinds for c in k])
         return r.choice(r.choices([x for x, _ in groups], [w for _, w in groups])[0])
+
+    def demon_shown(self):
+        """The Demon a false or misregistered result names: the Imp on a script with it (Trouble Brewing), else the
+        Demon in play (a custom script's), else the script's first Demon."""
+        if 'Imp' in self.script.demons:
+            return 'Imp'
+        return next((q.character for q in self.players if q.is_demon), None) or self.script.demons[0]
 
     def evil_character(self, r, imp=True):
         """An evil character to show for a Recluse (the Imp only when `imp` is consistent)."""
-        return 'Imp' if imp and r.random() < POLICY['recluse_as_imp'] else r.choice(self.minions_shown())
+        return self.demon_shown() if imp and r.random() < POLICY['recluse_as_imp'] else r.choice(self.minions_shown())
 
     def in_play(self):
         return {q.character for q in self.players} | {q.shown for q in self.players}
@@ -935,7 +944,7 @@ def character_choice(g, p, ability, target):
         def false_world(r):  # what a working ability would show in the false world
             framed, evil = g.decoy(p, r)
             if t.name in evil:  # the framed player is the false world's Imp, the others its Minions
-                return 'Imp' if t.name == framed and imp_ok else r.choice(g.minions_shown())
+                return g.demon_shown() if t.name == framed and imp_ok else r.choice(g.minions_shown())
             if t.evil:  # the real evil player is good in the false world
                 return as_good(r)
             if t.character == 'Recluse' and r.random() < POLICY['recluse_evil']:

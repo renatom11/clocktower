@@ -16,6 +16,7 @@
     python -m clocktower memory-check MODEL           # does a new model see its earlier reasoning? (llm.MODELS)
     python -m clocktower fingerprint --check          # does every recorded seed still replay identically?
     python -m clocktower smoke --script carousel-1    # random-bot games of a script at every size: no crash?
+    python -m clocktower fuzz run --games 2000 --out /tmp/fuzz   # random scripts of every built character: invariants
     python -m clocktower fetch 'v17/f3-*'             # download game logs from the Hugging Face dataset
     python -m clocktower replay games/X --view Casey  # re-read a game from one seat (or public/omniscient)
     python -m clocktower watch                        # spectator app at http://127.0.0.1:8800
@@ -283,7 +284,7 @@ def parse_only(spec):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] in ('allocate', 'mixed', 'memory-check', 'fingerprint', 'smoke'):  # own argument parsers
+    if argv and argv[0] in ('allocate', 'mixed', 'memory-check', 'fingerprint', 'smoke', 'fuzz'):  # own parsers
         from importlib import import_module
         return import_module(f'.{argv[0].replace("-", "_")}', __package__).main(argv[1:])
     ap = argparse.ArgumentParser(prog='clocktower', description='Blood on the Clocktower (Trouble Brewing) played by '
@@ -327,7 +328,8 @@ def main(argv=None):
                        ('mixed', 'mixed-team analysis (clocktower/mixed.py)'),
                        ('memory-check', 'does a model see its own earlier reasoning next turn? (for llm.MODELS)'),
                        ('fingerprint', 'check that recorded seeds replay identically (clocktower/fingerprint.py)'),
-                       ('smoke', 'random-bot games of a script at every size, with no crash (clocktower/smoke.py)')):
+                       ('smoke', 'random-bot games of a script at every size, with no crash (clocktower/smoke.py)'),
+                       ('fuzz', 'random scripts from every built character, invariants checked (clocktower/fuzz.py)')):
         sub.add_parser(name, help=text)  # dispatched above, before parsing
     fp = sub.add_parser('fetch', help='download game logs from the Hugging Face dataset (e.g. v9/e1-*)')
     fp.add_argument('patterns', nargs='+')
