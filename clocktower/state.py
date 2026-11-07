@@ -581,6 +581,8 @@ class Grimoire:
         even a spent once-per-game one. `source` names the ability (for the log)."""
         p.alive, p.seems_dead, p.ghost_vote = True, False, True
         self.spent.discard(p.character)
+        if p.character in self.notes.get('Used', {}).get(p.name, ()):  # (spent per player: snv.use)
+            self.notes['Used'][p.name] = [x for x in self.notes['Used'][p.name] if x != p.character]
         self.revivals.append({'player': p.name, 'day': self.day, 'source': source})
 
     def jinxed(self, a, b):

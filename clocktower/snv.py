@@ -798,7 +798,9 @@ class Seamstress(Townsfolk):
 
     async def resolve_night(self, game, night):
         g = game.g
-        for se, _ in holders(g, night, self.name):  # a Philosopher-Seamstress too, each once
+        # a Philosopher-Seamstress too, each once; and a player who only believes they are the Seamstress (the Drunk,
+        # custom scripts), who is woken and answered as one and spends it as one
+        for se in [q for q in believers(g, self.name) if q.name in night.chosen]:
             pair = night.chosen.get(se.name, [])
             if len(pair) != 2 or used(g, se, self.name):
                 continue  # declined (one player named counts as declining: a reading)
@@ -1053,11 +1055,13 @@ class Philosopher(Townsfolk):
 
     async def resolve_night(self, game, night):
         g = game.g
-        for p in [q for q in g.players if q.alive and self.name in g.abilities(q)]:
+        for p in [q for q in believers(g, self.name) if q.name in night.chosen]:
             c = night.characters.get(p.name)
-            if not c or used(g, p, self.name) or p.name not in night.chosen:
+            if not c or used(g, p, self.name):
                 continue
             use(g, p, self.name)  # spent even if drunk or poisoned
+            if self.name not in g.abilities(p):
+                continue  # a player who only believes they are the Philosopher (the Drunk): spent, nothing gained
             if not g.works(p, self.name):
                 failed(game, p, self.name, 'gained no ability')
                 continue

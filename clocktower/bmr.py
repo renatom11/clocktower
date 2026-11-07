@@ -17,6 +17,27 @@ def ability(name):
     return official.role(name)['ability']
 
 
+# Once-per-game abilities spent per player (snv.used/use/fresh; loaded later than this module, so imported when used)
+def once_used(g, p, name):
+    from .snv import used
+    return used(g, p, name)
+
+
+def once_use(g, p, name):
+    from .snv import use
+    use(g, p, name)
+
+
+def once_fresh(g, p, name):
+    from .snv import fresh
+    fresh(g, p, name)
+
+
+def believers(g, name):
+    from .snv import believers
+    return believers(g, name)
+
+
 # ---- Minions ---------------------------------------------------------------------------------------------------
 
 def outsiders_choice(g, p):
@@ -375,22 +396,28 @@ class Courtier(Townsfolk):
                                  'choose none, and keep your ability.')
 
     def night_spec(self, game, me, night):
-        return None if game.g.spent_ability(self.name) else self.night_choice
+        return None if once_used(game.g, me, self.name) else self.night_choice
 
     async def resolve_night(self, game, night):
         g = game.g
-        c = g.with_character(self.name)
-        chosen = night.characters.get(c.name) if c else None
-        if not chosen:
-            return
-        works = g.works(c, self.name)
-        g.spend(self.name)  # used even while drunk: not woken again
-        target = next((p for p in g.players if p.character == chosen), None)  # in play, alive or dead
-        if target and works:
-            # tonight and the next two nights and days: until the dusk before night n + 3. Paused while the Courtier is
-            # drunk, poisoned or dead; a Courtier who chooses themself is simply drunk (a reading)
-            g.add(State('drunk', target.name, source=c.name, until=night.n + 3, ends_with_source=True,
-                        while_source_works=target is not c))
+        # spent per player (snv.use): a Philosopher who gained it and the Courtier, drunk, each have one; a Drunk who
+        # believes they are the Courtier spends theirs too, and is not woken again
+        for c in [q for q in believers(g, self.name) if q.name in night.chosen]:
+            chosen = night.characters.get(c.name)
+            if not chosen or once_used(g, c, self.name):
+                continue
+            works = g.works(c, self.name)
+            g.spend(self.name)  # (the Grimoire's record of spent abilities)
+            once_use(g, c, self.name)  # used even while drunk: not woken again
+            target = next((p for p in g.players if p.character == chosen), None)  # in play, alive or dead
+            if target and works:
+                # tonight and the next two nights and days: until the dusk before night n + 3. Paused while the
+                # Courtier is drunk, poisoned or dead; a Courtier who chooses themself is simply drunk (a reading)
+                g.add(State('drunk', target.name, source=c.name, until=night.n + 3, ends_with_source=True,
+                            while_source_works=target is not c))
+
+    def becomes(self, game, me):
+        once_fresh(game.g, me, self.name)  # a new Courtier's ability is fresh
 
 
 class Minstrel(Townsfolk):
@@ -540,20 +567,26 @@ class Professor(Townsfolk):
                                  'resurrected. Or choose no one, and keep your ability.')
 
     def night_spec(self, game, me, night):
-        return None if game.g.spent_ability(self.name) else self.night_choice
+        return None if once_used(game.g, me, self.name) else self.night_choice
 
     async def resolve_night(self, game, night):
         g = game.g
-        prof, t = night.choice_of(g, self.name)
-        if not t:
-            return
-        works = g.works(prof, self.name)
-        g.spend(self.name)  # gone even if nothing happens (an Outsider, a Minion, a Demon, or a drunk Professor)
-        p = g[t]
-        if works and not p.alive and kind(p.character) == 'Townsfolk':
-            g.revive(p, self.name)  # alive at dawn (not why); they wake later tonight if their step comes later
-            night.revived.append(p)
-            await rules(p.character).resurrected(game, p, night)
+        # spent per player, as the Courtier's: every player woken at this step who chose, drunk or not
+        for prof in [q for q in believers(g, self.name) if q.name in night.chosen]:
+            t = (night.chosen[prof.name] or [None])[0]
+            if not t or once_used(g, prof, self.name):
+                continue
+            works = g.works(prof, self.name)
+            g.spend(self.name)  # (the Grimoire's record of spent abilities)
+            once_use(g, prof, self.name)  # gone even if nothing happens (an Outsider, a Minion, a Demon, or drunk)
+            p = g[t]
+            if works and not p.alive and kind(p.character) == 'Townsfolk':
+                g.revive(p, self.name)  # alive at dawn (not why); they wake later tonight if their step comes later
+                night.revived.append(p)
+                await rules(p.character).resurrected(game, p, night)
+
+    def becomes(self, game, me):
+        once_fresh(game.g, me, self.name)  # a new Professor's ability is fresh
 
 
 # ---- The information Townsfolk, the Gossip, and the Outsiders ---------------------------------------------------
@@ -577,7 +610,7 @@ def grandmother_choice(g, gm, child):
     with any good character; when misinformed, a false pair (an evil player, usually, as a good character, or a good
     player as a character they are not), never the Grandmother's own character."""
     true = {'players': [child], 'character': g[child].character}
-    impaired = g.impaired(gm)
+    impaired = g.unreliable(gm, 'Grandmother')  # drunk, poisoned, or the Vortox (custom scripts)
     others = [q.name for q in g.players if q is not gm]
     values = [{'players': [x], 'character': c} for x in others for c in g.script.good] if impaired else [true]
     if true not in values:  # (custom scripts: a Grandchild the Kazali made a Minion before the first night)
@@ -651,7 +684,7 @@ def chambermaid_choice(g, cm, pair, n):
         woke |= {q.name for q in g.players if q.alive and (q.shown == 'Mathematician'
                                                           or 'Mathematician' in g.abilities(q))}
     true = sum(1 for x in pair if x in woke)
-    impaired = g.impaired(cm)
+    impaired = g.unreliable(cm, 'Chambermaid')  # drunk, poisoned, or the Vortox (custom scripts)
     values = [0, 1, 2] if impaired else [true]
 
     def style(r):

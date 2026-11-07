@@ -624,7 +624,8 @@ class ScarletWoman(Minion):
         return g.works(me, self.name) and alive_before >= 5
 
     def on_death(self, game, me, dead, cause, alive_before):
-        if dead.is_demon and cause != 'starpass' and self.takes_over(game.g, me, alive_before):
+        # a Demon that only seems to die (the Zombuul's first death: it lives on, registering as dead) has not died
+        if dead.is_demon and not dead.alive and cause != 'starpass' and self.takes_over(game.g, me, alive_before):
             two = game.g.script.jinxed(self.name, 'Fang Gu') or game.g.script.jinxed(self.name, 'Al-Hadikhia')
             if two and any(q.is_demon and q.alive and q is not dead and q is not me for q in game.g.players):
                 return  # the Fang Gu and Al-Hadikhia jinxes: there would be two Demons, so she stays the Scarlet Woman

@@ -5128,9 +5128,9 @@
 "players": 8,
 "seed": 8018,
 "minion": "Pit-Hag",
-"sha": "bb67d018835cefac9876cbbcff3f942fd4f9c1f3508bbf27491ef878517364d3",
+"sha": "6ae660eed88fd6cd4ec3175656a247009f554601ea1c92f94929d5224ae44d6f",
 "winner": "evil",
-"days": 7,
+"days": 8,
 "starting": [
 "Drunk",
 "Imp",
@@ -5488,7 +5488,7 @@
 "players": 8,
 "seed": 8038,
 "minion": "Pit-Hag",
-"sha": "89ce99413b8236929848e816f7ae5fb1d91f629930a0bc7d30bfd0086bdde21f",
+"sha": "7c13a4a9e0a3b401dd305f8d0d56c3ceae76bcc50b5a8dd417f525a31951b0d7",
 "winner": "good",
 "days": 2,
 "starting": [
@@ -6154,9 +6154,9 @@
 "players": 8,
 "seed": 8075,
 "minion": "Mastermind",
-"sha": "f877e2d70989b92570f24b73ec200b74e86cd886f7d8050a242c930ba57e9bef",
-"winner": "good",
-"days": 5,
+"sha": "7ca15774c408c4ecdbce3216398048234098664769ccdb5768d5a498b471661f",
+"winner": null,
+"days": 10,
 "starting": [
 "Drunk",
 "Empath",
@@ -6442,7 +6442,7 @@
 "players": 8,
 "seed": 8091,
 "minion": "Mastermind",
-"sha": "bd6254aa338e4d7ef252fab736be497e7ab96abe60c2fb7b7d9cd98de788c5d9",
+"sha": "c46b1fe1553d75c8d00e4f605290ffe8f18c8cac3d6ae6ca12886a070fc475e4",
 "winner": "evil",
 "days": 6,
 "starting": [
@@ -7516,7 +7516,7 @@
 "players": 9,
 "seed": 9048,
 "minion": "Poisoner",
-"sha": "cb81d473bf3677a120ce6c19bc978829c3135fa51bd882a166f55997d14b3359",
+"sha": "8bd5406144da3eabf9f32aaca24caaaadbeda1ffb8aa10cad7c877cf7544d7fc",
 "winner": "evil",
 "days": 9,
 "starting": [
@@ -7934,7 +7934,7 @@
 "players": 9,
 "seed": 9070,
 "minion": "Pit-Hag",
-"sha": "64066239c1b24589ada5c9c225f5b988840066e5388148026fb7879fca8804cf",
+"sha": "13f6e80c54fe84c7fb045d50859f7906e93ea12bbbf9a0000b87111b54961576",
 "winner": "good",
 "days": 1,
 "starting": [
@@ -8124,7 +8124,7 @@
 "players": 9,
 "seed": 9080,
 "minion": "Poisoner",
-"sha": "2aef1c60e14717e158b8a7b786e23c29b3b690463fd840b7254899db5f03d497",
+"sha": "df21c4ddcd3bd20f47bdfb93a3eeaddde91cb150cafb9464fd9141972e1cf567",
 "winner": "good",
 "days": 10,
 "starting": [
@@ -11071,7 +11071,7 @@
 "players": 11,
 "seed": 11027,
 "minion": "Mastermind",
-"sha": "0092bf78901bb1b650e9f2c48086b3939534305caab648f6add6a796f7aa9012",
+"sha": "abb0fa8b85b371750856a2575c610fa214d858944ab0181c642c56a98dd1ce8c",
 "winner": null,
 "days": 10,
 "starting": [
@@ -12520,7 +12520,7 @@
 "players": 11,
 "seed": 11096,
 "minion": "Poisoner",
-"sha": "3c3cdd23d410d7ce6d9f7ab8a1b2e6d5dc5fe0d8be26b34e60160a67b5dba750",
+"sha": "f1dd674cecf06e5bb1906bf75a857bc2d08388a9fb84650661b824dba35aa451",
 "winner": "good",
 "days": 1,
 "starting": [
@@ -13308,9 +13308,9 @@
 "players": 12,
 "seed": 12032,
 "minion": "Poisoner",
-"sha": "365d43d70ebe4a9f99620ecedd01d32c9a1c1eac4923dae432e3c8fd338f2a85",
+"sha": "2636da6c8162e2dba1fa93e300893ffc7a14a87cf2731d7083ff183552bec8bc",
 "winner": "evil",
-"days": 8,
+"days": 5,
 "starting": [
 "Dreamer",
 "Drunk",
@@ -15264,9 +15264,9 @@
 "players": 13,
 "seed": 13020,
 "minion": "Poisoner",
-"sha": "8c2dd75ae1903f9770ac5b008ee67e4f3e455d4ccf93acbe08fef68817069735",
-"winner": "good",
-"days": 7,
+"sha": "f545d123f08fa854bb2f793f4c4c644bb0d99146c68d5804b8149a3275477f9f",
+"winner": null,
+"days": 10,
 "starting": [
 "Chambermaid",
 "Dreamer",
@@ -16276,7 +16276,7 @@
 "players": 13,
 "seed": 13064,
 "minion": "Poisoner",
-"sha": "05975a9e1c7725240684c0d75d0cd85b6613f693611a4bda39e32ab042f9ee9c",
+"sha": "d64ff4b1eeb8d5f417ab34ecd706fe4a16059c0d12f47376e9bff5b2f2955488",
 "winner": null,
 "days": 10,
 "starting": [
@@ -17920,7 +17920,7 @@
 "players": 14,
 "seed": 14034,
 "minion": "Pit-Hag",
-"sha": "e5ab7bf7ca2428f37bc987b61ea4c174bcbd582d838a74794ae28f759277daf1",
+"sha": "facca356b46e8c1819a30d61a8d8b1c3ec4f00e82f96fc8854c62cd64954b824",
 "winner": "good",
 "days": 2,
 "starting": [
@@ -17992,7 +17992,7 @@
 "players": 14,
 "seed": 14037,
 "minion": "Scarlet Woman",
-"sha": "e33956808d877acedf407d4b51e51511fdbc2c598b827d8f1ff678e7847b1079",
+"sha": "a8547a6e26583d849c1d7acc2904ee511972902f2dddba313be23e5b1a93e3fc",
 "winner": null,
 "days": 10,
 "starting": [
@@ -21654,7 +21654,7 @@
 "players": 15,
 "seed": 15086,
 "minion": "Pit-Hag",
-"sha": "b3058383a683ceaa642437a8a86865aedb087bd2a19ef1c8aefc1d7030dba1ab",
+"sha": "3b70d245ed79f2807e539d474c544cb0c894b11a10fd8c0b672e48657f2a1993",
 "winner": "evil",
 "days": 6,
 "starting": [
