@@ -213,6 +213,16 @@ POLICY = {
     'pithag_kill_old_demon': 0.8,   # a new evil Demon: the old Demon dies tonight ("best to kill the old Demon")
     'pithag_final_kill': 0.8,       # a good Demon on the final night: the evil Demon dies ("kill either Demon")
     'final_night_alive': 4,         # a night is the final one when this many players or fewer are alive at dusk
+    # the Dreamer's false character. The almanac: for a good player, "any Minion or Demon"; the wiki: "almost always
+    # show real Dreamers in-play Minions"; for an evil player, "you can help the evil team if you show ... the good
+    # character that this evil player is bluffing as, or ... a more secretive character". Default, for review.
+    'dreamer_minion_in_play': 0.5,  # a good player's false character is a Minion in play (else any evil character)
+    'dreamer_bluff': 0.5,           # an evil player who claimed a good character aloud is shown as it
+    'dreamer_secretive': 0.3,       # otherwise, a secretive good character (Snake Charmer, Sage, Mutant, Klutz)
+    # the Sage's second player. The almanac: "If the Sage dies early, you will probably want to show the Sage two
+    # alive players ... If the Sage dies on the final night, feel free to show one alive and one dead player".
+    # Default, for review.
+    'sage_alive': 0.9,              # before the final night, the other player shown is alive (else anyone)
     # the Storyteller judge (judge.py, when one is chosen; never in TB's protocol v17): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
@@ -284,12 +294,15 @@ class Grimoire:
         self.spent = set()          # once-per-game abilities used (by character)
         self.death_log = []         # every death, real or apparent: {player, cause, source, day, phase}
         self.woke = {}              # night -> players woken to use their own ability (the Chambermaid)
-        self.nominations = []       # every nomination: {day, nominator, nominee, votes, voters, outcome}
+        self.nominations = []       # every nomination: {day, nominator, nominee, votes, voters, outcome, and the
+        #                             characters of the nominator (character) and voters (characters) then}
         self.last_choices = {}      # player -> who they chose on their last night choice (the Po)
         self.night_choices = {}     # night -> {player: who they chose that night} ("last night": the Exorcist)
         self.executions = []        # every execution, killing or not: {player, day, died} (the Mastermind's day)
         self.revivals = []          # every return to life: {player, day, source} (the Shabaloth's budget)
         self.notes = {}             # an ability's own bookkeeping across nights (the Mastermind's extra day)
+        self.abnormal = []          # abilities that worked abnormally due to another's: {player, ability, why, day,
+        #                             phase} (Game.abnormal; the Mathematician counts them since dawn)
         self.day = 0
         self.executed_death = None  # who died by execution today (Undertaker)
         self.alive_at_execution = 0  # players alive just before that execution
@@ -311,6 +324,7 @@ class Grimoire:
         self.__dict__.setdefault('executions', [])
         self.__dict__.setdefault('revivals', [])
         self.__dict__.setdefault('notes', {})
+        self.__dict__.setdefault('abnormal', [])
         if 'states' not in d:
             self.states, self.spent = [], set()
             for kind_, name in (('poisoned', old['poisoned']), ('safe', old['protected']), ('master', old['master'])):

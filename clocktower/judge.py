@@ -394,8 +394,9 @@ class RulesJudge(Judge):
         for who, claim in claims(game, self.hears).items():
             if not g[who].evil or kind(claim) not in ('Townsfolk', 'Outsider'):
                 continue
-            match = [v for v in choice.values if v.get('character') == claim
-                     and (who == ctx.get('about') or who in v.get('players', []))]
+            match = [v for v in choice.values if (v.get('character') == claim or
+                                                  (who == ctx.get('about') and claim in v.get('characters', [])))
+                     and (who == ctx.get('about') or who in v.get('players', []))]  # (the Dreamer's pair)
             if match:
                 out.append((match, f'{who} claimed the {claim}: support the bluff'))
         return out

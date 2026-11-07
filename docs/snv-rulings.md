@@ -122,3 +122,74 @@ Pit-Hag-deaths and Vigormortis-poison decisions go through the Storyteller judge
 Not yet done, for later batches: the S&V player prompt (madness, what the Storyteller hears, the Vortox's dusk
 rule), visits to the Storyteller, and the Townsfolk and Outsiders (the Mutant uses `Game.judge_madness` with
 `must=False`; the Snake Charmer and Barber use `Game.swap`).
+
+## Batch 2: the information Townsfolk, and the Snake Charmer
+
+Every result is a Choice with its truth (what a working ability could show) through `Game.decide_judged`, so a
+drunk or poisoned player (the No Dashii's neighbours) may be misinformed, falsified information (the Vortox) is only
+false, and the judge sees the call as `information`. A misinformed result comes from the recipient's false world
+(`Grimoire.decoy`) where the ability has one (the Clockmaker, Oracle, Seamstress), so it never breaks the setup's
+counts.
+
+### The core
+
+22. **The abnormal record (the Mathematician).** `Game.abnormal(p, ability, why)` records, in `Grimoire.abnormal`,
+    an ability that worked abnormally because of another character's ability, with the day and phase. Two sources:
+    (a) every information decision whose value a working ability could not give (`Game.note_information`, run by
+    `decide_judged` for any `information` call with a truth): a poisoned or drunk player's false result, and every
+    falsified one under the Vortox (the almanac counts the Vortox's victims); a poisoned player's true result is not
+    abnormal (the almanac's Empath). (b) S&V abilities that would have acted but their holder is drunk or poisoned:
+    the Demon's attack, the Witch's curse (made, or a cursed nominator who lives: the almanac's example), the
+    Cerenovus's madness, the Pit-Hag's change (only when the character is not in play: it would have worked), the
+    Snake Charmer charming the Demon (not a Townsfolk: the almanac's example), and the Evil Twin when the good twin
+    is executed. **Not recorded** (options for review): a kill stopped by a protection (none on S&V); the Pit-Hag's
+    "Demon kills stopped"; a drunk or poisoned No Dashii or Vortox (their effects are continuous); the Recluse
+    registering as evil, which the almanac says counts (not on S&V: the truth sets include registration); the
+    Drunk's own false results (the official Mathematician/Drunk jinx says they count, on scripts with both).
+    Nothing is emitted, so Trouble Brewing and Bad Moon Rising play identically.
+23. **Since dawn.** On night n the Mathematician counts the players with a record on day n-1 or tonight (on the
+    first night, since the game began); distinct players, as the almanac counts reminders. Their own records are
+    not counted (they "do not detect their own ability failing"), but another Mathematician would count them.
+24. **Votes and nominations as they happened** (`Grimoire.nominations`). Each vote now records the voters'
+    characters (`characters`), and each nomination the nominator's (`character`), so the Flowergirl detects the
+    Demon who voted even if they changed character later (a Snake Charmer's swap that night), and the Town Crier
+    the Minion who nominated. A dead Demon's ghost vote counts. Registration (a Recluse as a Demon) is not
+    consulted: none on S&V.
+25. **The rules judge supports a bluff in a pair of characters** (the Dreamer): a value whose `characters` hold the
+    character the chosen evil player claimed ranks first, as a single `character` already did.
+
+### Townsfolk
+
+26. **The Clockmaker** counts seats the short way, the dead included, from any Demon to any player whose character
+    is a Minion (by type: a good Minion counts, as the Pit-Hag can make one). Impaired values are 1 to half the
+    table. **A player who becomes the Clockmaker after the first night learns the number at once** (the Barber's
+    almanac: a new character's ability is theirs even if it is "you start knowing"). Options: at the next night;
+    never.
+27. **The Dreamer.** By character type, not alignment (a good Witch is shown as the Witch and a good character).
+    The scripted false character: for a good-type player, an in-play Minion 50% (`dreamer_minion_in_play`; the
+    wiki: "almost always"), else any Minion or Demon; for an evil-type player, the good character they last claimed
+    aloud 50% (`dreamer_bluff`: the almanac's "help evil" example), else a secretive one 30% (`dreamer_secretive`:
+    Snake Charmer, Sage, Mutant, Klutz), else another, never the Dreamer's own. Misinformed or under the Vortox,
+    neither is correct. The scripted Storyteller reads claims made aloud only, as for madness.
+28. **The Snake Charmer.** Alive players only; choosing themself or a non-Demon does nothing. Charming the Demon
+    (by character: a good Demon too) swaps characters and alignments (`Game.swap`; two evil stay evil), both told at
+    once; the old Demon is then **poisoned for the rest of the game, even through later character changes** (a
+    reading of "permanently"). Option: the poison ends if they stop being the Snake Charmer. The new Demon learns
+    no Minions and acts tonight (the Demons' steps come later). **Not handled**: a Vigormortis charmed: its dead
+    Minions lose their abilities (they were kept through the old player). Option: the kept abilities follow the
+    Vigormortis to its new player. A Philosopher-Snake Charmer is for batch 3.
+29. **The Mathematician** misinformed: a number one or two off the truth (small numbers are usual). Under the
+    Vortox any number but the truth.
+30. **The Flowergirl and the Town Crier**: yes or no about the day just past, not on the first night; misinformed,
+    the opposite. A madness execution with no nominations gives a "no" (a "yes" under the Vortox: its example).
+31. **The Oracle** counts dead players (as the town sees them) by alignment, at its step after the Demon's kill: a
+    dead good Evil Twin is not evil, a Townsfolk turned evil is.
+32. **The Seamstress** may decline any night; naming one player is declining (a reading: the prompt asks for two
+    or none). The ability is spent once two are chosen, even drunk or poisoned. Dead players may be chosen.
+33. **The Sage** learns only when the Demon's own attack killed them tonight (the death log's cause `demon`: the
+    Vigormortis's and Fang Gu's attacks count; the Witch, the Pit-Hag's arbitrary deaths and executions do not). The
+    pair is the Demon that killed them and another player (never the Sage); before the final night the other is
+    alive 90% of the time (`sage_alive`), on it anyone. Misinformed: two players who are not that Demon, one dead
+    and one alive on the final night (the almanac's drunk Sage). Their sobriety at the step decides.
+
+New weights: `dreamer_minion_in_play` 0.5, `dreamer_bluff` 0.5, `dreamer_secretive` 0.3, `sage_alive` 0.9.

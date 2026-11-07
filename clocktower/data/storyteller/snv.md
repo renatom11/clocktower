@@ -74,3 +74,62 @@ ability is false, sober or not; choose false answers that mislead rather than on
 support evil's bluffs. A character or alignment change is not information and is always true; Outsiders' and
 Minions' information is unaffected. At each dusk, if nobody was executed today (an execution of a dead player, or a
 madness execution, counts), evil wins.
+
+## Clockmaker
+On the first night the Clockmaker learns how many steps it is from the Demon to its nearest Minion, counting seats
+round the circle the shorter way, starting with the Demon's neighbour (next to each other is 1). The dead count as
+seats; Minions are counted by character type, so a good Minion counts. A drunk or poisoned Clockmaker (a No Dashii
+neighbour) should get a plausible wrong number, and under the Vortox it must be wrong. A player who becomes the
+Clockmaker later learns the number at once. Evil often claims the Clockmaker on day one with a small number.
+
+## Dreamer
+Each night the Dreamer picks another player and sees two characters, one good and one evil, one of which is theirs.
+For a Townsfolk or Outsider, show their character and a Minion or Demon (an in-play Minion misleads well); for a
+Minion or Demon, show their character and a Townsfolk or Outsider. To help evil, show the good character the evil
+player is claiming, or a quiet character such as the Snake Charmer, Sage, Mutant or Klutz; to help good, one nobody
+claims. A Philosopher is shown as the Philosopher. Drunk, poisoned or under the Vortox, neither character is right.
+
+## Snake Charmer
+Each night the Snake Charmer picks a living player. Anyone but the Demon: nothing happens. The Demon: the two swap
+characters and alignments at once; the old Demon becomes the good Snake Charmer and is poisoned for the rest of the
+game; both are told what they now are. If both were evil (a Pit-Hag who made themself the Snake Charmer), both stay
+evil. A drunk or poisoned Snake Charmer who picks the Demon swaps nothing, which the Mathematician detects. The swap
+is not information: the Vortox doesn't touch it. The new Demon learns no Minions and may kill tonight.
+
+## Mathematician
+Each night the Mathematician learns how many players' abilities went wrong since dawn because of another
+character: information that should have been true but was false (a poisoned No Dashii neighbour's, every Townsfolk's
+under the Vortox), or an ability that should have worked but did not (a poisoned Demon's kill, a drunk Witch's cursed
+nominator who lived, a poisoned Snake Charmer who picked the Demon). Being drunk or poisoned alone is not counted, nor
+is a poisoned player's information that happened to be true, nor the Mathematician's own. Under the Vortox the number
+itself is false. Usual answers are 0 or 1; a sudden jump suggests a new No Dashii.
+
+## Flowergirl
+Each night but the first, the Flowergirl learns whether a Demon voted today, for any nomination, whether or not
+anyone was executed. Any Demon counts, even a dead one using their ghost vote, or one who has since changed character
+(the Demon at the time of the vote is what counts). Drunk or poisoned, the answer may be wrong; under the Vortox it is
+the opposite of the truth (a day with no votes gives a yes). The Flowergirl needs to track who voted.
+
+## Town Crier
+Each night but the first, the Town Crier learns whether any Minion nominated today (not who, nor how many). A Minion
+is judged by character type when they nominated: a good Minion counts, an evil Townsfolk does not. Drunk or
+poisoned, the answer may be wrong; under the Vortox it is the opposite (a day with no nominations gives a yes).
+Minions who know a Town Crier is out let others nominate, so a steady no is weak evidence.
+
+## Oracle
+Each night but the first, after the Demon's kill, the Oracle learns how many dead players are evil by alignment: dead
+Minions and Demons, Townsfolk or Outsiders turned evil, but not a good Minion or Demon. Drunk or poisoned, give a
+plausible wrong count; under the Vortox any count but the true one. A dead evil Evil Twin counts; their good twin does
+not. The Oracle tells the town whether its executions have been finding evil, and counters a Vigormortis.
+
+## Seamstress
+Once per game, at night, the Seamstress may pick two other players, alive or dead, and learns whether they are on
+the same team (alignment, not character type: a good Witch and a Townsfolk are the same). They may decline as many
+nights as they like; once they pick, the ability is gone, even if they were drunk or poisoned. Misinformed or under
+the Vortox, the answer is wrong. The two Twins are always of different alignments.
+
+## Sage
+If the Demon's own attack kills the Sage at night, they wake and are shown two players, one of whom is the Demon that
+killed them. Other deaths (the Witch, an execution, the Pit-Hag's arbitrary deaths) give nothing. Early in the game,
+show two living players so evil keeps a chance; on the final night one may be dead. A drunk or poisoned Sage (a No
+Dashii neighbour) is usually shown two players who are not that Demon; under the Vortox they never include it.

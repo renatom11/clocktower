@@ -230,7 +230,13 @@ class Game:
     async def decide_judged(self, choice):
         """A decision that needs judgment (misinformation, misregistration, a statement's truth): the judge ranks
         the legal values and the code picks from the ranking with fixed weights (POLICY 'judge_top' for the first,
-        'judge_second' for the second, otherwise the scripted style). With no judge, the same as decide()."""
+        'judge_second' for the second, otherwise the scripted style). With no judge, the same as decide(). False
+        information is recorded as an abnormal result (Game.abnormal)."""
+        value = await self._decide_judged(choice)
+        self.note_information(choice, value)
+        return value
+
+    async def _decide_judged(self, choice):
         choice = self.false_only(choice)
         if self.judge is None or choice.auto:  # exactly decide(): the same value and random draws
             return self.decide(choice)
@@ -249,6 +255,32 @@ class Game:
                                 'judge': {'mode': self.judge.mode, 'ranked': [fmt(v) for v in ranking[:3]],
                                           'took': took, 'reason': reason}}, 'audit')
         return value
+
+    def abnormal(self, p, ability, why):
+        """Record that p's `ability` worked abnormally because of another character's ability (the Mathematician's
+        ABNORMAL reminder): information that should have been true was false, or an ability that should have worked
+        didn't (a poisoned Demon's kill, a drunk Witch's curse). Kept in the Grimoire with when it happened (the day
+        number and the phase: 'night', or 'day' for any point of the day), so "since dawn" can be counted. Nothing is
+        emitted: no one is told."""
+        self.g.abnormal.append({'player': p.name, 'ability': ability, 'why': why, 'day': self.day,
+                                'phase': 'night' if self.tonight is not None else 'day'})
+
+    def note_information(self, choice, value):
+        """An information decision whose value a working ability could not give (`choice.truth`) is abnormal: the
+        recipient was drunk or poisoned by an ability, or their information was falsified (the Vortox). True
+        information for an impaired player is not (the almanac: the poisoned Empath getting true information). The
+        Drunk's own drunkenness is not another character's ability (a reading: the Mathematician/Drunk jinx says
+        otherwise, on scripts with both)."""
+        ctx = choice.context or {}
+        if ctx.get('call') != 'information' or choice.truth is None or self.g is None:
+            return
+        p = self.g.by_name.get(ctx.get('recipient'))
+        ability = ctx.get('ability') or (p.shown if p else None)
+        if p is None or choice.truth(value):
+            return
+        if rules(p.character).always_drunk and not self.g.falsified(p, ability):
+            return
+        self.abnormal(p, ability, 'false information')
 
     def false_only(self, choice):
         """An information Choice whose recipient's information must be false (Grimoire.falsified: the Vortox) offers
@@ -876,7 +908,10 @@ class Game:
         self.emit('vote_result', {'nominee': nominee, 'votes': count, 'needed': required, 'outcome': outcome,
                                   'voters': yes})
         if g.nominations and g.nominations[-1]['nominee'] == nominee:
-            g.nominations[-1].update(votes=count, voters=list(yes), outcome=outcome)
+            # the voters' characters as they voted (the Flowergirl detects a Demon who voted, even one who changed
+            # character later that day or night)
+            g.nominations[-1].update(votes=count, voters=list(yes), outcome=outcome,
+                                     characters={x: g[x].character for x in yes})
         return block, top
 
     async def nominations(self):
@@ -916,7 +951,8 @@ class Game:
             nominators.add(nominator)
             nominees.add(nominee)
             self.emit('nomination', {'nominator': nominator, 'nominee': nominee, 'text': accusation})
-            g.nominations.append({'day': n, 'nominator': nominator, 'nominee': nominee})
+            g.nominations.append({'day': n, 'nominator': nominator, 'nominee': nominee,
+                                  'character': g[nominator].character})  # the nominator's, as they nominated
             if await self.virgin_judged(nominator, nominee):
                 return
             if await self.nomination_judged(nominator, nominee):
