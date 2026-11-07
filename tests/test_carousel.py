@@ -25,6 +25,12 @@ BLANK = {'say': '', 'whispers': [], 'nominate': None, 'vote': None, 'targets': [
 BASE = ('tb', 'bmr', 'snv')
 JINXES = [('Mastermind', 'Vigormortis'), ('Mathematician', 'Chambermaid'), ('Mathematician', 'Drunk'),
           ('Mathematician', 'Lunatic'), ('Pit-Hag', 'Goon'), ('Recluse', 'Sage'), ('Scarlet Woman', 'Fang Gu')]
+# batch 1's (tests/test_carousel1.py)
+JINXES1 = [('Al-Hadikhia', 'Mastermind'), ('Magician', 'Spy'), ('Pit-Hag', 'Damsel'), ('Pit-Hag', 'Politician'),
+           ('Plague Doctor', 'Baron'), ('Plague Doctor', 'Evil Twin'), ('Plague Doctor', 'Scarlet Woman'),
+           ('Plague Doctor', 'Spy'), ('Scarlet Woman', 'Al-Hadikhia'), ('Spy', 'Damsel'), ('Summoner', 'Clockmaker'),
+           ('Summoner', 'Courtier'), ('Summoner', 'Hatter'), ('Summoner', 'Pit-Hag'), ('Summoner', 'Pukka'),
+           ('Summoner', 'Zombuul'), ('Vortox', 'Banshee')]
 
 
 def run(coro):
@@ -174,7 +180,7 @@ class JinxFrameworkTests(unittest.TestCase):
     def test_every_official_jinx_between_built_characters_is_implemented(self):
         built = {frozenset(p) for p in official.jinxes() if set(p) <= set(ch.CHARACTERS)}
         self.assertEqual(built, set(ch.IMPLEMENTED_JINXES))
-        self.assertEqual(built, {frozenset(p) for p in JINXES})
+        self.assertEqual(built, {frozenset(p) for p in JINXES + JINXES1})
         with self.assertRaises(ValueError):
             ch.jinx('Imp', 'Washerwoman', 'nowhere')
 
@@ -219,7 +225,7 @@ class JinxTest(unittest.TestCase):
 
     def script(self, chars, jinxed):
         real = [c for c in dict.fromkeys(chars) if c not in {f.name for f in FILLERS}]
-        on = [p for p in JINXES if set(p) <= set(real)] if jinxed else []
+        on = [p for p in JINXES + JINXES1 if set(p) <= set(real)] if jinxed else []
         return ch.Script.of('carousel-test', [f.name for f in FILLERS] + real, official.night_order(real, True),
                             official.night_order(real, False), jinxes=on)
 

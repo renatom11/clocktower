@@ -8,3 +8,8 @@ of protocol v17, because random setups draw from it in this order.
 `carousel-1.json` ("Carousel test 1") is a synthetic test script, not a published one: characters already built from
 Trouble Brewing, Bad Moon Rising and Sects & Violets, chosen so that all seven official jinxes between them are on it
 (docs/carousel-rulings.md) and every table size from 5 to 15 can be dealt. Its games are protocol `custom-carousel-1`.
+
+`carousel-2.json` ("Carousel test 2") is the second: the thirteen experimental characters of batch 1 (Banshee, Damsel,
+Steward, Nightwatchman, Al-Hadikhia, Magician, Golem, Summoner, Ojo, Fisherman, Plague Doctor, Hatter, Politician) with
+built characters chosen so that all seventeen official jinxes between them and built characters are on it and every
+table size from 5 to 15 can be dealt. Its games are protocol `custom-carousel-2`.

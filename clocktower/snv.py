@@ -131,7 +131,7 @@ class Cerenovus(Minion):
                 return
 
 
-def arbitrary_deaths_choice(g, ph, new, was_demon):
+def arbitrary_deaths_choice(g, ph, new, was_demon, by='Pit-Hag'):
     """The Pit-Hag made a Demon: "deaths tonight are arbitrary". Who else dies tonight (at most two players, as
     attacks of the Pit-Hag), and whether the Demons' attacks still kill (yes). The scripted style follows the almanac:
     a Demon made into another Demon, usually nobody dies (the town sees the change); a new evil Demon, usually the
@@ -150,8 +150,8 @@ def arbitrary_deaths_choice(g, ph, new, was_demon):
             evil = [x for x in others if g[x].evil] or others
             return {'players': [r.choice(evil)], 'yes': True}
         return {'players': [], 'yes': True}
-    return judged(Choice(f'Pit-Hag deaths:{new.name}', values, style), 'arbitrary_deaths',
-                  f'The Pit-Hag ({ph.name}) made {new.name} ({new.alignment}) the {new.character}'
+    return judged(Choice(f'{by} deaths:{new.name}', values, style), 'arbitrary_deaths',
+                  f'The {by} ({ph.name}) made {new.name} ({new.alignment}) the {new.character}'
                   f'{" (they were a Demon)" if was_demon else ""}. Deaths tonight are arbitrary: who else dies '
                   '(players), and do the Demons\' attacks still kill (yes)? The almanac: a Demon into another Demon, '
                   'best that nobody dies; a new evil Demon, kill the old one; a good Demon, kill either Demon on the '
@@ -177,12 +177,16 @@ class PitHag(Minion):
             failed(game, ph, self.name, 'no change')
             return
         target = g[t]
+        if c == 'Damsel' and g.script.jinxed(self.name, c):
+            # the jinx (custom scripts): the Storyteller chooses which player becomes the Damsel (carousel.py)
+            from .carousel import damsel_choice
+            target = g[(await game.decide_judged(damsel_choice(g, ph, target)))['players'][0]]
         was_demon = target.is_demon
         await game.change(target, character=c)  # a dead player too; their alignment stays
-        if c == 'Goon' and g.script.jinxed(self.name, c):
-            # the jinx (custom scripts): an evil player made the Goon can't turn good by the Goon's ability; a good
-            # one made the Goon later is free again (docs/carousel-rulings.md, 9)
-            locked = g.notes.setdefault('Evil Goons', [])
+        if c in ('Goon', 'Politician') and g.script.jinxed(self.name, c):
+            # the jinxes (custom scripts): an evil player made the Goon (or the Politician) can't turn good by its own
+            # ability; a good one made it later is free again (docs/carousel-rulings.md, 9 and batch 1)
+            locked = g.notes.setdefault('Evil Goons' if c == 'Goon' else 'Evil Politicians', [])
             if target.evil and target.name not in locked:
                 locked.append(target.name)
             elif not target.evil and target.name in locked:
@@ -474,6 +478,9 @@ def clockmaker_choice(g, p):
     no Demon or no Minion. A misinformed Clockmaker gets the distance in their false world (Grimoire.decoy)."""
     demons = [q for q in g.players if q.is_demon]
     minions = [q for q in g.players if kind(q.character) == 'Minion']
+    if g.script.jinxed('Clockmaker', 'Summoner'):  # the jinx (custom scripts): the Summoner registers as the Demon
+        summoners = [q for q in minions if q.character == 'Summoner']
+        demons, minions = demons + summoners, [q for q in minions if q not in summoners]
     if not (demons and minions):
         return None
     true = min(steps_between(g, d, m) for d in demons for m in minions)

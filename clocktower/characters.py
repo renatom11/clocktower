@@ -99,6 +99,7 @@ class Character:
     #                          Artist): anyone may claim a visit on a private-time turn (`visited` answers it)
     public_guesses = 0       # its public day ability takes up to this many (player, character) guesses (the
     #                          Juggler's 5), passed to `act_publicly` as `guesses`
+    no_demon = False         # setup modifier: no Demon is dealt, a Townsfolk in its place (the Summoner's [No Demon])
 
     @property
     def evil(self):
@@ -249,6 +250,39 @@ class Character:
         """The game would end with `winner` for `reason`: None to let it, False to keep it going (the Mastermind's
         extra day), or a different (winner, reason)."""
         return None
+
+    def ended(self, g, me, winner, reason):
+        """The game has ended with `winner` for `reason` (no override kept it going): a new reason if `me`'s ability
+        acts now (the Politician changes alignment), else None."""
+        return None
+
+    # ---- hooks of the experimental characters (all no-ops by default, so other scripts play as before) ----------
+    def nomination_limit(self, g, me):
+        """How many nominations `me` may make today, or None for the usual rule (one, while alive): the Banshee's
+        two, even dead; a Golem who has nominated, none."""
+        return None
+
+    def vote_weight(self, g, me):
+        """How many votes `me`'s raised hand counts as (the Banshee's two)."""
+        return 1
+
+    def free_vote(self, g, me):
+        """Whether `me` may vote while dead without spending their ghost vote (the Banshee)."""
+        return False
+
+    def shown_to_evil(self, g, me, viewer):
+        """How `me` appears in `viewer`'s first-night evil information: 'Minion' (in the Demon's list of Minions),
+        'Demon' (pointed out to the Minions as the Demon), or None (as their character: the Magician's illusion)."""
+        return None
+
+    def told_evil(self, game, me, viewer):
+        """Lines added to the first-night information of `viewer`, an evil player, because `me` is in play (the
+        Minions learn a Damsel is in play)."""
+        return []
+
+    async def storyteller_step(self, game, night, character):
+        """At `character`'s step tonight, the Storyteller uses `character`'s ability, gained through `me`'s (the
+        Plague Doctor's): Game.night calls this for each ability in g.notes['Storyteller abilities']."""
 
     def card(self):
         return f'{self.name} ({self.kind}, {"evil" if self.evil else "good"} team): {self.ability}'
@@ -555,10 +589,18 @@ class Spy(Minion):
         return {me.character} if g.is_poisoned(me) else {self.name, *g.script.townsfolk, *g.script.outsiders}
 
     async def resolve_night(self, game, night):
-        spy = game.g.with_character(self.name)
+        g = game.g
+        # the Magician jinx (custom scripts): the Demon's and the Magician's tokens are removed from what the Spy sees
+        hidden = ([p.name for p in g.players if p.is_demon or p.character == 'Magician']
+                  if g.script.jinxed(self.name, 'Magician') else ())
+        spy = g.with_character(self.name)
         if spy and spy.alive:
             game.emit('info', {'text': f'Night {night.n} — Spy: you look at the Grimoire.\n'
-                                       + game.g.grimoire_text()}, [spy.name])
+                                       + g.grimoire_text(hidden=hidden)}, [spy.name])
+        for p in g.players:  # a Minion who gained the Spy's ability (the Plague Doctor jinx: carousel.PlagueDoctor)
+            if p.alive and p.character != self.name and self.name in getattr(p, 'extra', ()):
+                game.emit('info', {'text': f'Night {night.n} — Spy: you look at the Grimoire.\n'
+                                           + g.grimoire_text(hidden=hidden)}, [p.name])
 
 
 class ScarletWoman(Minion):
@@ -571,9 +613,11 @@ class ScarletWoman(Minion):
 
     def on_death(self, game, me, dead, cause, alive_before):
         if dead.is_demon and cause != 'starpass' and self.takes_over(game.g, me, alive_before):
-            if game.g.script.jinxed(self.name, 'Fang Gu') and any(
-                    q.is_demon and q.alive and q is not dead and q is not me for q in game.g.players):
-                return  # the Fang Gu jinx: there would be two Demons, so she stays the Scarlet Woman (a custom script)
+            two = game.g.script.jinxed(self.name, 'Fang Gu') or game.g.script.jinxed(self.name, 'Al-Hadikhia')
+            if two and any(q.is_demon and q.alive and q is not dead and q is not me for q in game.g.players):
+                return  # the Fang Gu and Al-Hadikhia jinxes: there would be two Demons, so she stays the Scarlet Woman
+            if game.g.script.jinxed(self.name, 'Al-Hadikhia'):  # (so a second Demon later turns her back: carousel)
+                game.g.notes.setdefault('Was Scarlet Woman', []).append(me.name)
             game.g.change_character(me, dead.character)
             game.emit('becomes', {'player': me.name, 'character': dead.character}, 'audit')
             game.emit('notice', {'text': f'The Demon has died — and because you are the Scarlet Woman, you are '

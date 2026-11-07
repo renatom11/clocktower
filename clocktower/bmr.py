@@ -132,10 +132,17 @@ class Mastermind(Minion):
         last = next((d for d in reversed(g.death_log) if g[d['player']].is_demon and not d.get('seems')), None)
         return bool(last and last['cause'] == 'execution' and last['day'] == g.day and not g.demon())
 
-    def overrides_end(self, g, me, winner, reason):
+    def overrides_end(self, g, me, winner, reason, works=None):
+        # `works`: whether the ability works, when someone else has it (the Storyteller's, through the Plague Doctor)
+        works = g.works(me, self.name) if works is None else works
+        if g.script.jinxed(self.name, 'Al-Hadikhia'):
+            from .carousel import al_hadikhia_last_stand
+            stand = al_hadikhia_last_stand(g, winner, works)
+            if stand is not None:
+                return stand
         day = g.notes.get(self.name)
         if day is None:
-            if winner == 'good' and g.works(me, self.name) and self.demon_executed_today(g):
+            if winner == 'good' and works and self.demon_executed_today(g):
                 g.notes[self.name] = g.day  # play one more day; the town is not told the Demon died
                 return False
             return None
@@ -911,7 +918,7 @@ class Lunatic(Outsider):
         if night.first:
             game.inform(demon, f'Night {night.n}: {lun.name} is the Lunatic (they believe they are the {lun.shown}).')
         if lun.name in night.chosen:
-            picks = night.chosen[lun.name]
+            picks = night.chosen[lun.name] or [f'the {c}' for c in [night.characters.get(lun.name)] if c]  # (the Ojo)
             game.inform(demon, f'Night {night.n}: the Lunatic ({lun.name}) chose {", ".join(picks) or "no one"}.')
 
 

@@ -15,7 +15,7 @@ from .llm import Reply
 
 @dataclass
 class Request:
-    kind: str                   # night | ravenkeeper | death_choice | beat | nominate | defense | comment | vote
+    kind: str  # night | ravenkeeper | death_choice | decide (a yes or no) | beat | nominate | defense | comment | vote
     prompt: str
     day: int
     beat: int | None = None
@@ -82,6 +82,8 @@ class RandomSeat:
         elif request.kind == 'defense':
             a['say'] = 'I am good, I promise.'
         elif request.kind == 'vote':
+            a['vote'] = r.random() < 0.5
+        elif request.kind == 'decide':  # a yes/no choice an ability asks for (the Al-Hadikhia's live or die)
             a['vote'] = r.random() < 0.5
         return Reply(a)
 

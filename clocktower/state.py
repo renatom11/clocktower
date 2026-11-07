@@ -100,8 +100,14 @@ def setup_error(characters, script=TB):
     bad = [c for c in characters if c not in script.all]
     if bad: return f'not on the script: {bad}'
     counts = {k: sum(1 for c in characters if kind(c) == k) for k in ('Townsfolk', 'Outsider', 'Minion', 'Demon')}
-    if counts['Demon'] != 1: return 'need exactly one ' + (script.demons[0] if len(script.demons) == 1 else 'Demon')
+    no_demon = any(rules(c).no_demon for c in characters)  # the Summoner's [No Demon]: a Townsfolk in its place
+    if no_demon and counts['Demon']:
+        return f'no Demon with the {next(c for c in characters if rules(c).no_demon)} in play'
+    if counts['Demon'] != 1 and not no_demon:
+        return 'need exactly one ' + (script.demons[0] if len(script.demons) == 1 else 'Demon')
     sizes = [team_sizes(n, d, floor=True) for d in sorted(setup_changes(characters))]
+    if no_demon:
+        sizes = [(t + 1, o, m) for t, o, m in sizes]
     tf, os_, mn = sizes[0]
     if counts['Minion'] != mn: return f'need exactly {mn} Minion(s)'
     if (counts['Townsfolk'], counts['Outsider']) not in {(t, o) for t, o, _ in sizes}:
@@ -128,10 +134,21 @@ def random_setup(rng, minion=None, players=9, script=TB):
                 change += big if rng.random() < POLICY[key] else rng.choice([d for d in options if d != big])
             else:
                 change += rng.choice(options)
-    demon = script.demons if len(script.demons) == 1 else [rng.choice(script.demons)]
+    no_demon = any(rules(m).no_demon for m in minions)  # the Summoner: no Demon, a Townsfolk in its place
+
+    def fits(demon):  # the script has enough Townsfolk and Outsiders for these Minions and this Demon
+        t, o, _ = team_sizes(players, change + setup_change(demon), floor=True)
+        return 0 <= t + no_demon <= len(script.townsfolk) and 0 <= o <= len(script.outsiders)
+    # a Demon whose modifier can't be dealt with these Minions is not chosen (the Fang Gu's extra Outsider with the
+    # Baron's two, beyond a script's Outsiders); on the base scripts every Demon always fits, so draws are unchanged
+    demons = [d for d in script.demons if fits([d])] or script.demons
+    demon = [] if no_demon else script.demons if len(script.demons) == 1 else [rng.choice(demons)]
+    if not fits(demon):
+        raise ValueError(f'{script.name} cannot be dealt for {players} players with {", ".join(minions + demon)}: '
+                         'too few Townsfolk or Outsiders on the script')
     change += setup_change(demon)  # a Demon's modifier (the Fang Gu's +1, the Vigormortis's -1)
     tf, os_, _ = team_sizes(players, change, floor=True)
-    return rng.sample(script.townsfolk, tf) + rng.sample(script.outsiders, os_) + minions + demon
+    return rng.sample(script.townsfolk, tf + no_demon) + rng.sample(script.outsiders, os_) + minions + demon
 
 
 # How the scripted Storyteller uses its discretion. Every number is a judgment call about what an
@@ -235,6 +252,19 @@ POLICY = {
     # Carousel (the experimental characters and custom scripts: docs/carousel-rulings.md)
     # the Recluse/Sage jinx: "The Recluse might register as the Demon to the Sage". Default, for review.
     'sage_shows_recluse': 0.3,      # a working Sage killed by the Demon is shown the Recluse in the Demon's place
+    # batch 1 (docs/carousel-rulings.md). Default, for review.
+    'golem_recluse_demon': 0.2,     # the Recluse registers as the Demon to the Golem's nomination (and lives)
+    'nightwatchman_shown_other': 0.5,  # a misinformed Nightwatchman's target is shown another player (else nothing)
+    'ojo_nobody': 0.05,             # the Ojo named a character not in play: nobody dies (else the Storyteller's pick)
+    'ojo_good_victim': 0.9,         # the Storyteller's victim for the Ojo is a good player (else any other)
+    'fisherman_helpful_weight': 3,  # a true statement that helps the Fisherman's team, 3x as likely as another
+    'summoner_st_honours': 0.8,     # the Storyteller with the Summoner's ability (the Courtier jinx) summons the
+    #                                 player and Demon the Summoner chose (else a good player, any Demon)
+    'damsel_pithag_target': 0.3,    # the Pit-Hag/Damsel jinx: the player the Pit-Hag chose is the Damsel (else another)
+    'plague_poison_info': 0.8,      # the Storyteller's Poisoner poisons a good information role (else any player)
+    'plague_assassin_night': 0.25,  # the Storyteller's Assassin kills tonight (per night, once per game)
+    'plague_protect_evil': 0.8,     # the Storyteller's Devil's Advocate protects an evil player (else a good one)
+    'plague_baron_two': 0.7,        # the Baron jinx: two players become Outsiders (else one)
     # the Storyteller judge (judge.py, when one is chosen; never in TB's protocol v17): how often the judge's first and
     # second choices are taken; otherwise the scripted style decides, so no habit takes over
     'judge_top': 0.85,
@@ -657,7 +687,16 @@ class Grimoire:
 
     def evil_character(self, r, imp=True):
         """An evil character to show for a Recluse (the Imp only when `imp` is consistent)."""
-        return 'Imp' if imp and r.random() < POLICY['recluse_as_imp'] else r.choice(self.minions_shown())
+        if imp and r.random() < POLICY['recluse_as_imp']:
+            return self.demon_shown()
+        return r.choice(self.minions_shown())
+
+    def demon_shown(self):
+        """The Demon character a false or misregistered result names: the Imp where the script has it (Trouble
+        Brewing), else the Demon in play, else the script's first."""
+        if 'Imp' in self.script.demons:
+            return 'Imp'
+        return next((q.character for q in self.players if q.is_demon), None) or self.script.demons[0]
 
     def in_play(self):
         return {q.character for q in self.players} | {q.shown for q in self.players}
@@ -685,10 +724,21 @@ class Grimoire:
             self.winner, self.reason = end
         return self.winner
 
+    def finish(self):
+        """The game is over (Game.run, however the winner was set): abilities that act as it ends (the Politician's
+        change of alignment) may add to the reason."""
+        for p in self.players if self.winner else ():
+            self.reason = rules(p.character).ended(self, p, self.winner, self.reason) or self.reason
+
     # ---- views ---------------------------------------------------------------------
-    def grimoire_text(self, reminders=()):
+    def grimoire_text(self, reminders=(), hidden=()):
+        """The Grimoire as text; the players in `hidden` with their character token removed (the Magician jinx:
+        what the Spy sees)."""
         lines = []
         for p in self.players:
+            if p.name in hidden:
+                lines.append(f'{p.seat + 1}. {p.name}: (token removed)' + ('' if p.alive else ' [DEAD]'))
+                continue
             tags = []
             if p.shown != p.character: tags.append(f'thinks they are the {p.shown}')
             if not p.alive: tags.append('DEAD' + ('' if p.ghost_vote else ', ghost vote used'))
@@ -935,7 +985,7 @@ def character_choice(g, p, ability, target):
         def false_world(r):  # what a working ability would show in the false world
             framed, evil = g.decoy(p, r)
             if t.name in evil:  # the framed player is the false world's Imp, the others its Minions
-                return 'Imp' if t.name == framed and imp_ok else r.choice(g.minions_shown())
+                return g.demon_shown() if t.name == framed and imp_ok else r.choice(g.minions_shown())
             if t.evil:  # the real evil player is good in the false world
                 return as_good(r)
             if t.character == 'Recluse' and r.random() < POLICY['recluse_evil']:

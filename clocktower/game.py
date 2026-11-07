@@ -384,14 +384,29 @@ class Game:
                      f'Your character: {card(p.shown)}']
             minions = [q.name for q in g.players if kind(q.character) == 'Minion']
             if p.is_demon:  # Demon info and Minion info
-                lines.append(demon_info(minions, g.bluffs))
+                lines.append(demon_info(self.evil_shown(p, minions, 'Minion'), g.bluffs))
             elif kind(p.character) == 'Minion':
                 others = [m for m in minions if m != p.name]
-                lines.append(f'The Demon is {g.demon().name}.'
+                demon = g.demon()
+                shown = self.evil_shown(p, [demon.name] if demon else [], 'Demon')
+                lines.append((f'The Demon is {shown[0]}.' if len(shown) == 1 else
+                              f'The Demon is {" or ".join(shown)} (you were shown both).' if shown else
+                              'No player is the Demon yet.')
                              + (f' Your fellow Minion{"" if len(others) == 1 else "s"}: {", ".join(others)} (you do not '
                                 'know which Minion characters).' if others else ''))
+            if p.evil:
+                for q in g.players:  # what evil learns because a character is in play (the Damsel)
+                    lines += rules(q.character).told_evil(self, q, p)
             lines += rules(p.character).intro(self, p)  # a character's own first information (the Lunatic's)
             self.emit('intro', {'text': '\n'.join(lines)}, [p.name])
+
+    def evil_shown(self, viewer, names, as_):
+        """`names` (the Minions shown to the Demon, or the Demon shown to the Minions), with the players who appear as
+        `as_` to `viewer` (Character.shown_to_evil: the Magician), in seat order."""
+        g = self.g
+        extra = [q.name for q in g.players if q is not viewer and q.name not in names
+                 and rules(q.character).shown_to_evil(g, q, viewer) == as_]
+        return sorted(names + extra, key=lambda x: g[x].seat) if extra else names
 
     # ---- night -------------------------------------------------------------------------------
     def targets(self, name, action, request):
@@ -669,6 +684,10 @@ class Game:
             for c in batch:
                 await rules(c).resolve_night(self, night)
                 await self.run_pending()
+                held = g.notes.get('Storyteller abilities')  # abilities the Storyteller uses (the Plague Doctor's)
+                if held and c in held:
+                    await rules(held[c]).storyteller_step(self, night, c)
+                    await self.run_pending()
         g.expire('dawn')  # protections that last only tonight end (the Innkeeper's)
         self.tonight = None
 
@@ -910,6 +929,13 @@ class Game:
         needed = math.ceil(sum(p.appears_alive for p in g.players) / 2)  # of the players the town sees alive
         required = max(needed, top + 1)
         yes, voted, early = [], set(), {}
+        hands = 0  # the yes votes: one per raised hand, unless an ability counts it as more (the Banshee's two)
+
+        def free(q):  # may vote while dead without spending their ghost vote (the Banshee)
+            return any(rules(c).free_vote(g, q) for c in g.abilities(q))
+
+        def weight(q):
+            return max(rules(c).vote_weight(g, q) for c in g.abilities(q))
 
         async def ask_vote(voter):
             p = g[voter]
@@ -919,9 +945,11 @@ class Game:
             elif top:
                 lines[0] += f' (more than the {top} of an earlier tied vote)'
             lines[0] += '.'
-            lines.append(f'Yes so far: {", ".join(yes) if yes else "none"} ({len(yes)}).')
-            if not p.appears_alive:
+            lines.append(f'Yes so far: {", ".join(yes) if yes else "none"} ({hands}).')
+            if not p.appears_alive and not free(p):
                 lines.append('You are dead: voting yes uses your one ghost vote.')
+            if weight(p) > 1:
+                lines.append(f'Your raised hand counts as {weight(p)} votes.')
             if rules(p.character).follows_master and p.alive and g.master:  # poisoned or not: they can't tell
                 up = g.master in yes or early.get(g.master, (False,))[0]
                 lines.append(f'Your master is {g.master}: their hand is {"up, so you may vote" if up else "down, so you may not vote yes"}.')
@@ -934,7 +962,7 @@ class Game:
             return a.get('vote') is True, clip(a.get('say'), WORDS['vote'])
 
         def can_vote(q):
-            return q.appears_alive or q.ghost_vote
+            return q.appears_alive or q.ghost_vote or free(q)
 
         for voter in self.vote_order(nominee):
             p = g[voter]
@@ -950,14 +978,17 @@ class Game:
                     and not (g.master in yes or early.get(g.master, (False,))[0])):
                 v, remark = False, ''  # a Butler may only raise their hand while their master's is up
                 self.emit('notice', {'text': f'(Your master {g.master} is not voting yes, so you cannot vote.)'}, [voter])
-            ghost = v and not p.appears_alive  # a Zombuul who seems dead spends their vote token too
+            ghost = v and not p.appears_alive and not free(p)  # a Zombuul who seems dead spends their token too
             if ghost:
                 p.ghost_vote = False
-            self.emit('vote', {'voter': voter, 'nominee': nominee, 'yes': v, 'ghost': ghost, 'text': remark})
+            w = weight(p) if v else 1
+            self.emit('vote', {'voter': voter, 'nominee': nominee, 'yes': v, 'ghost': ghost, 'text': remark,
+                               **({'votes': w} if w != 1 else {})})
             voted.add(voter)
             if v:
                 yes.append(voter)
-        count = len(yes)
+                hands += w
+        count = hands
         if count >= needed and count > top:
             block, top, outcome = nominee, count, 'block'
         elif count >= needed and count == top:
@@ -973,6 +1004,14 @@ class Game:
                                      characters={x: g[x].character for x in yes})
         return block, top
 
+    def nomination_limit(self, p):
+        """How many nominations p may make today: one while alive (as the town sees it), else none, unless an ability
+        says otherwise (Character.nomination_limit: the Banshee's two; a Golem who has nominated, none)."""
+        limits = [x for x in (rules(c).nomination_limit(self.g, p) for c in self.g.abilities(p)) if x is not None]
+        if not limits:
+            return 1 if p.appears_alive else 0
+        return 0 if 0 in limits else max(limits)
+
     async def nominations(self):
         """Rounds until a call gets no nomination. Each round: every living player who hasn't
         nominated today is asked at once whether to nominate (if several do, one is taken at random,
@@ -981,10 +1020,10 @@ class Game:
         g, n = self.g, self.day
         self.phase = 'nominations'
         self.emit('nominations_open', {})
-        nominators, nominees = set(), set()
+        nominators, nominees = {}, set()
         block, top = None, 0
         while not g.winner:
-            eligible = [p.name for p in g.living() if p.appears_alive and p.name not in nominators]
+            eligible = [p.name for p in g.players if nominators.get(p.name, 0) < self.nomination_limit(p)]
             options = [x for x in self.names if x not in nominees]
             if not eligible or not options:
                 break
@@ -1007,7 +1046,7 @@ class Game:
                     self.emit('notice', {'text': f'(Your nomination of {t} was not taken: several players nominated at '
                                                  f'once, and {nominator}\'s nomination of {nominee} was picked at '
                                                  'random. You can nominate again later.)'}, [other])
-            nominators.add(nominator)
+            nominators[nominator] = nominators.get(nominator, 0) + 1
             nominees.add(nominee)
             self.emit('nomination', {'nominator': nominator, 'nominee': nominee, 'text': accusation})
             g.nominations.append({'day': n, 'nominator': nominator, 'nominee': nominee,
@@ -1176,6 +1215,7 @@ class Game:
             await asyncio.gather(*self.probe_tasks)
         g = self.g
         if g and g.winner:
+            g.finish()
             self.emit('game_over', {'winner': g.winner, 'reason': g.reason})
         result = self.result(time.time() - start, stopped)
         if self.out:

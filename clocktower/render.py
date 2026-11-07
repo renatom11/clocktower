@@ -77,6 +77,7 @@ def render(ev, viewer, dead=()):
         return f"{nm(d['nominee'])} (defense): {d['text']}" if d['text'] else f"{nm(d['nominee'])} says nothing in their defense."
     if k == 'vote':
         ghost = ' (spending their ghost vote)' if d.get('ghost') else ''
+        ghost += f" ({d['votes']} votes)" if d.get('votes') else ''
         remark = f" — {d['text']}" if d.get('text') else ''
         return f"{nm(d['voter'])} votes {'YES' if d['yes'] else 'no'}{ghost}{remark}"
     if k == 'vote_result':
