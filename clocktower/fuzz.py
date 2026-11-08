@@ -48,6 +48,16 @@ each dawn and dusk (Monitor):
 Advisories (not violations, reported for review): states that outlive a dead source, and a setup that cannot be
 dealt (a raw sampling error, or the clear error for a jinx that lets only one of two characters be in play).
 
+Opt-in lifecycle checks (`--lifecycle`, docs/state-machines.md; off by default, so default runs and their output are
+unchanged): a player who registers as dead while alive holds a character that can do that (the Zombuul's 'seems'
+state does not outlive the character: 'lifecycle-seems-dead'); a player who becomes a character whose once-per-game
+ability was already marked spent, by character or for that player, gets it fresh ('lifecycle-stale-spent'); a Pukka
+kills only a player some Pukka chose on an earlier night ('lifecycle-pukka'); after a secret vote today (the Organ
+Grinder's), no later prompt shows the block or a tally ('lifecycle-secret-vote'); at each dusk, when the game
+checkpoints, nothing is left outside the checkpoint (no pending ability, no night in progress: 'lifecycle-checkpoint');
+and, as an advisory, an ability gained beyond the character (the Philosopher's, the Pixie's, the Cannibal's) that acts
+only through its own character's hooks, so does nothing for its gainer ('lifecycle-inert-gain').
+
 Pair coverage counts, for every pair of characters, the games in which both were in play (at any point) and the games
 in which both also acted (woke, learned, killed, placed a state or used a public ability; a character with no
 choice and no information of its own counts as acting when in play). `--target-uncovered` puts the pairs least often
@@ -104,6 +114,13 @@ MISREG = _matching(r'might register')
 # abilities that act on or after their owner's death
 DEAD_OK = _matching(r'you die|you died|kills you|even if dead|dead, you')
 ONCE = _matching(r'once per game')
+# hooks the engine asks only of a player's own character (Game.prevent_death, kill, execute, the registration
+# questions...), so an ability gained beyond it (Player.extra) does nothing through them (carousel ruling 47)
+OWN_HOOKS = ('survives', 'safe_from', 'safe_from_demon', 'redirect_attack', 'executed', 'nominated', 'protects',
+             'dies', 'registers_evil', 'registers_as', 'registers_demon_to_ft', 'overrides_end')
+INERT_GAINS = {c: [h for h in OWN_HOOKS if getattr(type(x), h) is not getattr(Character, h)]
+               for c, x in CHARACTERS.items()}
+INERT_GAINS = {c: hs for c, hs in INERT_GAINS.items() if hs}
 
 
 def misreg(p):
@@ -222,6 +239,8 @@ class FuzzGame(Game):
         super().emit(kind_, data, to)
         if self.g is not None:
             self.fz.event(kind_, data)
+            if self.fz.lifecycle:
+                self.fz.lifecycle_event(kind_, data, to)
 
     async def ask(self, name, request):
         self.fz.asked(name, request)
@@ -291,6 +310,13 @@ class Monitor:
         self.wins_seen = set()       # the wins of that kind the texts made: 'Alsaahir', 'cult'
         self.lost_at = {}            # dead player -> the step at which the player keeping their ability died (a
         #                              Harpy's two deaths, decided together, the first of them the Vigormortis: U10)
+        # the opt-in lifecycle checks (--lifecycle: docs/state-machines.md)
+        self.lifecycle = False
+        self.last_char = {}          # player -> character at the last step
+        self.prev_spent = set()      # the Grimoire's spent record (by character) at the last step
+        self.prev_used = {}          # player -> the per-player use record (notes['Used']) at the last step
+        self.pukka_targets = set()   # players some Pukka chose, on a night before tonight: (night, player)
+        self.secret_day = None       # the day of the last secret vote (the Organ Grinder's)
 
     # ---- recording ----------------------------------------------------------------------------------------------
     def flag(self, type_, detail, chars=(), advisory=False):
@@ -314,6 +340,13 @@ class Monitor:
         if g is not None and g.winner and not self.past_win:
             self.past_win = True
             self.flag('continued-past-win', f'{name} asked ({request.kind}) after {g.winner} won: {g.reason}')
+        if self.lifecycle and g is not None and self.secret_day == self.game.day and request.kind in ('nominate',
+                                                                                                    'vote'):
+            leak = next((w for w in ('is on the block with', '(replacing ', 'of an earlier tied vote',
+                                     'an earlier vote tied at') if w in request.prompt), None)
+            if leak:
+                self.flag('lifecycle-secret-vote', f'after a secret vote today, a {request.kind} prompt shows the '
+                                                   f'tally ("{leak}")', ['Organ Grinder'])
 
     def event(self, kind_, data):
         g = self.g
@@ -507,6 +540,8 @@ class Monitor:
 
     def killing(self, p, cause, source):
         g = self.g
+        if self.lifecycle:
+            self.lifecycle_kill(p, cause, source)
         for s in g.states:  # (the dead players whose ability p keeps lose it now)
             if s.kind == 'has ability' and s.source == p.name:
                 self.lost_at[s.target] = (self.game.day, self.step_name)
@@ -593,6 +628,8 @@ class Monitor:
             if n > rules(c).duplicates and f'becomes a {c.lower()}' not in text(c).lower():
                 self.flag('coherence', f'{n} living players are the {c}', [c])
         self.check_states()
+        if self.lifecycle:
+            self.lifecycle_step()
         for st in [*g.states, *g.derived()]:  # what touched whom (the mechanism matrix reads it)
             if g.active(st):
                 self.touched[st.target].add((st.kind, g[st.source].character if st.source in g.by_name else None))
@@ -674,6 +711,10 @@ class Monitor:
         g = self.g
         self.step(when)
         self.step_name = f'{when} {n}'
+        if self.lifecycle and when == 'dusk' and g is not None and (self.game.pending or self.game.tonight):
+            self.flag('lifecycle-checkpoint', f'at dusk before night {n} (the checkpoint) '
+                      + ('an ability is still pending' if self.game.pending else 'a night is still in progress'),
+                      self.context_chars())
         if when == 'dawn' and n == 1 and g is not None:
             self.kazali_count()
         if when == 'dawn' and g is not None and g.script.listeners:
@@ -728,6 +769,52 @@ class Monitor:
             if kills > said_it + near:
                 self.flag('yaggababble', f'{name} (Yaggababble) said its phrase {said_it} times on day {n - 1} and '
                                          f'killed {kills} times that night', ['Yaggababble'])
+
+    # ---- the opt-in lifecycle checks (--lifecycle) -------------------------------------------------------------------
+    def lifecycle_event(self, kind_, data, to):
+        g = self.g
+        if kind_ == 'night_choice' and data.get('role') == 'Pukka':
+            self.pukka_targets.update((self.game.day, t) for t in data.get('targets') or [])
+        elif kind_ == 'vote_result' and to != 'public':
+            self.secret_day = self.game.day
+        elif kind_ == 'gains':
+            c = data['character']
+            if c in INERT_GAINS and g[data['player']].character not in (c, 'Hermit'):
+                self.flag('lifecycle-inert-gain', f'the {c}\'s ability gained beyond the character acts only through '
+                                                  f'its own character\'s hooks ({", ".join(INERT_GAINS[c])})', [c],
+                          advisory=True)
+
+    def lifecycle_kill(self, p, cause, source):
+        """A Pukka's kill is its earlier victim's (any earlier night: an Exorcist's night keeps the poison waiting), or
+        an attack sent elsewhere (the Mayor's)."""
+        g, night = self.g, self.game.tonight
+        if cause != 'demon' or source is None or source.character != 'Pukka' or night is None:
+            return
+        earlier = {t for n, t in self.pukka_targets if n < night.n}
+        bounced = any(type(rules(g[t].character)).redirect_attack is not Character.redirect_attack for t in earlier)
+        if p.name not in earlier and not bounced:
+            self.flag('lifecycle-pukka', f'{source.name} (Pukka) killed {p.name}, whom no Pukka chose on an earlier '
+                                         'night', ['Pukka', p.character])
+
+    def lifecycle_step(self):
+        g = self.g
+        used = {k: set(v) for k, v in g.notes.get('Used', {}).items()}
+        for p in g.players:
+            if p.alive and p.seems_dead and type(rules(p.character)).dies is Character.dies:
+                self.flag('lifecycle-seems-dead', f'{p.name} ({p.character}) is alive but registers as dead, and the '
+                                                  f'{p.character} has no such state', [p.character])
+            last = self.last_char.get(p.name)
+            if last is not None and last != p.character and p.character in ONCE:
+                if p.character in g.spent and p.character in self.prev_spent:
+                    self.flag('lifecycle-stale-spent', f'{p.name} became the {p.character} (was the {last}) with its '
+                                                       'once-per-game ability already marked spent (by character)',
+                              [p.character, last])
+                if p.character in used.get(p.name, ()) and p.character in self.prev_used.get(p.name, ()):
+                    self.flag('lifecycle-stale-spent', f'{p.name} became the {p.character} (was the {last}) with its '
+                                                       'once-per-game ability already marked spent (for them)',
+                              [p.character, last])
+            self.last_char[p.name] = p.character
+        self.prev_spent, self.prev_used = set(g.spent), used
 
     def check_win(self):
         g = self.g
@@ -1159,6 +1246,8 @@ def spec_repro(spec):
             f"--judge {spec['mode']} --chars {ids(spec['chars'])}")
     if spec.get('setup'):
         line += f" --setup {ids(spec['setup'])}"
+    if spec.get('lifecycle'):
+        line += ' --lifecycle'
     return line
 
 
@@ -1185,6 +1274,7 @@ def play(spec, directives=None, decide=None, trace=None):
                probes=False, script=script, judge=judges.make(spec['mode']), characters=spec.get('setup'))
     if directives is not None:
         directives.game = game
+    game.fz.lifecycle = bool(spec.get('lifecycle'))
     out = {'spec': spec, 'winner': None, 'reason': None, 'days': 0}
     use_alarm = hasattr(signal, 'SIGALRM') and multiprocessing.current_process().name != 'MainProcess' or \
         os.environ.get('CLOCKTOWER_FUZZ_ALARM')
@@ -1361,6 +1451,8 @@ def run(args):
             n = min(chunk, left)
             specs = make_specs(seed, n, args.seed, modes, sizes, args.bias, force, tally.coverage(),
                                args.target_uncovered)
+            for spec in specs if args.lifecycle else ():
+                spec['lifecycle'] = True
             for i, res in enumerate(pool_.imap_unordered(_work, specs, chunksize=4), 1):
                 tally.add(res, log)
                 if tally.games % 1000 == 0:
@@ -1661,6 +1753,8 @@ def repro(args):
     if args.setup:
         spec['setup'] = names_of(args.setup)
         spec['players'] = len(spec['setup'])
+    if args.lifecycle:
+        spec['lifecycle'] = True
     os.environ.setdefault('CLOCKTOWER_FUZZ_ALARM', '1')
     trace = [] if args.events else None
     res = play(spec, trace=trace)
@@ -1687,6 +1781,7 @@ def main(argv=None):
     r.add_argument('--target-uncovered', action='store_true', help='each game holds a least-covered pair')
     r.add_argument('--coverage', help='a coverage.json to start from (and bias by)')
     r.add_argument('--out', required=True)
+    r.add_argument('--lifecycle', action='store_true', help='also the opt-in lifecycle checks (docs/state-machines.md)')
     p = sub.add_parser('repro', help='replay one game and print its violations')
     p.add_argument('--seed', type=int, required=True)
     p.add_argument('--players', type=int, required=True)
@@ -1694,6 +1789,7 @@ def main(argv=None):
     p.add_argument('--chars', required=True, help='the script: official ids, comma-separated')
     p.add_argument('--setup', help='a forced setup in seat order: official ids')
     p.add_argument('--events', action='store_true', help='print the audit trail (setup, choices, deaths, changes)')
+    p.add_argument('--lifecycle', action='store_true', help='also the opt-in lifecycle checks (docs/state-machines.md)')
     m = sub.add_parser('matrix', help='each character against each shared mechanism')
     m.add_argument('--seeds', type=int, default=4, help='games per cell')
     m.add_argument('--seed', type=int, default=SEED_BASE + 500_000)
