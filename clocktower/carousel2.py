@@ -326,6 +326,7 @@ class Balloonist(Townsfolk):
     info = True
     outsider_choices = (0, 1)  # (for the setup checks; dealt by its setup step, not by state.random_setup)
     setup_order = -1  # the extra Outsider, before any other setup step
+    instance_notes = ('Balloonist',)  # the type shown last night is this instance's (a new Balloonist has none yet)
 
     async def setup(self, game):
         # "[+0 or +1 Outsider]": in a dealt game, the Storyteller adds one, half the time (POLICY

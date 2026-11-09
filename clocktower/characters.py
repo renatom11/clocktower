@@ -546,8 +546,9 @@ class Slayer(Townsfolk):
         s, t = g[actor], g[target]
         if not (s.alive and s.character == self.name and not g.spent_ability(self.name, s)):
             if (s.alive and s.shown == self.name and rules(s.character).always_drunk and t.alive and t.is_demon
-                    and g.script.jinxed('Mathematician', s.character) and not g.notes.get(f'Drunk shot:{s.name}')):
-                g.notes[f'Drunk shot:{s.name}'] = True  # the Mathematician jinx: a Drunk's shot at the Demon
+                    and g.script.jinxed('Mathematician', s.character) and not g.ability(s, self.name).data.get('shot')):
+                g.ability(s, self.name).data['shot'] = True  # the Mathematician jinx: a Drunk's shot at the Demon (the
+                # belief's instance: a new belief has its own first shot)
                 game.abnormal(s, self.name, 'shot the Demon, who did not die')
             return False  # anyone can claim a shot; only a real, unused Slayer's does anything
         g.spend(self.name, s)
@@ -632,8 +633,9 @@ class Drunk(Outsider):
 
     def nominated(self, game, me, nominator):
         g = game.g
-        if me.shown == 'Virgin' and self.jinxed(g) and not g.notes.get(f'Drunk Virgin:{me.name}'):
-            g.notes[f'Drunk Virgin:{me.name}'] = True  # the first nomination only, as the Virgin's
+        if me.shown == 'Virgin' and self.jinxed(g) and not g.ability(me, 'Virgin').data.get('nominated'):
+            g.ability(me, 'Virgin').data['nominated'] = True  # the first nomination only, as the Virgin's (the
+            # belief's instance: a new belief has its own)
             if kind(g[nominator].character) == 'Townsfolk':
                 game.abnormal(me, 'Virgin', 'a Townsfolk nominated them and was not executed')
         return False

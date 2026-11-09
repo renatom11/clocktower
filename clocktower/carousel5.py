@@ -580,6 +580,7 @@ async def wraith_guess(game, me, who):
 class Wraith(Minion):
     name = 'Wraith'
     ability = ability(name)
+    instance_notes = ('Wraith eyes',)  # tonight's open or shut eyes are this instance's
 
     async def resolve_night(self, game, night):
         # its step, the night's first: "You may choose to open your eyes" (asked each night, `decide`); either way

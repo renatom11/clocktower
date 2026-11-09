@@ -124,6 +124,16 @@ class InstanceTests(Test):
         self.assertEqual(instance(g, A, 'Huntsman').how, 'believed')
         self.assertIsNone(rules('Huntsman').night_spec(g, g.g[A], Night(3)))
 
+    def test_G4_a_marionette_still_believes_its_records(self):
+        # and what the belief recorded for its holder (Character.instance_notes) stays theirs: a Balloonist made the
+        # Marionette is still told "a different character type than last night's", as before
+        g = self.game(['Balloonist', 'Imp', T2, T3, 'Poisoner', T4, 'Soldier'], extra=['Marionette'])
+        g.g.notes['Balloonist'] = {A: 'Townsfolk'}
+        run(carousel2.make_marionette(g, g.g[A], g.g[B]))
+        self.assertEqual(g.g.notes['Balloonist'], {A: 'Townsfolk'})
+        run(g.change(g.g[A], T1))  # (a real change: gone)
+        self.assertEqual(g.g.notes['Balloonist'], {})
+
     def test_G4_a_cannibals_new_meal_is_a_fresh_instance(self):
         # a gained ability is an instance of its own: the same character gained again (a later meal) starts fresh
         g = self.game(['Cannibal', T1, T2, T3, 'Poisoner', 'Imp', 'Soldier'], extra=['Philosopher'])
@@ -157,6 +167,39 @@ class InstanceTests(Test):
         self.assertEqual(g.nomination_limit(g.g[A]), 1)  # a new Golem has its own nomination
         self.assertEqual((g.g.notes['Golem nominated'], g.g.notes['Fear'], g.g.notes['Lleech lost']), ([], {}, []))
         self.assertFalse(rules('Lleech').lost(g.g, g.g[F]))
+
+    def test_G16_balloonist_acrobat_xaan_wraith_marks_end_with_the_instance(self):
+        # the same shape: a mark by player outlived a change and back, and the new instance acted on it
+        g = self.game(['Balloonist', 'Acrobat', T2, T3, 'Xaan', 'Wraith', 'Soldier'], extra=['Imp', 'Poisoner'])
+        g.g.notes.update({'Balloonist': {A: 'Minion'}, 'Acrobat': {B: (1, C)}, 'Xaan night': {E: 1},
+                          'Wraith eyes': {F: (1, True)}})
+        for name, other, back in ((A, T1, 'Balloonist'), (B, T1, 'Acrobat'), (E, 'Poisoner', 'Xaan'),
+                                  (F, 'Imp', 'Wraith')):
+            run(g.change(g.g[name], other))
+            run(g.change(g.g[name], back))
+        self.assertEqual([g.g.notes[k] for k in ('Balloonist', 'Acrobat', 'Xaan night', 'Wraith eyes')],
+                         [{}, {}, {}, {}])
+        self.assertFalse(rules('Xaan').ongoing(g.g, g.g[E]))  # (day 1: the old Xaan's night X would poison today)
+
+    def test_G16_a_new_drunk_belief_has_its_own_first_shot_and_nomination(self):
+        # the Mathematician/Drunk jinx's marks are the believed instance's, not the player's
+        g = self.game(['Drunk', 'Drunk', T2, T3, 'Poisoner', 'Imp', 'Soldier'], extra=['Mathematician', 'Slayer',
+                                                                                         'Virgin'])
+        g.g[A].shown, g.g[B].shown = 'Slayer', 'Virgin'
+        run(rules('Slayer').act_publicly(g, A, F))
+        rules('Drunk').nominated(g, g.g[B], C)
+        self.assertEqual([len(g.g.abnormal), g.g.ability(g.g[A], 'Slayer').data, g.g.ability(g.g[B], 'Virgin').data],
+                         [2, {'shot': True}, {'nominated': True}])
+        run(rules('Slayer').act_publicly(g, A, F))
+        rules('Drunk').nominated(g, g.g[B], C)
+        self.assertEqual(len(g.g.abnormal), 2)  # once each
+        for name, believed in ((A, 'Slayer'), (B, 'Virgin')):
+            run(g.change(g.g[name], T1))
+            run(g.change(g.g[name], 'Drunk'))
+            g.g[name].shown = believed
+        run(rules('Slayer').act_publicly(g, A, F))
+        rules('Drunk').nominated(g, g.g[B], C)
+        self.assertEqual(len(g.g.abnormal), 4)  # a new belief: its own first shot and nomination
 
     def test_G2_revival_restores_the_instance(self):
         # the owner's question (what a revived player holds) is left open: the engine's reading is kept. The revived

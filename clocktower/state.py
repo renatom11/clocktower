@@ -503,6 +503,11 @@ class Grimoire:
                     inst = self.ability(p, p.shown)
                     inst.data['last'] = list(self.last_choices[p.name])
                     inst.data['last_night'] = max((n for n, who in self.woke.items() if p.name in who), default=None)
+        for key in [k for k in self.notes if k.startswith(('Drunk shot:', 'Drunk Virgin:'))]:  # once by player name,
+            what, name = key.split(':', 1)  # now on the belief's instance (the Mathematician/Drunk jinx)
+            if name in self.by_name and self.notes.pop(key):
+                p = self.by_name[name]
+                self.ability(p, p.shown).data['shot' if what == 'Drunk shot' else 'nominated'] = True
         if 'states' not in d:
             self.states, self.spent = [], set()
             for kind_, name in (('poisoned', old['poisoned']), ('safe', old['protected']), ('master', old['master'])):
@@ -562,6 +567,11 @@ class Grimoire:
         once-per-game ability again, which would tell them they changed)."""
         inst = self.begin(p, old.character, 'believed')
         inst.used, inst.spent, inst.data = list(old.used), set(old.spent), dict(old.data)
+        for key, (shape, value) in inst.data.pop('ended notes', {}).items():  # (its per-holder notes too: the
+            if shape == 'dict':  # Balloonist's type from last night, the Alchemist's Minion)
+                self.notes.setdefault(key, {})[p.name] = value
+            else:
+                self.notes.setdefault(key, []).append(p.name)
         self._used_view(p)
         return inst
 
@@ -585,12 +595,16 @@ class Grimoire:
         inst.ended = why
         if inst.used:
             self._used_view(self.by_name[inst.holder])
+        kept = {}  # (what went, so a belief that carries on can have it back: Grimoire.believe)
         for key in rules(inst.character).instance_notes:
             mark = self.notes.get(key)
-            if isinstance(mark, dict):
-                mark.pop(inst.holder, None)
+            if isinstance(mark, dict) and inst.holder in mark:
+                kept[key] = ('dict', mark.pop(inst.holder))
             elif isinstance(mark, list) and inst.holder in mark:
+                kept[key] = ('list', None)
                 self.notes[key] = [x for x in mark if x != inst.holder]
+        if kept:
+            inst.data['ended notes'] = kept
 
     def _used_view(self, p):
         """notes['Used'][p], kept as a view of p's instances' uses (older code and the fuzzer read it)."""

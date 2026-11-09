@@ -149,6 +149,7 @@ class Acrobat(Townsfolk):
     ability = ability(name)
     night_choice = Choose(players=1, prompt='Choose a player: if they are or become drunk or poisoned tonight, you '
                                             'die.')
+    instance_notes = ('Acrobat',)  # tonight's choice is this instance's (a new Acrobat has chosen no one yet)
 
     def night_spec(self, game, me, night):
         return None if night.first else self.night_choice
@@ -648,6 +649,7 @@ class Xaan(Minion):
     derives = True
     outsider_choices = (-1, 0, 1)  # [X Outsiders]: any number the setup can deal; X is how many there are
     setup_order = -0.8  # once the other Outsider changes are made (the Balloonist's), before the Village Idiot's
+    instance_notes = ('Xaan night',)  # the night X this instance poisoned on (a new Xaan's X is set in becomes)
 
     @staticmethod
     def count(g):
