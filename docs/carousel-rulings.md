@@ -1310,3 +1310,28 @@ below.
      ends by day 3.
 
 No new weights. The rules judge has no heuristic for its calls.
+
+## The refactor: ability instances and one change path
+
+Readings the refactor of docs/state-machines.md ("Refactor results") had to take where the audit's fix needed one. Each
+plays only on custom scripts (Trouble Brewing, BMR and S&V replay identically). Questions the audit left open (U1, U13,
+G2, and whether a swap carries a Demon's own bookkeeping) are not decided here: the engine keeps what it did.
+
+176. **A seeming death is the Zombuul's** (the audit's G11, fuzz finding S3). A player who registers as dead through the
+     Zombuul's first death and then stops being the Zombuul (the Pit-Hag's change, the Barber's swap, a tea party) is
+     dead, as the town already believes: the ability that kept them alive is gone. Their last death in the Grimoire is
+     no longer a seeming one; nothing is announced (the death was). Made a Demon this way, they are a dead Demon (good
+     wins unless another Demon lives). A Zombuul swapped by the Barber gives the new Zombuul a first death of its own
+     (the Barber's fresh ability, as before). Option: they live, and the town is told they are alive.
+177. **A gained ability is an instance of its own.** An ability gained again later (the Cannibal's next meal of the same
+     character, the Hermit's Outsiders anew) starts fresh, as a character taken anew does (the Barber's almanac); one
+     still held carries on. A revived player's own ability is the same instance, fresh again; what they gained is kept
+     as it was (the engine's reading before, unchanged: G2 stays the owner's).
+178. **The Marionette's belief.** A player made the Marionette believes they are still what they were, so what they had
+     used as it stays used for that belief (they are not woken to use a spent once-per-game ability again, which would
+     tell them they changed).
+179. **Records of one holder end with their instance.** The Golem's nomination, the Banshee's powers, the Fearmonger's
+     chosen player, the Lleech's host and lost ability and the Alchemist's Minion belong to the holder's instance
+     (`Character.instance_notes`): a player who becomes the character again starts fresh, and nobody reads a former
+     holder's (the Vizier/Fearmonger jinx read the old Fearmonger's choice). The Damsel's guesses stay by player
+     ("each Minion gets 1 guess": the player, not their character; a reading kept as it was).

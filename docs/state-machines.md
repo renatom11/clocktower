@@ -453,3 +453,131 @@ the Kazali's count; U7's two Kazalis; U14's two Boomdandys and two Marionettes; 
   --lifecycle`.
 
 `lifecycle-checkpoint` found nothing. The `lifecycle-inert-gain` advisory counts are in G5.
+
+
+## Refactor results
+
+The two root causes of families 1 and 2 are now modelled (commits "Ability instances and one path for every character
+change" and "A drunk Spy or Recluse registers truly; a secret tally stays secret"; the carousel-N fingerprints are
+re-recorded in a commit of their own). Trouble Brewing, BMR and S&V replay 1100/1100 identically after each commit.
+Every item of both families, and G13 and S2, has a regression test in tests/test_lifecycle.py named after it, playing
+the scenario above. Readings the fixes needed are docs/carousel-rulings.md 176 to 179.
+
+**The model.** `state.Ability` is one player's instance of one character's ability: `character`, `holder`, `how`
+(dealt, changed, gained through the Philosopher, Cannibal, Pixie, Alchemist, Hermit or Plague Doctor, `token`, `gift`,
+`believed`), `used` and `spent` (its once-per-game record), `data` (its own bookkeeping: its last night choice) and
+`ended`. `Grimoire.instances` holds them; `Grimoire.ability(p, c)` finds p's instance of c; `gain`, `set_gained` and
+`believe` begin them. `snv.use/used/fresh` and `Grimoire.spend/spent_ability(c, p)` record on the instance
+(`notes['Used']` and `spent` remain as views, for the Spy's Grimoire and the fuzzer). `State.ability` names the instance
+that made a state (set where it matters, else guessed by `Grimoire.add` from the step acting). A character's per-holder
+notes (`Character.instance_notes`) end with the instance. **One change path:** `Grimoire.change_character` (state:
+the old instances end, the new one begins fresh, a seeming death settles, states that lasted while the old character
+had its ability end) and `Game.transition` (its audit event) are taken by every change: `Game.changes` (Pit-Hag,
+Barber, Snake Charmer, Fang Gu, Farmer, Hatter, Engineer, Summoner...), `Game.become`/`become_now` (the Imp's
+starpass, the Scarlet Woman), `make_marionette`, and the setup steps (`how='dealt'`, no event: the Balloonist's,
+Kazali's, Lord of Typhon's, Village Idiot's, Alchemist's, Huntsman's and King's added characters, the Marionette's and
+Lil' Monsta's waits); the Marionette's seat swap is `Grimoire.swap_seats`. After it, `Game.after_change` runs the new
+character's `becomes` and everyone's `changed`, for every path but the setup's (nothing has happened yet).
+
+**Closed.**
+
+| item | what changed | test |
+|---|---|---|
+| S1, G7 | the Pukka's victims are its instance's states; the charm's poison is the Snake Charmer's | `test_S1_pukka_snake_charmer`, `test_G7_states_name_their_ability` |
+| G8 | the Po's charge and the Shabaloth's meal are its instance's last choice (`Night.before_of`), not its player's as another character | `test_G8_po_charge_and_shabaloth_meal_are_the_instances` |
+| G3 | the Zombuul's, Fool's, Virgin's and Slayer's spent record is per instance (`spent` kept for the Spy) | `test_G3_two_zombuuls_each_have_a_first_death` |
+| G4, S4 | a change ends the instance and its uses: a change and back is fresh; a new gained instance (a later meal) too; a Marionette's belief keeps its uses (ruling 178) | `test_G4_once_per_game_fresh_after_a_change_and_back`, `test_S4_stale_spent_wizard_baron_wizard`, `test_G4_a_marionette_still_believes_its_spent_ability`, `test_G4_a_cannibals_new_meal_is_a_fresh_instance` |
+| G16 | the Golem's, Banshee's, Fearmonger's, Lleech's and Alchemist's per-holder notes end with the instance (ruling 179) | `test_G16_per_holder_marks_end_with_the_instance` |
+| G1 | the Scarlet Woman, the Imp's heir and the Marionette take the one path: a fresh instance, `becomes`, `changed` | `test_G1_scarlet_woman_takes_over_a_fresh_zombuul`, `test_G1_scarlet_woman_yaggababble_learns_a_phrase`, `test_G1_imp_starpass_runs_the_change_hooks` |
+| G11, S3 | a seeming death is the Zombuul's: stopping being it, the player is dead (ruling 176) | `test_G11_a_seeming_zombuul_changed_is_dead`, `test_S3_barber_swaps_a_seeming_zombuul` |
+| U16 (G6) | the seat swap moves gained abilities, instances and notes with the token | `test_U16_marionette_seat_swap_moves_the_gained_ability`, `test_U16_marionette_setup_uses_the_seat_swap` |
+| U6 | a Vigormortis swapped onto a dead player loses its kept Minions, as when it dies | `test_U6_vigormortis_swapped_onto_a_dead_player` |
+| G13 | the Spy's and Recluse's registration test `impaired` | `test_G13_a_drunk_spy_or_recluse_registers_truly` |
+| S2 (G15) | after a secret vote today no prompt shows the block, a tally or the votes needed beyond the majority | `test_S2_organ_grinder_secret_tally_stays_secret` |
+| B3, B4, B12, B19, B21 | already fixed; now on instances (B19 also through `instance_notes`) | `test_B3_...`, `test_B4_...`, `test_B12_...`, `test_B19_...`, `test_B21_...` |
+| B11, B13, B18 | already fixed; the setup steps now take the one path (`how='dealt'`) | `test_B11_...`, `test_B13_...`, `test_B18_...` |
+
+**Not closed, and why.**
+
+- **U1** (the Undertaker after a change) and **U13** (a dead neighbour made the Marionette): owner questions. The
+  engine does what it did; the death log now records `as`, the character each player died as, so U1's ruling is one
+  line either way. Tests `test_U1_undertaker_after_a_change` and `test_U13_make_marionette_takes_the_one_path` pin the
+  current behaviour.
+- **G2** (what a revived player holds): an owner question. The revived player's own instance is the same one, fresh
+  again, and gained instances are kept as they were (the engine's reading before). `test_G2_revival_restores_the_instance`.
+- **G8, the swap half**: whether a swap carries a Demon's own bookkeeping to its new holder (the Po's charge, the
+  Pukka's waiting victim, the Yaggababble's count for today). The engine's swap gives a fresh instance (the Barber's
+  almanac), so none of it moves, as before; only the Vigormortis and the Lleech hand theirs over (their rulings).
+- **U6, the second half** (whether the Storyteller should choose a swap onto a dead player): the owner's; unchanged.
+- **The Damsel's guesses** stay by player ("each Minion": ruling 179), and the Mathematician/Drunk jinx's marks
+  (`'Drunk shot:<name>'`, `'Drunk Virgin:<name>'`) stay as they are: no fault was found in either.
+- Outside the two families and not touched: G5 (hooks asked only of the own character, ruling 47), G9, G10, U2, U10
+  (lifetimes evaluated at events), G12 beyond the `as` record, G14, G17 to G20. Found on the way, same shape as G13 and
+  not fixed (outside the brief; custom scripts only): the Slayer's shot and the Imp's kill test `is_poisoned`, so a
+  Slayer or an Imp made drunk by an ability still acts.
+
+No item needed TB, BMR or S&V play to change.
+
+**Fuzz, before and after.** The audit's runs: `python -m clocktower fuzz run --games 10000 --lifecycle` and the
+default `python -m clocktower fuzz run --games 10000` (seeds from 9,000,000, sizes 5-15, scripted Storyteller and rules
+judge alternating), on the commit before the refactor and after it.
+
+| violations | lifecycle run, before | after | default run, before | after |
+|---|---|---|---|---|
+| lifecycle-pukka (S1) | 12 | 0 | - | - |
+| lifecycle-secret-vote (S2) | 8 | 0 | - | - |
+| lifecycle-seems-dead (S3) | 7 | 0 | - | - |
+| lifecycle-stale-spent (S4) | 1 | 0 | - | - |
+| oracle | 18 | 18 | 18 | 18 |
+| engine-truth | 10 | 10 | 10 | 10 |
+| coherence | 4 | 4 | 4 | 4 |
+| setup | 4 | 4 | 4 | 4 |
+| crash | 1 | 1 | 1 | 1 |
+| total | 65 | 37 | 37 | 37 |
+
+Every violation left is the one it was, detail for detail (the known ones the audit lists for these seeds); none is
+new. A first pass after the refactor showed one new kind of `coherence` (3 games: "holds
+extra abilities no ability gave"): the seat swap now moves an Alchemist's or a Hermit's abilities, and the fuzzer had
+seen them given to the other seat; the swap now tells the audit (a `gains` event for the new seat), and they are gone.
+These seeds show none of U6 or U16 in the default run, so they were measured where they occur:
+
+| run | before | after |
+|---|---|---|
+| U16's repro (`fuzz repro --seed 9000806 ...`, interaction-findings U16) | 1 (`once-rewoken`) | 0 |
+| `fuzz run --games 1500 --force vigormortis,barber`: states outliving a Vigormortis swapped onto a dead player (U6: six kept abilities, one kept Cerenovus's madness) | 7 | 0 |
+| the same run: other violations | 1 (U2: a curse through a drunk Vigormortis) | 1 (the same) |
+| `fuzz run --games 1500 --force alchemist,marionette` | 0 | 0 |
+
+**Re-recorded carousel games.** 198 of the 13,200 carousel-N fingerprints changed (carousel-8 and carousel-9 none);
+each game's cause was found by taking each fix out in turn (an ablation copy of the engine, not committed): the game
+replays as recorded with that fix out, and with no other. By script, cause and seed (the table size is the seed's
+thousands):
+
+- **G13** (78 games): a drunk Spy or Recluse (the Courtier's, the Sailor's, the Innkeeper's drunkenness) registers
+  truly to the information roles and the Storyteller's samples.
+- **G1** (99): a Demon made by the Imp's starpass (carousel-5, 62) or by the Scarlet Woman (carousel-12, 34; Riot) now
+  learns the King ("The Demon knows you are the King": the King's `changed`, which the direct path skipped); the
+  Scarlet Woman's Zombuul has its own first death (carousel-2, 3).
+- **G11** (7, carousel-2): a seeming-dead Zombuul changed by the Pit-Hag is dead (ruling 176).
+- **G16** (7, carousel-6): the Vizier/Fearmonger jinx read a former Fearmonger's choice.
+- **U16** (6, carousel-4): the Marionette's seat swap moves the Alchemist's Minion with the Alchemist's token.
+- **G4** (1, carousel-6, 14099): a Cannibal's later meal of the Philosopher is a fresh instance (ruling 177).
+
+- **carousel-1** (2): G13 (2): 11029, 12049.
+- **carousel-2** (15): G13 (5): 6063, 10004, 11096, 13003, 15058; G11 (7): 6074, 9020, 9088, 10085, 12031, 13045, 15050; G1 (3): 7051, 11013, 14056.
+- **carousel-3** (6): G13 (6): 6091, 9089, 10038, 11016, 11036, 14088.
+- **carousel-4** (6): U16 (6): 8048, 12075, 12092, 13028, 13049, 15007.
+- **carousel-5** (62): G1 (62): 6023, 6028, 6050, 7005, 7028, 7048, 8011, 8027, 8088, 9004, 9016, 9045, 9064, 9081, 10005, 10029, 10065, 10075, 10093, 10095, 11002, 11023, 11030, 11039, 11077, 11096, 12029, 12032, 12035, 12065, 12070, 12073, 12075, 12078, 12079, 12095, 13007, 13038, 13044, 13045, 13055, 13056, 13060, 13071, 13095, 13096, 14007, 14029, 14063, 14064, 14094, 15003, 15011, 15025, 15028, 15038, 15045, 15053, 15067, 15080, 15091, 15094.
+- **carousel-6** (42): G16 (7): 7094, 9034, 11082, 12014, 12075, 14012, 14094; G13 (34): 8020, 8073, 9015, 9085, 9097, 10005, 10010, 10028, 10030, 12009, 12022, 12024, 12033, 12041, 12061, 13006, 13036, 13058, 13062, 13080, 13094, 13095, 13097, 14015, 14037, 15007, 15011, 15020, 15042, 15060, 15066, 15078, 15079, 15080; G4 (1): 14099.
+- **carousel-7** (4): G13 (4): 11085, 14062, 14080, 15078.
+- **carousel-10** (1): G13 (1): 13048.
+- **carousel-11** (15): G13 (15): 10050, 11031, 11050, 13006, 13034, 13042, 14026, 14028, 14034, 14068, 14079, 14099, 15004, 15013, 15018.
+- **carousel-12** (45): G1 (34): 5022, 5086, 5090, 6078, 6098, 7026, 7038, 7094, 9042, 10009, 10022, 10025, 10026, 11003, 11021, 11074, 12037, 12058, 13004, 13024, 13036, 13059, 13062, 14010, 14016, 14026, 14032, 14034, 14057, 14062, 14088, 14091, 15051, 15077; G13 (11): 9037, 9043, 9091, 10007, 11046, 11053, 11081, 14051, 15044, 15055, 15091.
+
+**Risks.** The instance model is in the core, and every script's play depends on it; the base scripts' fingerprints
+show it changes nothing there, but custom scripts may meet paths the fingerprints and the fuzzer do not (a character
+whose ability records by player in a way not listed here, read through the `notes['Used']` view, which is rebuilt only
+for the player whose instance changed). `Grimoire.add` guesses a state's instance from the step acting; a state made
+outside a night step by a gained ability is tagged with the holder's own character's instance (only the Pukka reads
+the tag today). The Scarlet Woman's `becomes` hooks that consult the judge run at the next safe point (Game.later),
+not at once. Checkpoints made before the refactor are restored with instances rebuilt from `notes['Used']` and `spent`.
