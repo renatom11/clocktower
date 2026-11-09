@@ -2960,7 +2960,7 @@
 "players": 6,
 "seed": 6091,
 "minion": "Baron",
-"sha": "12087e3cb7f52c76b958e6c0ac4e146a8bed5ccaedbd46f51149a4253c321c40",
+"sha": "4fab9ef910bcc74bfa98342faa20c8ea7dcd6d1ea52d0da10f9d20909f33453f",
 "winner": "evil",
 "days": 4,
 "starting": [
@@ -8295,7 +8295,7 @@
 "players": 9,
 "seed": 9089,
 "minion": "Godfather",
-"sha": "c239116f080c9d2f54156183908079eef7f6ff4109fa595f4d7cff5c7dfca5aa",
+"sha": "e19a5ceb0f3c62f1ccb3176a017654a9c7bd9881bd0425163632bda586d574e1",
 "winner": "good",
 "days": 3,
 "starting": [
@@ -9264,7 +9264,7 @@
 "players": 10,
 "seed": 10038,
 "minion": "Spy",
-"sha": "394d194d959894bedfd9f19272ac7a34db89fa17f3b3d7ab6d577c4a36aa1f87",
+"sha": "88f6b1056087edc05b3ab1cbac9ecba72e2c568ad01b78ea31d14a4a94b0dae0",
 "winner": "evil",
 "days": 3,
 "starting": [
@@ -10840,7 +10840,7 @@
 "players": 11,
 "seed": 11016,
 "minion": "Marionette",
-"sha": "f09b34a1bdf0380730dc49502a2a1ad1ce5ee12d9a6e274e3ed42ca158be8c87",
+"sha": "f32ed2b2cbc3bb9c551f16604c3b82e9ec2c993f2837b8b0ca818e2ae9bd45d2",
 "winner": "evil",
 "days": 5,
 "starting": [
@@ -11260,7 +11260,7 @@
 "players": 11,
 "seed": 11036,
 "minion": "Goblin",
-"sha": "b2ffb2a49fa96c121601c52d59a1e76d75d221a7b4b1e0d1998bd74b3b214429",
+"sha": "0c31aa904315a4551ab578f92d307003cc38608b9158ea75d6135291f8b2d832",
 "winner": "evil",
 "days": 4,
 "starting": [
@@ -19216,7 +19216,7 @@
 "players": 14,
 "seed": 14088,
 "minion": "Spy",
-"sha": "daac057ab39e50f62882a4315c359bab9a3c10ea6f4d8697ef2445301b4eb834",
+"sha": "491f99a4a02d55e6352abe8a7effe3069bb721f9c0e20c36785fa99dc4e180f4",
 "winner": "evil",
 "days": 4,
 "starting": [

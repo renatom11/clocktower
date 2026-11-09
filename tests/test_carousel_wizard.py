@@ -40,7 +40,8 @@ class WishTests(WizardTest):
     def test_the_list_is_shown_and_a_wish_by_number_is_granted(self):
         g = self.wish(2, '1', [A], forced=self.FREE)
         self.assertFalse(g.g[A].alive)
-        self.assertIn({'player': A, 'cause': 'wizard', 'source': C, 'day': 2, 'phase': 'night'}, g.g.death_log)
+        self.assertIn({'player': A, 'cause': 'wizard', 'source': C, 'day': 2, 'phase': 'night'},
+                      [{k: v for k, v in d.items() if k != 'as'} for d in g.g.death_log])  # ('as': died as)
         req = [r for r in self.seats[C].log if r.kind == 'night' and r.menu][0]
         self.assertEqual(req.menu, cx.wish_menu())
         self.assertIn('1. A player of your choice dies tonight.', req.prompt)

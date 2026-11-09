@@ -35,18 +35,17 @@ def failed(game, p, ability, why):
 
 # Once-per-game abilities are spent per player, not per character (Grimoire.spend), since two players can have one: a
 # Philosopher who gained it, and the original player, drunk. A player who becomes the character later starts fresh.
+# Recorded on the player's ability instance (state.Ability, Grimoire.use), so a change of character ends it.
 def used(g, p, name):
-    return name in g.notes.get('Used', {}).get(p.name, ())
+    return g.used(p, name)
 
 
 def use(g, p, name):
-    g.notes.setdefault('Used', {}).setdefault(p.name, []).append(name)
+    g.use(p, name)
 
 
 def fresh(g, p, name):
-    left = [x for x in g.notes.get('Used', {}).get(p.name, ()) if x != name]
-    if p.name in g.notes.get('Used', {}):
-        g.notes['Used'][p.name] = left
+    g.fresh(p, name)
 
 
 def holders(g, night, name):
@@ -408,6 +407,12 @@ class Vigormortis(Killer):
         sides = g.notes.get('Vigormortis', {}).pop(old.name, None)
         if sides:
             g.notes['Vigormortis'].setdefault(new.name, {}).update(sides)
+        if not new.alive:  # a swap onto a dead player: a dead Vigormortis has no ability, so its dead Minions lose
+            for s in keep:  # theirs, and what they placed ends, as when the Vigormortis dies (finding U6; the
+                q = g[s.target]  # Lleech's alike: B19)
+                if not q.alive and not g.keeps_ability(q):
+                    g._source_lost(q)
+            return []
         return keep
 
     def ongoing(self, g, me):
@@ -630,12 +635,14 @@ class SnakeCharmer(Townsfolk):
         if not g.works(sc, self.name):
             failed(game, sc, self.name, 'charmed the Demon')  # the wiki's poisoned Snake Charmer
             return
+        charm = g.ability(sc, self.name).id  # the poison is this Snake Charmer ability's (it ends with the swap): never
+        #                                      taken for the new Demon's own (the Pukka's victim, finding S1)
         # not information, so the Vortox doesn't touch it; each is told their new character and alignment (both
         # evil stay evil: the Pit-Hag's Snake Charmer). The old Demon is poisoned for the rest of the game, whatever
         # happens later (a reading of "permanently": a later change keeps it). The new Demon, if its step is still to
         # come tonight, acts tonight; it learns no Minions
         await game.swap(sc, d, alignments=True)
-        g.add(State('poisoned', d.name, source=sc.name, until=None))
+        g.add(State('poisoned', d.name, source=sc.name, until=None, ability=charm))
 
 
 def abnormal_since_dawn(g, me, n):
@@ -1076,7 +1083,7 @@ class Philosopher(Townsfolk):
             # they gain the ability, not the character: they wake at its step from tonight (Game.wake), a "you start
             # knowing" one acts now (its `becomes`), and the in-play player of it is drunk while the Philosopher has
             # their own ability (Philosopher.ongoing)
-            p.extra.append(c)
+            g.gain(p, c, self.name)
             game.emit('gains', {'player': p.name, 'character': c}, 'audit')
             game.woken(p)
             game.inform(p, f'Night {night.n} — Philosopher: you now have the {c}\'s ability: {rules(c).ability} '

@@ -11,6 +11,7 @@ one at a time with a running tally.
 from __future__ import annotations
 import asyncio
 import dataclasses
+import inspect
 import json
 import pickle
 import math
@@ -50,6 +51,7 @@ class Night:
         self.deaths = []
         self.revived = []  # players alive again (the Professor, the Shabaloth), announced at dawn
         self.before = {}  # each player's choice on their previous night, as it stood at dusk (the Shabaloth's meal)
+        self.prior = {}  # each ability instance's last night choice at dusk: {Ability.id: (night, players)}
         self.asleep = set()  # players who don't wake tonight to use their own ability (the Exorcist's Demon)
 
     def choice_of(self, g, character):
@@ -57,6 +59,13 @@ class Night:
         first choice tonight or None: not woken, or they chose no one)."""
         p = g.holder(character)
         return (p, (self.chosen[p.name] or [None])[0]) if p and p.name in self.chosen else (p, None)
+
+    def before_of(self, g, p, character):
+        """The players p chose last night with `character`'s ability (their instance of it: state.Ability), as it
+        stood at dusk; [] if that instance did not wake and choose last night (one begun since, by a change of
+        character, has no last night: the Shabaloth's meal is its own)."""
+        n, chosen = self.prior.get(g.ability(p, character).id, (None, []))
+        return list(chosen) if n == self.n - 1 else []
 
     @staticmethod
     def steps(first, script=TB):
@@ -405,17 +414,15 @@ class Game:
         for p, character, alignment in changes:
             old = (p.character, p.alignment)
             if character and character != p.character:
-                g.change_character(p, character)
-                g.spent.discard(character)
-                self.emit('becomes', {'player': p.name, 'character': character}, 'audit')
+                self.transition(p, character)
             if alignment and alignment != p.alignment:
                 p.alignment = alignment
                 self.emit('alignment', {'player': p.name, 'alignment': alignment}, 'audit')
             if (p.character, p.alignment) != old:
                 done.append((p, old))
         for p, states in moving:
-            for st in states:
-                st.source = p.name
+            for st in states:  # (now the new holder's instance's)
+                st.source, st.ability = p.name, g.ability(p, p.character).id
                 g.add(st)
         when = f'Night {self.day}' if self.tonight is not None else f'Day {self.day}'
         for p, (character, alignment) in done:
@@ -426,9 +433,47 @@ class Game:
             if p.character != character:
                 await settle(rules(p.character).becomes(self, p))
         for p, _ in done:
-            for q in g.players:
-                for c in g.abilities(q):
-                    await settle(rules(c).changed(self, q, p))
+            await self.after_change(p, False)
+
+    def transition(self, p, character, how='changed', quiet=False):
+        """The one path every character change takes, whatever makes it (Game.changes: the Pit-Hag, the Barber, the
+        Snake Charmer, the Fang Gu, the Farmer...; Game.become: the Scarlet Woman, the Imp's starpass, the
+        Marionette; the setup steps, with how='dealt'): Grimoire.change_character (the old ability instances end
+        with what they recorded, the new one starts fresh, a seeming death settles, what lasted only while the old
+        character had its ability ends) and the audit's 'becomes' event (none for a setup step, `quiet`: the setup
+        is announced as a whole). The caller tells the player, in its own words, and runs the hooks (after_change)."""
+        self.g.change_character(p, character, how)
+        if not quiet:
+            self.emit('becomes', {'player': p.name, 'character': character}, 'audit')
+
+    async def after_change(self, p, became=True):
+        """The hooks a change runs: the new character's `becomes` (if p took a new character: what it needs now, a
+        new Yaggababble's phrase), then everyone's `changed` (an Evil Twin whose twin changed)."""
+        if became:
+            await settle(rules(p.character).becomes(self, p))
+        for q in self.g.players:
+            for c in self.g.abilities(q):
+                await settle(rules(c).changed(self, q, p))
+
+    async def become(self, p, character, notice=None):
+        """p becomes `character` by an ability that tells them in its own words (`notice`): the Imp's starpass, the
+        Marionette's. The same transition and hooks as Game.changes."""
+        self.transition(p, character)
+        if notice:
+            self.emit('notice', {'text': notice}, [p.name])
+        await self.after_change(p)
+
+    def become_now(self, p, character, notice=None):
+        """Game.become from a hook that cannot wait (the Scarlet Woman's, on a death): the hooks run now if none of
+        them consults the Storyteller judge, else at the next safe point (Game.later)."""
+        self.transition(p, character)
+        if notice:
+            self.emit('notice', {'text': notice}, [p.name])
+        hooks = [rules(p.character).becomes] + [rules(c).changed for q in self.g.players for c in self.g.abilities(q)]
+        if any(inspect.iscoroutinefunction(h) for h in hooks):
+            self.later(lambda game: game.after_change(p))
+        else:
+            now(self.after_change(p))
 
     # ---- setup -------------------------------------------------------------------------------
     async def setup(self):
@@ -565,8 +610,10 @@ class Game:
             p.seems_dead = True
         else:
             g.die(p)
+        # `as`: the character they died as (U1, open: the Undertaker is still told the character now, as before)
         g.death_log.append({'player': p.name, 'cause': cause, 'source': source.name if source else None,
-                            'day': self.day, 'phase': self.phase, **({'seems': True} if seems else {})})
+                            'day': self.day, 'phase': self.phase, 'as': p.character,
+                            **({'seems': True} if seems else {})})
         self.emit('death', {'player': p.name, 'cause': cause, **({'seems': True} if seems else {})}, 'audit')
         for q in g.players:
             for c in g.abilities(q):
@@ -725,6 +772,8 @@ class Game:
                 acts[name] = await self.insist(name, req, acts[name], specs.get(name))
             night.chosen[name] = self.targets(name, acts[name], req)
             g.last_choices[name] = night.chosen[name]
+            inst = g.ability(g[name], woken_as.get(name, g[name].shown))  # (and the instance woken: the Po's charge)
+            inst.data['last'], inst.data['last_night'] = night.chosen[name], night.n
             g.night_choices.setdefault(night.n, {})[name] = night.chosen[name]
             g.woke.setdefault(night.n, []).append(name)
             data = {'player': name, 'role': woken_as.get(name, g[name].shown), 'targets': night.chosen[name]}
@@ -780,13 +829,16 @@ class Game:
         self.emit('header', {'text': f'Night {n}'})
         night = Night(n)
         night.before = dict(g.last_choices)
+        night.prior = {a.id: (a.data.get('last_night'), list(a.data['last'])) for a in g.instances if 'last' in a.data}
         self.tonight = night
         for batch in Night.steps(night.first, g.script):
             woken = await self.wake(night, batch)
             if not g.script.batched_night:  # one character at a time: their picks land before their step acts
                 self.picks(night, woken)
             for c in batch:
+                g.acting = c  # (the states this step makes belong to its ability: Grimoire.add)
                 await rules(c).resolve_night(self, night)
+                g.acting = None
                 await self.run_pending()
                 held = g.notes.get('Storyteller abilities')  # abilities the Storyteller uses (the Plague Doctor's)
                 if held and c in held:
@@ -1062,12 +1114,21 @@ class Game:
             told = any(rules(c).must_vote(g, q) for c in dict.fromkeys([q.shown, *g.abilities(q)]))
             return told, any(rules(c).must_vote(g, q) and g.works(q, c) for c in g.abilities(q))
 
+        # a secret vote earlier today (custom scripts: the Organ Grinder's, whose ability then ended) keeps its tally
+        # secret: no block or tally from it is shown (finding S2; whether later votes stay secret is not ruled: they
+        # are public, as before)
+        hidden = getattr(self, 'secret_day', None) == n
+
         async def ask_vote(voter):
             p = g[voter]
             lines = [f'Vote: should {nominee} be executed? It takes {required} yes votes to put them on the block']
             if secret:  # eyes closed: no tally, no block, no hands seen
                 lines = [f'Vote, eyes closed: should {nominee} be executed? The votes and the tally are secret (only '
                          'the Storyteller knows who is about to die)']
+            elif hidden:
+                lines = [f'Vote: should {nominee} be executed? It takes at least {needed} yes votes to put them on the '
+                         'block, and more than any earlier vote today (an earlier vote was secret: only the '
+                         'Storyteller knows its tally)']
             elif block:
                 lines[0] += f' (replacing {block}, who has {top})'
             elif top:
@@ -1137,6 +1198,7 @@ class Game:
         self.emit('vote_result', {'nominee': nominee, 'votes': count, 'needed': required, 'outcome': outcome,
                                   'voters': yes}, 'audit' if secret else 'public')
         if secret:
+            self.secret_day = n
             self.emit('text', {'text': f'The vote on {nominee} is over (eyes closed: the tally is secret).'})
         if g.nominations and g.nominations[-1]['nominee'] == nominee:
             # the voters' characters as they voted (the Flowergirl detects a Demon who voted, even one who changed
@@ -1191,6 +1253,8 @@ class Game:
                       f'Nobody is on the block (an earlier vote tied at {top}).' if top else 'Nobody is on the block yet.')
             if self.secret_votes():  # (custom scripts: the Organ Grinder)
                 status = 'Votes are secret today (eyes closed): only the Storyteller knows who is about to die.'
+            elif getattr(self, 'secret_day', None) == n:  # (a secret vote earlier today: its tally stays secret)
+                status = 'An earlier vote today was secret: only the Storyteller knows who is about to die.'
             prompt = (f'Day {n}, nominations. {status} Already nominated today: {", ".join(sorted(nominees)) or "nobody"}. '
                       'You may nominate someone (set `nominate`; your `say` is the accusation), or pass. Only '
                       'nominations are heard now: everyone can comment after the defense. No whispering now.')

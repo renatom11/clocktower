@@ -9504,9 +9504,9 @@
 "players": 10,
 "seed": 10050,
 "minion": "Spy",
-"sha": "35bc0ca6951f60dc8c281b66edba736c25928803c79b5fcf0b14cb31917b0f04",
-"winner": null,
-"days": 10,
+"sha": "9d5d43ac60053217e28ad7e682d8022813797a754854f15613d853aba35a99c0",
+"winner": "good",
+"days": 7,
 "starting": [
 "Chef",
 "Empath",
@@ -11155,7 +11155,7 @@
 "players": 11,
 "seed": 11031,
 "minion": "Scarlet Woman",
-"sha": "02017935b1fad8a2c035dc7244c44afcfafe003d66d01726a2b48a374cf44bd1",
+"sha": "8786d02165766b3fa7b899f2011254e9dda550f05212d53fb970b0cf77a071ca",
 "winner": "good",
 "days": 10,
 "starting": [
@@ -11554,7 +11554,7 @@
 "players": 11,
 "seed": 11050,
 "minion": "Spy",
-"sha": "59a68195a114cb629b82fdd8849cd2750912b2448dea9ec4ced63a2176ad1472",
+"sha": "76d664d597b3fd4df6c63eceeed1294dc575274139169bd812a3c43772e8ed23",
 "winner": "good",
 "days": 3,
 "starting": [
@@ -14942,7 +14942,7 @@
 "players": 13,
 "seed": 13006,
 "minion": "Spy",
-"sha": "2f5593452d46800b14aa44ff4bf89eab1fe65d312c48d6d5d047949d7f5b18aa",
+"sha": "9050348545807cdb8fc2cfcd7f1251ac8da5b3a3a89e2d3271ed102a7846086d",
 "winner": "good",
 "days": 4,
 "starting": [
@@ -15586,8 +15586,8 @@
 "players": 13,
 "seed": 13034,
 "minion": "Spy",
-"sha": "d454144761d216bcf215c3665f7676d56541f18cf94ff45ddbd4a574590da0e7",
-"winner": "evil",
+"sha": "2a48ebec06fd65f79aad79a7d5938d598d8144d8da044bca55f8cf82d40f18d9",
+"winner": null,
 "days": 10,
 "starting": [
 "Chef",
@@ -15770,7 +15770,7 @@
 "players": 13,
 "seed": 13042,
 "minion": "Spy",
-"sha": "5e855aebdd48544c6710228d04d9542d6a088c9666789edf12d312ffe053f0bf",
+"sha": "9553af48fd25733a93727580e0f31023b1d8a4f1dc6187ab72bf4747d1405925",
 "winner": "good",
 "days": 3,
 "starting": [
@@ -17728,7 +17728,7 @@
 "players": 14,
 "seed": 14026,
 "minion": "Spy",
-"sha": "849c973b6f333f0c6fd543ad732c32248159414562005570063a5488e3d22f82",
+"sha": "0af8f1cdfbc83bea536596206ff83bcb1d376ad8c7748371597e4a6263c54970",
 "winner": null,
 "days": 10,
 "starting": [
@@ -17776,7 +17776,7 @@
 "players": 14,
 "seed": 14028,
 "minion": "Summoner",
-"sha": "f7ee2ad6ddb3b0663eae1f5d11e69510c463c107ead7fe04211e1d1addc2318f",
+"sha": "8ccbcdf99f98d5390f162cd702659dcd6abf5c6fb2eb6be956113efbfbf263d4",
 "winner": null,
 "days": 10,
 "starting": [
@@ -17920,7 +17920,7 @@
 "players": 14,
 "seed": 14034,
 "minion": "Spy",
-"sha": "811d425f4095778209db2f11f6e30dda0e0ca6c597f9daf29ab3bea8e451d5c0",
+"sha": "67be185be3ddc3cf77d5bc98899dffa9e9d60b413e62fefb631ad226913ef979",
 "winner": "good",
 "days": 9,
 "starting": [
@@ -18736,7 +18736,7 @@
 "players": 14,
 "seed": 14068,
 "minion": "Summoner",
-"sha": "85692d1ad194b9127c499f6d52319c615c7e02e0ed3a3267458e9d82cf85d44f",
+"sha": "be1d9dc222f72e7230082167944b9b0210335c7c1837272e81a708d00351aaca",
 "winner": "good",
 "days": 9,
 "starting": [
@@ -19000,7 +19000,7 @@
 "players": 14,
 "seed": 14079,
 "minion": "Scarlet Woman",
-"sha": "a69ddaa84533fcd4668869bcdb5abc5b06d3e7496ae478eabe59bee07b235e64",
+"sha": "d051557f218301563c9a0cea3afd954940f10f0cf961db7e073034e454110f60",
 "winner": null,
 "days": 10,
 "starting": [
@@ -19480,7 +19480,7 @@
 "players": 14,
 "seed": 14099,
 "minion": "Scarlet Woman",
-"sha": "b8861eacd09c5337afb4e3c03aa8a3eb069fd5e8887a327d8ef1b193d13fbb6d",
+"sha": "d354bca45b4b1b5b84aff1f838eb249a98aebc9ed72fac4c65af5dbab474e24e",
 "winner": null,
 "days": 10,
 "starting": [
@@ -19604,7 +19604,7 @@
 "players": 15,
 "seed": 15004,
 "minion": "Summoner",
-"sha": "8e513ff6ea8736d26571347276600fd2274c1bb6dd98c9ef6e735840c2d6eb21",
+"sha": "96df874cbbf9162400c19d3b0ed492dd2baa5e537b102cfae288801ee9746fc4",
 "winner": null,
 "days": 10,
 "starting": [
@@ -19829,7 +19829,7 @@
 "players": 15,
 "seed": 15013,
 "minion": "Poisoner",
-"sha": "779a9c75f1cd5c42d92d069dab35025861bbef97b32d39e88cb039813abe8840",
+"sha": "641f2b8915523b34d0afb0154fdcde16efaefea6ba21d70b851938d26e5edf78",
 "winner": "good",
 "days": 8,
 "starting": [
@@ -19954,7 +19954,7 @@
 "players": 15,
 "seed": 15018,
 "minion": "Spy",
-"sha": "d9cb942ce78e8c5d30087c8a433384a972967aab37680396809dc8935b645283",
+"sha": "a671c316a4265db13503ef8387f7bc353a3c4145614bf27f92437500080f8d0a",
 "winner": null,
 "days": 10,
 "starting": [

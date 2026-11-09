@@ -119,6 +119,9 @@ class Character:
     setup_unheld = False     # its setup step runs though nobody holds it (Lil' Monsta, never dealt: batch 6)
     deals = False            # its presence on the script changes the whole deal, beyond the setup modifiers above
     #                          (`deal_error`, `redeal`: batch 6, carousel_extra.py)
+    instance_notes = ()      # keys of g.notes that record something per holder of this ability (a list of holders,
+    #                          or a dict by holder: the Golem's nomination): they end with the holder's instance
+    #                          (Grimoire.end), so a player who becomes the character again starts fresh
 
     @property
     def evil(self):
@@ -517,9 +520,9 @@ class Virgin(Townsfolk):
 
     async def nominated(self, game, me, nominator):
         g = game.g
-        if g.spent_ability(self.name):
+        if g.spent_ability(self.name, me):  # (this Virgin's first nomination: state.Ability)
             return False
-        g.spend(self.name)
+        g.spend(self.name, me)
         if not g.works(me, self.name):
             return False
         registers = {kind(c) == 'Townsfolk' for c in g.registers_as(g[nominator])}
@@ -541,13 +544,13 @@ class Slayer(Townsfolk):
     async def act_publicly(self, game, actor, target, text=None):
         g = game.g
         s, t = g[actor], g[target]
-        if not (s.alive and s.character == self.name and not g.spent_ability(self.name)):
+        if not (s.alive and s.character == self.name and not g.spent_ability(self.name, s)):
             if (s.alive and s.shown == self.name and rules(s.character).always_drunk and t.alive and t.is_demon
                     and g.script.jinxed('Mathematician', s.character) and not g.notes.get(f'Drunk shot:{s.name}')):
                 g.notes[f'Drunk shot:{s.name}'] = True  # the Mathematician jinx: a Drunk's shot at the Demon
                 game.abnormal(s, self.name, 'shot the Demon, who did not die')
             return False  # anyone can claim a shot; only a real, unused Slayer's does anything
-        g.spend(self.name)
+        g.spend(self.name, s)
         if g.is_poisoned(s) or not t.alive:
             return False
         if g.script.jinxed('Lleech', self.name) and any(  # the jinx (custom scripts): the Lleech's host dies
@@ -640,17 +643,18 @@ class Recluse(Outsider):
     name = 'Recluse'
     ability = 'You might register as evil & as a Minion or Demon, even if dead.'
     misregisters = 'recluse_evil'
+    # only while the ability works: drunk (custom scripts: the Sailor's, the Innkeeper's) as well as poisoned (G13)
 
     def registers_evil(self, g, me, observer=None):
-        return {me.evil} if g.is_poisoned(me) else {True, False}
+        return {me.evil} if g.impaired(me) else {True, False}
 
     def registers_as(self, g, me, observer=None):
-        return {me.character} if g.is_poisoned(me) else {self.name, *g.script.minions, *g.script.demons}
+        return {me.character} if g.impaired(me) else {self.name, *g.script.minions, *g.script.demons}
 
     def registers_demon_to_ft(self, g, me, observer=None):
         if me.name == g.red_herring:
             return {True}
-        return {False} if g.is_poisoned(me) else {True, False}
+        return {False} if g.impaired(me) else {True, False}
 
 
 class Saint(Outsider):
@@ -699,12 +703,13 @@ class Spy(Minion):
     name = 'Spy'
     ability = 'Each night, you see the Grimoire. You might register as good & as a Townsfolk or Outsider, even if dead.'
     misregisters = 'spy_evil'
+    # only while the ability works: drunk as well as poisoned (G13; Trouble Brewing has only the Poisoner's poison)
 
     def registers_evil(self, g, me, observer=None):
-        return {me.evil} if g.is_poisoned(me) else {True, False}
+        return {me.evil} if g.impaired(me) else {True, False}
 
     def registers_as(self, g, me, observer=None):
-        return {me.character} if g.is_poisoned(me) else {self.name, *g.script.townsfolk, *g.script.outsiders}
+        return {me.character} if g.impaired(me) else {self.name, *g.script.townsfolk, *g.script.outsiders}
 
     async def resolve_night(self, game, night):
         g = game.g
@@ -742,11 +747,10 @@ class ScarletWoman(Minion):
                 return  # the Fang Gu and Al-Hadikhia jinxes: there would be two Demons, so she stays the Scarlet Woman
             if game.g.script.jinxed(self.name, 'Al-Hadikhia'):  # (so a second Demon later turns her back: carousel)
                 game.g.notes.setdefault('Was Scarlet Woman', []).append(me.name)
-            game.g.change_character(me, dead.character)
-            game.emit('becomes', {'player': me.name, 'character': dead.character}, 'audit')
-            game.emit('notice', {'text': f'The Demon has died — and because you are the Scarlet Woman, you are '
-                                         f'now the {dead.character}! From the next night you choose who dies.'},
-                      [me.name])
+            # (the one change path, Game.transition: a fresh Demon, its `becomes` and everyone's `changed`)
+            game.become_now(me, dead.character, f'The Demon has died — and because you are the Scarlet Woman, you '
+                                                f'are now the {dead.character}! From the next night you choose who '
+                                                'dies.')
 
 
 class Baron(Minion):
@@ -783,10 +787,9 @@ class Imp(Demon):
         if heir is None and living:
             heir = g[(await game.decide_judged(state.heir_choice([q.name for q in living], imp)))['players'][0]]
         if heir:
-            g.change_character(heir, self.name)  # a Poisoner's poison ends when they stop being the Poisoner
-            game.emit('becomes', {'player': heir.name, 'character': self.name}, 'audit')
-            game.emit('notice', {'text': f'Night {night.n}: the Imp killed themselves, and you are now the Imp! '
-                                         'From tomorrow night you choose who dies.'}, [heir.name])
+            # a Poisoner's poison ends when they stop being the Poisoner (the one change path: Game.transition)
+            await game.become(heir, self.name, f'Night {night.n}: the Imp killed themselves, and you are now the Imp! '
+                                               'From tomorrow night you choose who dies.')
 
 
 # Every character the engine implements, by name (any script draws from these).

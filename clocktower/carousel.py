@@ -61,6 +61,7 @@ def living_good(g, p=None):
 class Banshee(Townsfolk):
     name = 'Banshee'
     ability = ability(name)
+    instance_notes = ('Banshee',)  # the powers are this instance's (a new Banshee has none till the Demon kills it)
 
     def on_death(self, game, me, dead, cause, alive_before):
         # killed by the Demon's attack (any Demon's: the Vortox's, the Ojo's, the Al-Hadikhia's), sober and healthy
@@ -401,6 +402,7 @@ def golem_choice(g, golem, t):
 class Golem(Outsider):
     name = 'Golem'
     ability = ability(name)
+    instance_notes = ('Golem nominated',)  # (one nomination per game, for this instance: a new Golem has its own)
 
     def nomination_limit(self, g, me):
         # one nomination per game, drunk or not (the MAY NOT NOMINATE reminder goes on as they nominate)
@@ -579,7 +581,7 @@ class PlagueDoctor(Outsider):
         p = g[(await game.decide_judged(player_choice(
             f'Plague Doctor:{m}', 'plague_minion', f'Which living Minion gains the {m} ability (and learns it)?',
             minions, lambda r: {'players': [r.choice(minions)]})))['players'][0]]
-        p.extra.append(m)
+        g.gain(p, m, 'Plague Doctor')
         game.emit('gains', {'player': p.name, 'character': m}, 'audit')
         game.inform(p, f'{snv.when(game)}: the Plague Doctor has died, and you gain the {m}\'s ability: '
                        f'{rules(m).ability} (You are still the {p.character}.)')
@@ -852,7 +854,7 @@ class Summoner(Minion):
         if not t.alive and c == 'Zombuul' and g.script.jinxed(self.name, 'Zombuul'):
             # the jinx: a dead player summoned into the Zombuul has already "died once": alive, registering as dead
             t.alive, t.seems_dead = True, True
-            g.spend('Zombuul')
+            g.spend('Zombuul', t)  # (this Zombuul's first death: state.Ability)
         if g.notes.get('Marionette waiting'):  # the Marionette jinx (batch 2): it enters play beside the new Demon
             from .carousel2 import marionette_enters
             await marionette_enters(game, t)

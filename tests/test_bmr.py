@@ -478,9 +478,9 @@ class PoTests(BMRTest):
         """If the Po chose no one the night before the Exorcist chose it, it chooses three the night after."""
         g = self.game(self.CHARS)
         po = ch.rules('Po')
-        g.g.last_choices[H] = []
+        g.g.ability(g.g[H], 'Po').data['last'] = []  # (the Po's own last choice: state.Ability)
         self.assertEqual(po.night_spec(g, g.g[H], Night(3)).players, 3)  # still three after a night not woken
-        g.g.last_choices[H] = [A]
+        g.g.ability(g.g[H], 'Po').data['last'] = [A]
         self.assertEqual(po.night_spec(g, g.g[H], Night(3)).players, 1)  # a choice that killed no one: one
 
 
@@ -1665,7 +1665,7 @@ class GrandmotherTests(BMRTest):
         because the Po became drunk when they attacked the Goon."""
         g = self.game(['Grandmother', 'Moonchild', 'Goon', TOWN, 'Test Town 2', 'Assassin', 'Po'])
         g.g.notes['Grandchild'] = E
-        g.g.last_choices[G] = []  # last time the Po chose no one
+        g.g.ability(g.g[G], 'Po').data['last'] = []  # last time the Po chose no one
         self.answer(2, **{F: [], G: [B, C, A]})
         run(g.night(2))
         self.assertEqual(self.deaths(g, 2), [B])

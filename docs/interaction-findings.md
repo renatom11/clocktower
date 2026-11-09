@@ -129,7 +129,7 @@ may not nominate again does not start it, and as a nominee ends it (172).
 B37. **Fixed before the commit.** **The Sage told while alive** by the Riot jinx read as false to the fuzzer (it looked
 for the Demon's kill); the information names its chooser, and the Sage oracle reads it.
 
-U16. **A Marionette who took an Alchemist's seat keeps the Alchemist's gained ability.** Alchemist + Marionette: the
+U16. **Fixed by the refactor** (`Grimoire.swap_seats` moves the gained abilities and their instances with the token; tests `test_U16_marionette_seat_swap_moves_the_gained_ability`, `test_U16_marionette_setup_uses_the_seat_swap` in tests/test_lifecycle.py). **A Marionette who took an Alchemist's seat keeps the Alchemist's gained ability.** Alchemist + Marionette: the
 Marionette's seat swap beside the Demon swaps characters but not the abilities gained at setup, so the Marionette player
 also holds the Alchemist's Minion ability and is woken for it (`once-rewoken`, 1 in 1,500 games; not Riot's). Repro:
 `python -m clocktower fuzz repro --seed 9000806 --players 10 --judge scripted --chars savant,exorcist,alchemist,engineer,flowergirl,slayer,empath,fisherman,knight,lycanthrope,innkeeper,magician,farmer,plaguedoctor,recluse,mutant,snitch,pithag,psychopath,marionette,poisoner,riot,ojo,legion,nodashii --setup innkeeper,pithag,flowergirl,empath,riot,alchemist,marionette,farmer,lycanthrope,fisherman`.
@@ -338,7 +338,7 @@ Rules: "Townsfolk abilities yield false info" covers every Townsfolk's informati
 the S&V ones are. Fingerprint-safe (identical to `impaired` with no Vortox on the script). The Godfather's
 information is a Minion's, so it stays as is.
 
-B3. **Fixed (0ebe376; the Marionette believing one too).** **A Drunk who believes they have a once-per-game night ability is woken to use it again and again.** Drunk + one
+B3. **Fixed (0ebe376; the Marionette believing one too).** **Kept by the refactor** (docs/state-machines.md, "Refactor results": now per ability instance or through the one change path; regression test `test_B3_a_drunk_believer_spends_their_belief` in tests/test_lifecycle.py). **A Drunk who believes they have a once-per-game night ability is woken to use it again and again.** Drunk + one
 of Courtier, Professor, Seamstress, Philosopher (the Drunk believing it). The "spent" marks are made only for the
 player who really has the ability (`g.spend` in Courtier/Professor; `snv.use` in Seamstress/Philosopher only for
 holders), so `night_spec` keeps waking the Drunk, who can "use" it every night. Repros: Courtier
@@ -351,7 +351,7 @@ player (`snv.use`) for every player woken at the step who chose, drunk or not, a
 (`snv.used`) for Courtier and Professor as Seamstress and Philosopher already do. Fingerprint-safe: neither BMR nor
 S&V has the Drunk, and Trouble Brewing has none of the four.
 
-B4. **Fixed (0ebe376).** **A Philosopher who gains the Courtier or the Professor: the choice does nothing, or blocks the real one.**
+B4. **Fixed (0ebe376).** **Kept by the refactor** (docs/state-machines.md, "Refactor results": now per ability instance or through the one change path; regression test `test_B4_philosopher_courtier_and_courtier_each_spend_their_own` in tests/test_lifecycle.py). **A Philosopher who gains the Courtier or the Professor: the choice does nothing, or blocks the real one.**
 Philosopher + Courtier or Professor. `Courtier.resolve_night` reads only `g.with_character('Courtier')`, so a
 Philosopher-Courtier's choice is ignored, never spent, and they are woken every night; `Professor.resolve_night` takes
 `night.choice_of` (the first holder in seat order), so of a Philosopher-Professor and the real (now drunk) Professor
@@ -400,20 +400,20 @@ The Kazali no longer offers one fewer when it would leave a Drunk nothing to bel
 setup with the Drunk and every Townsfolk (a forced one: the fuzzer's own Kazali setups hit it). Repro (before):
 `python -m clocktower fuzz repro --seed 9008676 --players 15 --judge scripted --chars pixie,seamstress,nightwatchman,investigator,librarian,virgin,exorcist,oracle,slayer,chambermaid,grandmother,ravenkeeper,highpriestess,mutant,damsel,tinker,drunk,poisoner,scarletwoman,goblin,godfather,ojo,alhadikhia,kazali,imp`.
 
-B11. **Fixed (batch 3 commit).** **A setup step turns the Alchemist into another character.** Alchemist + Village Idiot
+B11. **Fixed (batch 3 commit).** **Kept by the refactor** (docs/state-machines.md, "Refactor results": now per ability instance or through the one change path; regression test `test_B11_a_setup_step_never_takes_the_alchemist` in tests/test_lifecycle.py). **A setup step turns the Alchemist into another character.** Alchemist + Village Idiot
 (or the Balloonist's or the Xaan's added Outsider): the Alchemist's step (setup order -1.5) had already acted, the
 Summoner jinx's [No Demon] included, when the Village Idiot's extras took the Alchemist's player; with no Alchemist and
 no Demon, nobody could summon and good did not win (`missed-win`). Repro (before): `python -m clocktower fuzz repro --seed 9004385 --players 6 --judge rules --chars snakecharmer,librarian,noble,nightwatchman,chef,sailor,villageidiot,investigator,alchemist,fortuneteller,preacher,shugenja,banshee,lunatic,plaguedoctor,golem,moonchild,devilsadvocate,witch,summoner,scarletwoman,imp,pukka,alhadikhia,vigormortis`.
 Fix: those steps never take a Townsfolk whose setup step has run (setup order below -1: only the Alchemist).
 
-B12. **Fixed (batch 3 commit).** **Two players with the Assassin's ability.** Alchemist-Assassin + an Assassin made
+B12. **Fixed (batch 3 commit).** **Kept by the refactor** (docs/state-machines.md, "Refactor results": now per ability instance or through the one change path; regression test `test_B12_two_assassins_each_act` in tests/test_lifecycle.py). **Two players with the Assassin's ability.** Alchemist-Assassin + an Assassin made
 later (the Hatter's tea party): the Assassin was spent for the Grimoire as a whole and acted only for the first holder
 in seat order, so the made Assassin's choice was ignored and they were woken again (`once-twice`). Repro (before):
 `python -m clocktower fuzz repro --seed 9003532 --players 9 --judge scripted --chars innkeeper,alchemist,chef,monk,ravenkeeper,clockmaker,shugenja,exorcist,mayor,villageidiot,sage,philosopher,pacifist,puzzlemaster,hatter,heretic,mutant,cerenovus,scarletwoman,assassin,pithag,vigormortis,kazali,shabaloth,zombuul`.
 Fix: each holder acts, and the ability is spent per player (as snv.use); with one Assassin it is the same, and BMR
 replays identically.
 
-B13. **Fixed (batch 3 commit).** **A dead player made the Lycanthrope places a Faux Paw.** Lycanthrope + Barber (a
+B13. **Fixed (batch 3 commit).** **Kept by the refactor** (docs/state-machines.md, "Refactor results": now per ability instance or through the one change path; regression test `test_B13_a_dead_lycanthrope_places_no_faux_paw` in tests/test_lifecycle.py). **A dead player made the Lycanthrope places a Faux Paw.** Lycanthrope + Barber (a
 swap onto a dead player): the new Lycanthrope chose a Faux Paw whose source was already dead (`coherence`). Repro
 (before): `python -m clocktower fuzz repro --seed 9000584 --players 12 --judge scripted --chars banshee,soldier,professor,investigator,undertaker,grandmother,philosopher,dreamer,tealady,savant,lycanthrope,noble,innkeeper,barber,damsel,butler,lunatic,cerenovus,boffin,summoner,baron,nodashii,vigormortis,pukka,ojo`.
 Fix: only a living Lycanthrope chooses one.
@@ -440,13 +440,13 @@ At five players its extra Minion leaves two Townsfolk; adding an Outsider ("-? t
 alone had nothing true to show (the U4 crash). Repro (before): `python -m clocktower fuzz repro --seed 9000312 --players 5 --judge scripted --chars washerwoman,shugenja,innkeeper,grandmother,exorcist,highpriestess,undertaker,mayor,fortuneteller,soldier,cultleader,fool,poppygrower,barber,sweetheart,puzzlemaster,golem,boffin,godfather,scarletwoman,witch,alhadikhia,ojo,lleech,lordoftyphon`.
 Fix: the Lord of Typhon's setup keeps two Townsfolk (ruling 92). U4 itself is unchanged.
 
-B18. **Fixed (batch 4 commit; found by the forced runs).** **The Bounty Hunter's evil Townsfolk was made after the
+B18. **Fixed (batch 4 commit; found by the forced runs).** **Kept by the refactor** (docs/state-machines.md, "Refactor results": now per ability instance or through the one change path; regression test `test_B18_bounty_hunter_turns_a_townsfolk_evil_before_the_good_picks` in tests/test_lifecycle.py). **The Bounty Hunter's evil Townsfolk was made after the
 setup's good picks.** Its setup step ran last, so the Townsfolk it turned evil could already be the Grandmother's
 Grandchild (or the red herring, the Faux Paw, the Evil Twin's twin), each of which must be good (`oracle`, 6 in 400
 forced games, 0 once fixed). Repro (before): `python -m clocktower fuzz repro --seed 9100073 --players 7 --judge rules --chars bountyhunter,tealady,poppygrower,grandmother,cultleader,librarian,sage,banshee,washerwoman,monk,savant,fool,pacifist,zealot,puzzlemaster,drunk,barber,psychopath,fearmonger,devilsadvocate,organgrinder,zombuul,po,leviathan,vortox --setup grandmother,banshee,leviathan,fool,bountyhunter,poppygrower,devilsadvocate`.
 Fix: the step runs once the characters are final and before any step that picks a good player (ruling 101).
 
-B19. **Fixed (batch 4 commit; found by the forced runs).** **A Lleech swapped onto a dead player kept poisoning its
+B19. **Fixed (batch 4 commit; found by the forced runs).** **Kept by the refactor** (docs/state-machines.md, "Refactor results": now per ability instance or through the one change path; regression test `test_B19_lleech_swapped_onto_a_dead_player` in tests/test_lifecycle.py). **A Lleech swapped onto a dead player kept poisoning its
 host.** Barber + Lleech (here the Hermit's Barber): the Demon swapped itself with a dead player, and the host's poison
 moved with the character to the dead new Lleech (`coherence`: a state outliving its source). Repro (before):
 `python -m clocktower fuzz repro --seed 9100229 --players 11 --judge rules --chars preacher,gossip,philosopher,lycanthrope,cannibal,fool,sailor,engineer,minstrel,choirboy,tealady,chambermaid,savant,hermit,drunk,barber,sweetheart,summoner,boffin,marionette,harpy,lleech,alhadikhia,leviathan,nodashii --setup cannibal,preacher,summoner,engineer,savant,hermit,sailor,lycanthrope,marionette,choirboy,chambermaid`.
@@ -458,7 +458,7 @@ evil one it could pick an evil player, an illegal value (`crash`, 7 in 7,000 gam
 Fix: only good Townsfolk (`state.red_herring_choice`; at setup on the base scripts every Townsfolk is good, so they
 replay identically).
 
-B21. **Fixed (batch 4 commit; found by the targeted run).** **A spent Assassin killed with another ability's choice.**
+B21. **Fixed (batch 4 commit; found by the targeted run).** **Kept by the refactor** (docs/state-machines.md, "Refactor results": now per ability instance or through the one change path; regression test `test_B21_a_spent_assassin_ignores_another_abilitys_choice` in tests/test_lifecycle.py). **A spent Assassin killed with another ability's choice.**
 Assassin + Plague Doctor (the Fearmonger jinx: the Assassin gains the Fearmonger's ability): each night the player's
 Fearmonger choice was still in tonight's choices at the Assassin's step, and the spent Assassin acted on it, killing
 every night (`once-twice`, 8 flags in one game). Repro (before): `python -m clocktower fuzz repro --seed 9101342 --players 15 --judge scripted --chars balloonist,slayer,seamstress,shugenja,minstrel,empath,artist,snakecharmer,cannibal,steward,mathematician,highpriestess,chef,puzzlemaster,politician,plaguedoctor,moonchild,fearmonger,spy,scarletwoman,assassin,imp,alhadikhia,po,leviathan --setup cannibal,artist,minstrel,slayer,balloonist,scarletwoman,alhadikhia,plaguedoctor,chef,spy,empath,highpriestess,moonchild,politician,assassin`.
@@ -479,7 +479,7 @@ and a choice of too few players protects no one. Repro (before): `python -m cloc
 
 ## Unruled interactions (the engine does something defensible; a ruling would settle it)
 
-U1. **The Undertaker learns the executed player's character after it changed.** Undertaker + Pit-Hag or Barber (also
+U1. **Left open by the refactor** (an owner question: the engine still shows the current character). The death log now records the character each player died as (`as`), so either ruling is one line; test `test_U1_undertaker_after_a_change` in tests/test_lifecycle.py pins the current behaviour. **The Undertaker learns the executed player's character after it changed.** Undertaker + Pit-Hag or Barber (also
 the Scarlet Woman/Pit-Hag making the dead player a Demon; in the second runs also the Snake Charmer, the Hatter, the
 Cerenovus's madness cell and the Barber's swap onto a dead Marionette or Widow: 67 in 60,000 games, the most frequent
 violation now). The executed player dies as, say, the Washerwoman; that
@@ -539,7 +539,7 @@ setup (a good player); a Goon chosen by an evil player on the first night turns 
 and she is shown them, now evil. Rules: "You start knowing a good player": the engine reads "good" as at setup.
 Suggested ruling: keep (the Grandchild is chosen before the first night); the oracle accepts it.
 
-U6. **The Barber's Demon swaps itself with a dead player: the Vigormortis's kept abilities follow the character to a
+U6. **Fixed by the refactor**, the first half of the suggested ruling (the kept abilities end when the Vigormortis is swapped onto a dead player, as when it dies, as the Lleech's host poison already did: B19); the second half (whether the Storyteller should choose such a swap) is left for the owner, and unchanged. Test `test_U6_vigormortis_swapped_onto_a_dead_player` in tests/test_lifecycle.py. **The Barber's Demon swaps itself with a dead player: the Vigormortis's kept abilities follow the character to a
 dead holder.** Barber + Vigormortis (matrix cell; second runs: 2 in 60,000 games and the Vigormortis x drunk cell,
 `python -m clocktower fuzz cell --subject vigormortis --mechanism drunk --seed 10709002 --judge scripted`). The Barber dies; the Vigormortis swaps itself with a dead Juggler, so
 the living player is now a Juggler and the dead one the Vigormortis. `Vigormortis.hand_over` moves the "keeps their
@@ -601,7 +601,7 @@ A rules impossibility of the setup, as U9 and U11, but here dealt (the Lord of T
 not a Storyteller's choice). Suggested ruling: the Lord of Typhon is not dealt with the Noble at 5 players (a
 `setup_error`), or the Noble learns nothing. Not changed: either would change how existing scripts deal.
 
-U13. **The Plague Doctor's Marionette jinx can make a dead player the Marionette.** Plague Doctor + Marionette (the
+U13. **Left open by the refactor** (an owner question: a dead neighbour may still be chosen). The change itself now takes the one change path; test `test_U13_make_marionette_takes_the_one_path` in tests/test_lifecycle.py. **The Plague Doctor's Marionette jinx can make a dead player the Marionette.** Plague Doctor + Marionette (the
 Storyteller gains the Marionette's ability: "one of the Demon's good neighbours becomes the Marionette"): the
 neighbour picked may be dead. In the game found, the dead neighbour was a Sweetheart whose drunkenness had just been
 placed, so the fuzzer saw a dead Marionette's state (`dead-acts`, 1 in 7,000 games). Repro: `python -m clocktower fuzz repro --seed 9000477 --players 5 --judge rules --chars huntsman,cultleader,slayer,grandmother,pixie,monk,innkeeper,gambler,fool,nightwatchman,lycanthrope,soldier,knight,saint,moonchild,sweetheart,plaguedoctor,cerenovus,baron,mezepheles,marionette,po,yaggababble,zombuul,lordoftyphon`.

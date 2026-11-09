@@ -65,7 +65,7 @@ def add_outsider(game, by):
                            lambda r: {'players': [r.choice(towns)], 'character': r.choice(pool)}), 'extra_outsider',
                     f'An Outsider is added at setup ({by.shown}): which Townsfolk becomes which Outsider?')
     v = game.decide(choice)
-    g.change_character(g[v['players'][0]], v['character'])
+    game.transition(g[v['players'][0]], v['character'], how='dealt', quiet=True)
     return True
 
 
@@ -135,7 +135,7 @@ class Pixie(Townsfolk):
         evidence = madness_evidence(game, me.name, c, 1)
         if (await game.decide_judged(madness_choice(g, me, c, True, evidence)))['yes']:
             return  # they broke their madness: no ability
-        me.extra.append(c)
+        g.gain(me, c, 'Pixie')
         game.emit('gains', {'player': me.name, 'character': c}, 'audit')
         game.inform(me, f'{snv.when(game)} — Pixie: the {c} has died, and you were mad that you were the {c}: you '
                         f'now have the {c}\'s ability: {rules(c).ability} (You are still the Pixie.)')
@@ -451,17 +451,18 @@ class Cannibal(Townsfolk):
             return
         if dead.evil:
             g.add(State('poisoned', me.name, source=None, until=None, about='Cannibal'))
-            me.extra = []
+            g.set_gained(me, [], self.name)
             game.later(lambda game: self.lie(game, me, dead))
             return
         g.states = [s for s in g.states if not (s.kind == 'poisoned' and s.about == 'Cannibal' and s.target == me.name)]
-        me.extra = [dead.character]
+        g.set_gained(me, [dead.character], self.name)
         game.emit('gains', {'player': me.name, 'character': dead.character}, 'audit')
         game.later(lambda game: self.lunch(game, me, dead))
 
     async def lie(self, game, me, dead):
         if me.alive and me.character == self.name and not me.extra:
-            me.extra = [(await game.decide_judged(cannibal_lie_choice(game, me, dead)))['character']]
+            game.g.set_gained(me, [(await game.decide_judged(cannibal_lie_choice(game, me, dead)))['character']],
+                              self.name)
             game.emit('gains', {'player': me.name, 'character': me.extra[0], 'lie': True}, 'audit')
 
     async def lunch(self, game, me, dead):
@@ -600,17 +601,17 @@ async def make_marionette(game, p, demon=None):
     evil); the Demon learns it (the Kazali's and Summoner's jinxes, the Plague Doctor's)."""
     g = game.g
     shown = p.shown
-    g.change_character(p, 'Marionette')
+    was = g.ability(p, shown, create=False)
+    game.transition(p, 'Marionette')  # (the one change path: a fresh instance, a seeming death settled)
     p.shown, p.alignment = shown, 'evil'
-    game.emit('becomes', {'player': p.name, 'character': 'Marionette'}, 'audit')
+    if was is not None:  # (what they used as the character they still believe they are stays used)
+        g.believe(p, was)
     game.emit('alignment', {'player': p.name, 'alignment': 'evil'}, 'audit')
     demon = demon or g.demon()
     if demon and not evil_apart(g):
         game.inform(demon, f'{snv.when(game)}: {p.name} is now the Marionette (they believe they are still a good '
                            'character).')
-    for q in g.players:
-        for c in g.abilities(q):
-            await settle(rules(c).changed(game, q, p))
+    await game.after_change(p)
 
 
 async def marionette_enters(game, demon):
@@ -644,10 +645,10 @@ class Marionette(Minion):
             pool = [q.name for q in seat_neighbours(g, demon)]
             q = g[game.decide(Choice('Marionette seat', [{'players': [x]} for x in pool],
                                      lambda r: {'players': [r.choice(pool)]}))['players'][0]]
-            for k in ('character', 'shown', 'alignment'):
-                a, b = getattr(m, k), getattr(q, k)
-                setattr(m, k, b)
-                setattr(q, k, a)
+            g.swap_seats(m, q)  # (with what the setup steps so far gave each token: finding U16)
+            for x in (m, q):
+                for c in x.extra:  # (the audit follows the gained abilities to their new seat)
+                    game.emit('gains', {'player': x.name, 'character': c, 'seat': True}, 'audit')
             m = q
         m.shown = (await game.decide_judged(marionette_as_choice(g, m)))['character']
         if m.shown == 'Balloonist' and g.script.jinxed(self.name, 'Balloonist') and game.decide(yes_choice(
@@ -656,7 +657,7 @@ class Marionette(Minion):
         if not demon and g.script.jinxed(self.name, 'Summoner'):
             # the jinx: no Demon yet, so the Marionette enters play after it, beside it (marionette_enters): for now
             # this player is the good character they believe they are
-            g.change_character(m, m.shown)
+            game.transition(m, m.shown, how='dealt', quiet=True)
             m.alignment = 'good'
             g.notes['Marionette waiting'] = True
 
@@ -806,7 +807,7 @@ class Kazali(Demon):
             v = game.decide(Choice('Kazali fewer outsiders', [{'players': [x], 'character': c} for x in outs
                                                                for c in towns],
                                    lambda r: {'players': [r.choice(outs)], 'character': r.choice(towns)}))
-            g.change_character(g[v['players'][0]], v['character'])
+            game.transition(g[v['players'][0]], v['character'], how='dealt', quiet=True)
 
     def night_spec(self, game, me, night):
         return None if night.first else self.night_choice

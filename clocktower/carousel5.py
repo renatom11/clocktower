@@ -365,7 +365,7 @@ class Hermit(Outsider):
         """The Hermit has every Outsider ability on the script (in play or not) but those in HERMIT_NONE: held in
         `extra`, so each acts as for a player who gained it (they wake at its step, its hooks run); the hooks the
         engine asks of a player's own character are passed on below."""
-        me.extra = [c for c in hermit_abilities(game.g) if c not in me.extra]
+        game.g.set_gained(me, [c for c in hermit_abilities(game.g) if c not in me.extra], self.name)
         for c in me.extra:
             game.emit('gains', {'player': me.name, 'character': c}, 'audit')
 
