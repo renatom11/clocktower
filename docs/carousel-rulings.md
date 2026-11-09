@@ -1046,15 +1046,20 @@ The five characters the brief kept for a design with the owner, brought in by it
 each can always be taken out again. Each is a section of its own in `clocktower/carousel_extra.py` (loaded last),
 with its tests in `tests/test_carousel_<id>.py`, its Storyteller's notes in `clocktower/data/storyteller/extra-<id>.md`,
 its synthetic script (one character each: never two of them on one script, so each replays on its own) and its rulings
-in its subsection below, all in one commit, so `git revert` of that commit removes it and leaves the others. Nothing
-outside its section names it; each core hook it needs does nothing on a script without it, and every recorded
-fingerprint (TB, BMR, S&V, carousel-1 to carousel-7) replays identically with it in or out. The generic hooks two or more
-of them use were added first, in a commit of their own that no character needs reverting with: `Character.deals`
+in its subsection below. Each can be switched off (`CLOCKTOWER_WITHOUT=<id>`, or `python -m clocktower --without <id>`:
+its section registers nothing, a script naming it says it is not built, and its tests skip) or deleted for good (its
+section, its test file, its examples class, its notes file, its synthetic script and fingerprints:
+`carousel_extra.py`'s docstring lists them); `tests/test_extra_removable.py` checks the switch for each of the five and
+for all five at once. (Each was first built in one commit so that `git revert` would remove it; later fixes inside the
+sections make those reverts conflict, so the switch and the deletion replace them.) Nothing outside its section names
+it; each core hook it needs does nothing on a script without it, and every recorded fingerprint (TB, BMR, S&V,
+carousel-1 to carousel-7) replays identically with it in or out. The generic hooks two or more of them use were added
+first, in a commit of their own that names none of them: `Character.deals`
 (`deal_error`, `redeal`: a character whose presence changes the whole deal, asked by `state.setup_error`,
 `state.random_setup` and the fuzzer's forced setups; a redeal may return None to draw again, and a deal's character may
 hold or change the end, `Grimoire.check_victory` asking its `overrides_end` with nobody holding it) and
-`Character.rule_text` (sentences the custom-script prompt adds for a rule a character brings). A character that could not be kept isolated would be reverted and left here as a design
-note instead.
+`Character.rule_text` (sentences the custom-script prompt adds for a rule a character brings). A character that could
+not be kept isolated would be removed and left here as a design note instead.
 
 ### Lil' Monsta
 
@@ -1272,7 +1277,7 @@ The rules judge has no heuristic for its calls.
 
 Built (section "Riot" of `carousel_extra.py`; tests `tests/test_carousel_riot.py`; notes `data/storyteller/extra-riot.md`;
 script `carousel-12`). Its twelve official jinxes are implemented: eleven with built characters, and the Atheist's,
-declared only while the Atheist is built (so either can be reverted). With it the Carousel Script Collection's Quick
+declared only while the Atheist is built (so either can be switched off or deleted). With it the Carousel Script Collection's Quick
 Maths plays end to end. The text built is the official data's ("On day 3, Minions become Riot & nominees die but
 nominate an alive player immediately. This must happen."); its jinxes speak of a nightly choice it does not have, read
 below.

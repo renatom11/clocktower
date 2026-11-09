@@ -1071,19 +1071,20 @@ legion_revealed: with the Minstrel or Preacher jinx, the Minstrel or Preacher le
 
 Run this group straight after group 4, before the optional weights. These five characters were kept back for a design
 with the owner, then built on one condition: each one can always be taken out again. Each character lives in its own
-section of the code, with its own tests, notes, test script and rulings, all in one commit, so a single git revert of
-that commit removes it and leaves the others and every recorded replay as they were. So for each character, the first
+section of the code, with its own tests, notes, test script and rulings, so it can be switched off with one setting,
+or deleted for good by removing its section and a short list of its files; either way the others and every recorded
+replay stay as they were, and both ways are tested for each character. So for each character, the first
 item asks whether to keep it at all, and the items after it are its real decisions. If the owner says to remove a
 character, record that and skip the rest of that character's items, unless the owner wants to rule on them in case it
 comes back.
 
 ### Lil' Monsta (items 81 to 84)
 
-**C6.1. Keep Lil' Monsta at all? (rulings 139 to 150; revert 17e0ef0)** Lil' Monsta is a Demon that no player is
+**C6.1. Keep Lil' Monsta at all? (rulings 139 to 150; switch: lilmonsta)** Lil' Monsta is a Demon that no player is
 dealt: the Minions pass its token among themselves each night, and whoever babysits it is the Demon while keeping their
 own Minion ability. Engine now: built as a token the babysitter carries beside their own Minion character, which is
 the first option of group 4's item 69, with all seven of its official jinxes. It makes three more corpus scripts play
-end to end. Question: keep it, or remove it with one revert? Options: one, keep it as built; two, remove it; three,
+end to end. Question: keep it, or remove it? Options: one, keep it as built; two, remove it; three,
 keep it but rebuild it as a character passed between the Minions, simpler but losing the babysitter's own ability,
 which the text keeps. Why it was built this way: the text says the babysitter keeps their ability, and only a token
 can say that.
@@ -1126,10 +1127,10 @@ suggested rulings are two or three; the engine does one only because something h
 
 ### The Atheist (items 85 to 88)
 
-**C6.5. Keep the Atheist at all? (rulings 151 to 156; revert 4ee0f21)** The Atheist is a Townsfolk whose ability says
+**C6.5. Keep the Atheist at all? (rulings 151 to 156; switch: atheist)** The Atheist is a Townsfolk whose ability says
 the Storyteller can break the game rules, and if executed the good team wins; there is no evil team at all. Engine now:
 built, with a bounded set of rule breaks, because the honest version, a Storyteller free to break any rule, can't be
-run by an engine. It makes two more corpus scripts play. Question: keep it, or remove it with one revert? Options:
+run by an engine. It makes two more corpus scripts play. Question: keep it, or remove it? Options:
 one, keep it; two, remove it, since the engine's version is a reading rather than the character's real spirit. Note:
 Riot's Atheist jinx is declared only while the Atheist is built, so removing the Atheist leaves Riot working.
 
@@ -1162,10 +1163,10 @@ evil to win; two, nothing happens when the Atheist isn't in play, and the day go
 
 ### The Wizard (items 89 to 91)
 
-**C6.9. Keep the Wizard at all? (rulings 157 to 161; revert 9bd9021)** The Wizard is a Minion who makes one wish,
+**C6.9. Keep the Wizard at all? (rulings 157 to 161; switch: wizard)** The Wizard is a Minion who makes one wish,
 which the Storyteller may grant, perhaps at a price, and perhaps leaving a clue. Engine now: built with a curated list
 of wishes the engine can actually grant, each with its own prices; it has no official jinx, and it makes two more
-corpus scripts play. Question: keep it, or remove it with one revert? Options: one, keep it with a fixed list; two,
+corpus scripts play. Question: keep it, or remove it? Options: one, keep it with a fixed list; two,
 remove it, since a Wizard limited to a list is a much smaller character than the real one.
 
 **C6.10. The Wizard's wish list and its prices (ruling 157).** Engine now: eight wishes, each with a few possible
@@ -1194,10 +1195,10 @@ later; let the clue name the price too; let a model judge propose a wish off the
 
 ### Legion (items 92 to 95)
 
-**C6.12. Keep Legion at all? (rulings 162 to 169; revert be1b4cb)** Legion is a Demon that most of the players are,
+**C6.12. Keep Legion at all? (rulings 162 to 169; switch: legion)** Legion is a Demon that most of the players are,
 with no Minions; executions fail if only evil players voted, and it registers as a Minion too. Engine now: built, with
 all eight official jinxes, including the Engineer's that batch 4 left waiting; it makes one more corpus script play.
-Question: keep it, or remove it with one revert? Note: about a quarter of random-bot games on its test script reach the
+Question: keep it, or remove it? Note: about a quarter of random-bot games on its test script reach the
 tenth day unfinished, because random good votes rarely carry an execution past Legion's rule; with real players that
 may be different.
 
@@ -1233,10 +1234,10 @@ one, as now; two, register as a Minion to every ability that asks about Minions.
 
 ### Riot (items 96 to 99)
 
-**C6.16. Keep Riot at all? (rulings 170 to 175; revert e524ac3)** Riot is a Demon that kills nobody at night; on day 3
+**C6.16. Keep Riot at all? (rulings 170 to 175; switch: riot)** Riot is a Demon that kills nobody at night; on day 3
 the Minions become Riot too, and every nominee dies at once but must nominate again. Engine now: built, with all twelve
 official jinxes, the Atheist's declared only while the Atheist is built, so either can be removed; it makes one more
-corpus script play. Question: keep it, or remove it with one revert? Note: every game on its test script ends by day 3.
+corpus script play. Question: keep it, or remove it? Note: every game on its test script ends by day 3.
 
 **C6.17. Which Riot text: the older one, or "after day 3, evil wins" (rulings 170 to 172, and the jinx reading in
 173).** Engine now: the text in the official data, "On day 3, Minions become Riot and nominees die but nominate an

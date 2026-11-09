@@ -1,7 +1,7 @@
 """The Wizard (clocktower/carousel_extra.py, batch 6, removable): its wish chosen from a curated list of effects the
 engine can grant, by number or in words the Storyteller matches to the list, the Storyteller's grant, price and clue,
-each chosen among the list's, and the edges its text implies (docs/carousel-rulings.md, batch 6, Wizard). Reverting the
-commit that built it removes this file with it."""
+each chosen among the list's, and the edges its text implies (docs/carousel-rulings.md, batch 6, Wizard). Deleting it
+deletes this file (clocktower/carousel_extra.py's docstring); switching it off skips it."""
 import io
 import json
 import random
@@ -19,6 +19,11 @@ from test_carousel1 import Batch1Test
 A, B, C, D, E, F, G, H, I = NAMES
 WZ = 'Wizard'
 R = ch.rules
+
+
+def setUpModule():
+    if WZ not in ch.CHARACTERS:  # switched off (CLOCKTOWER_WITHOUT=wizard: clocktower/carousel_extra.py)
+        raise unittest.SkipTest('the Wizard is not built')
 
 
 class WizardTest(Batch1Test):

@@ -7,11 +7,25 @@ Storyteller's weights (added to state.POLICY here, under the Carousel heading's 
 into state.py), the jinxes it implements (declared here, and listed in JINXES for tests/test_carousel.py), its
 registration in characters.CHARACTERS. Nothing outside this module names them. The core hooks a section uses do
 nothing on a script without its character (most are generic: an attribute or a list on the Script that only these
-characters set), and the generic ones several of them need were added before any of them (the deal hooks in state.py,
-the rule sentences in prompts.py), so each character is one commit, and `git revert` of that commit removes it (its
-section, its core hooks, its tests in tests/test_carousel_<id>.py, its rulings, its synthetic script and fingerprints)
-without touching the others. Where a section reads another batch 6 character (a jinx between two of them), it asks
-whether that character is built, so either can go.
+characters set). Where a section reads another batch 6 character (a jinx between two of them), it asks whether that
+character is built, so either can go.
+
+Switching one off (no code change): CLOCKTOWER_WITHOUT=<id>[,<id>...], ids lilmonsta, atheist, wizard, legion, riot
+(or all), or `python -m clocktower --without <ids> ...`. Its section then registers nothing: no character, jinxes,
+weights, Storyteller's notes (judge.storyteller_notes leaves out data/storyteller/extra-<id>.md) or prompt sentences
+(its rule_text). A script naming it says it is not built, as for any unbuilt character; every other script plays as
+with all five, and its tests skip. tests/test_extra_removable.py checks each of the five and all five at once.
+
+Deleting one for good: delete
+  - its section below, from its "# ---- <name> ----" line to its "# ---- end of <name> ----" line;
+  - tests/test_carousel_<id>.py, and its class in tests/examples/test_carousel_extra_examples.py (headed by its name);
+  - clocktower/data/storyteller/extra-<id>.md;
+  - its synthetic script and fingerprints: clocktower/data/scripts/carousel-<n>.json and
+    tests/data/fingerprints-carousel-<n>.json (8 Lil' Monsta, 9 the Atheist, 10 the Wizard, 11 Legion, 12 Riot).
+Nothing else needs changing (its id may stay in IDS: switching off a deleted character does nothing); mark its rulings
+subsection in docs/carousel-rulings.md as removed (the rulings keep their numbers). Each deletion is checked to pass
+the full check (docs/readiness.md, "Removing a batch 6 character"). The old way, `git revert` of each character's
+commit, no longer applies cleanly (later fixes inside the sections and the core refactor touch the same lines).
 
 As in carousel.py to carousel6.py (whose helpers and conventions this module shares): each entry follows the wiki's How
 to Run, and where the rules leave a question open, a comment says which reading the entry takes, and why
@@ -19,7 +33,38 @@ to Run, and where the rules leave a question open, a comment says which reading 
 """
 from __future__ import annotations
 
+import os
+
 from .characters import CHARACTERS
+
+# The switch: CLOCKTOWER_WITHOUT (or `python -m clocktower --without ...`, clocktower/__main__.py), a comma-separated
+# list of the ids below (or `all`), builds the engine without those characters. Read once, when this module loads.
+IDS = ('lilmonsta', 'atheist', 'wizard', 'legion', 'riot')  # (an id whose section is deleted switches nothing off)
+
+
+def switched_off(value=None):
+    """The ids switched off by `value` (default: $CLOCKTOWER_WITHOUT): ids as in IDS, matched ignoring case and
+    anything not a letter or digit ("Lil' Monsta" is lilmonsta), or `all`. An unknown id raises ValueError."""
+    raw = os.environ.get('CLOCKTOWER_WITHOUT', '') if value is None else value
+    out = set()
+    for x in raw.split(','):
+        key = ''.join(c for c in x.lower() if c.isalnum())
+        if key == 'all':
+            out |= set(IDS)
+        elif key in IDS:
+            out.add(key)
+        elif key:
+            raise ValueError(f'CLOCKTOWER_WITHOUT: {x.strip()!r} is not one of {", ".join(IDS)} (or all)')
+    return frozenset(out)
+
+
+WITHOUT = switched_off()
+
+
+def wanted(cid):
+    """Whether the section of `cid` (one of IDS) registers its character: it is not switched off."""
+    return cid not in WITHOUT
+
 
 JINXES = []  # the official jinxes implemented here, as (a, b) pairs (tests/test_carousel.py checks them all)
 
@@ -61,11 +106,12 @@ from .state import POLICY as _POLICY, SETUPS as _SETUPS, Choice as _Choice, judg
 from .state import setup_changes as _setup_changes, team_sizes as _team_sizes  # noqa: E402
 
 LIL_MONSTA = "Lil' Monsta"
-_POLICY.update({  # (Carousel, batch 6: Lil' Monsta. Default, for review.)
-    'lilmonsta_kill': 0.9,         # each night*, a player dies (else nobody), a living good player
-    'lilmonsta_keep_sitter': 0.6,  # the Minions disagree: the Storyteller keeps the babysitter they had, when one of
-    #                                them chose them (else one of the chosen at random)
-})
+if wanted('lilmonsta'):
+    _POLICY.update({  # (Carousel, batch 6: Lil' Monsta. Default, for review.)
+        'lilmonsta_kill': 0.9,         # each night*, a player dies (else nobody), a living good player
+        'lilmonsta_keep_sitter': 0.6,  # the Minions disagree: the Storyteller keeps the babysitter they had, when one
+        #                                of them chose them (else one of the chosen at random)
+    })
 
 
 def lilmonsta_rec(g):
@@ -331,16 +377,18 @@ class LilMonsta(_Demon):
             game.inform(taker, f'{_snv.when(game)}: you babysit Lil\' Monsta: you are the Demon.')
 
 
-CHARACTERS[LIL_MONSTA] = LilMonsta()
-for _other, _where in (('Hatter', 'carousel_extra.LilMonsta.becomes'),
-                       ('Magician', 'carousel_extra.LilMonsta.choose_sitter'),
-                       ('Poppy Grower', 'carousel_extra.LilMonsta.choose_sitter'),
-                       ('Psychopath', 'carousel_extra.LilMonsta.dooms; carousel5.Psychopath.before_execution'),
-                       ('Scarlet Woman', 'carousel_extra.LilMonsta.on_death; characters.ScarletWoman.on_death'),
-                       ('Vizier', 'carousel_extra.LilMonsta.dooms (game.Game.prevent_death)'),
-                       ('Marionette', 'carousel_extra.LilMonsta.setup, resolve_night (carousel2.marionette_enters)')):
-    _jinx(LIL_MONSTA, _other, _where)
-    JINXES.append((LIL_MONSTA, _other))
+if wanted('lilmonsta'):
+    CHARACTERS[LIL_MONSTA] = LilMonsta()
+    for _other, _where in (('Hatter', 'carousel_extra.LilMonsta.becomes'),
+                           ('Magician', 'carousel_extra.LilMonsta.choose_sitter'),
+                           ('Poppy Grower', 'carousel_extra.LilMonsta.choose_sitter'),
+                           ('Psychopath', 'carousel_extra.LilMonsta.dooms; carousel5.Psychopath.before_execution'),
+                           ('Scarlet Woman', 'carousel_extra.LilMonsta.on_death; characters.ScarletWoman.on_death'),
+                           ('Vizier', 'carousel_extra.LilMonsta.dooms (game.Game.prevent_death)'),
+                           ('Marionette',
+                            'carousel_extra.LilMonsta.setup, resolve_night (carousel2.marionette_enters)')):
+        _jinx(LIL_MONSTA, _other, _where)
+        JINXES.append((LIL_MONSTA, _other))
 # ---- end of Lil' Monsta ------------------------------------------------------------------------------------------
 
 
@@ -356,10 +404,12 @@ from .state import POLICY as _POLICY_at, SETUPS as _SETUPS_at, Choice as _Choice
 
 ATHEIST = 'Atheist'
 STORYTELLER = 'Storyteller'
-_POLICY_at.update({  # (Carousel, batch 6: the Atheist. Default, for review.)
-    'atheist_lie': 0.9,   # with the Atheist in play, a piece of information follows the fake Grimoire (else the truth)
-    'atheist_kill': 0.85,  # each night*, the Storyteller kills a player as a Demon would (else nobody)
-})
+if wanted('atheist'):
+    _POLICY_at.update({  # (Carousel, batch 6: the Atheist. Default, for review.)
+        'atheist_lie': 0.9,    # with the Atheist in play, a piece of information follows the fake Grimoire (else the
+        #                        truth)
+        'atheist_kill': 0.85,  # each night*, the Storyteller kills a player as a Demon would (else nobody)
+    })
 
 
 def fake_team_choice(g, n):
@@ -501,7 +551,8 @@ class Atheist(_Townsfolk):
             g.winner, g.reason = 'evil', 'The Storyteller was executed, and the Atheist is not in play.'
 
 
-CHARACTERS[ATHEIST] = Atheist()
+if wanted('atheist'):
+    CHARACTERS[ATHEIST] = Atheist()
 # ---- end of Atheist ----------------------------------------------------------------------------------------------
 
 
@@ -520,11 +571,12 @@ from .characters import Minion as _Minion_wz  # noqa: E402
 from .state import POLICY as _POLICY_wz, Choice as _Choice_wz, State as _State_wz, judged as _judged_wz  # noqa: E402
 
 WIZARD = 'Wizard'
-_POLICY_wz.update({  # (Carousel, batch 6: the Wizard. Default, for review.)
-    'wizard_grant': 0.85,       # a sober, living Wizard's wish is granted
-    'wizard_price': 0.8,        # a granted wish has a price (else none)
-    'wizard_clue': 0.7,         # it leaves a clue (else none)
-})
+if wanted('wizard'):
+    _POLICY_wz.update({  # (Carousel, batch 6: the Wizard. Default, for review.)
+        'wizard_grant': 0.85,       # a sober, living Wizard's wish is granted
+        'wizard_price': 0.8,        # a granted wish has a price (else none)
+        'wizard_clue': 0.7,         # it leaves a clue (else none)
+    })
 
 
 @_dataclass_wz(frozen=True)
@@ -759,7 +811,8 @@ class Wizard(_Minion_wz):
                                 f'"{wish.text}"')
 
 
-CHARACTERS[WIZARD] = Wizard()
+if wanted('wizard'):
+    CHARACTERS[WIZARD] = Wizard()
 # ---- end of Wizard -----------------------------------------------------------------------------------------------
 
 
@@ -775,12 +828,13 @@ from .state import POLICY as _POLICY_lg, SETUPS as _SETUPS_lg, Choice as _Choice
 from .state import judged as _judged_lg, yes_choice as _yes_lg  # noqa: E402
 
 LEGION = 'Legion'
-_POLICY_lg.update({  # (Carousel, batch 6: Legion. Default, for review.)
-    'legion_kill': 0.85,          # each night*, a player dies (else nobody), a living good player
-    'legion_registers_evil': 0.5,  # a voter who may register either way (a Spy, a Recluse; the jinxes' Politician and
-    #                                Zealot) registers as evil to Legion
-    'legion_revealed': 0.5,       # the Minstrel and Preacher jinxes: the Minstrel (Preacher) learns they are Legion
-})
+if wanted('legion'):
+    _POLICY_lg.update({  # (Carousel, batch 6: Legion. Default, for review.)
+        'legion_kill': 0.85,          # each night*, a player dies (else nobody), a living good player
+        'legion_registers_evil': 0.5,  # a voter who may register either way (a Spy, a Recluse; the jinxes' Politician
+        #                                and Zealot) registers as evil to Legion
+        'legion_revealed': 0.5,       # the Minstrel and Preacher jinxes: the Minstrel (Preacher) learns they are Legion
+    })
 
 
 def legion_count(n):
@@ -964,10 +1018,11 @@ class Legion(_Demon_lg):
             await game.changes([(q, self.name, None) for q in others])
 
 
-CHARACTERS[LEGION] = Legion()
-for _other in ('Engineer', 'Hatter', 'Minstrel', 'Politician', 'Preacher', 'Summoner', 'Zealot', 'Magician'):
-    _jinx_lg(LEGION, _other, 'carousel_extra.Legion')
-    JINXES.append((LEGION, _other))
+if wanted('legion'):
+    CHARACTERS[LEGION] = Legion()
+    for _other in ('Engineer', 'Hatter', 'Minstrel', 'Politician', 'Preacher', 'Summoner', 'Zealot', 'Magician'):
+        _jinx_lg(LEGION, _other, 'carousel_extra.Legion')
+        JINXES.append((LEGION, _other))
 # ---- end of Legion -----------------------------------------------------------------------------------------------
 
 
@@ -1198,12 +1253,13 @@ class Riot(_Demon_rt):
             g.winner, g.reason = 'evil', f'{dead.name}, the Grandchild, was executed with Riot in play.'
 
 from .characters import rules as _rules_rt  # noqa: E402
-CHARACTERS[RIOT] = Riot()
-for _other in ('Banshee', 'Exorcist', 'Farmer', 'Grandmother', 'Innkeeper', 'King', 'Mayor', 'Monk', 'Ravenkeeper',
-               'Sage', 'Soldier'):
-    _jinx_rt(RIOT, _other, 'carousel_extra.Riot')
-    JINXES.append((RIOT, _other))
-if built('Atheist'):  # (the jinx between two batch 6 characters: either may be reverted)
-    _jinx_rt(RIOT, 'Atheist', 'carousel_extra.Riot.storyteller_riot')
-    JINXES.append((RIOT, 'Atheist'))
+if wanted('riot'):
+    CHARACTERS[RIOT] = Riot()
+    for _other in ('Banshee', 'Exorcist', 'Farmer', 'Grandmother', 'Innkeeper', 'King', 'Mayor', 'Monk', 'Ravenkeeper',
+                   'Sage', 'Soldier'):
+        _jinx_rt(RIOT, _other, 'carousel_extra.Riot')
+        JINXES.append((RIOT, _other))
+    if built('Atheist'):  # (the jinx between two batch 6 characters: either may be switched off or deleted)
+        _jinx_rt(RIOT, 'Atheist', 'carousel_extra.Riot.storyteller_riot')
+        JINXES.append((RIOT, 'Atheist'))
 # ---- end of Riot -------------------------------------------------------------------------------------------------

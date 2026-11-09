@@ -1,7 +1,7 @@
 """The Atheist (clocktower/carousel_extra.py, batch 6, removable): the deal with no evil characters, the Storyteller's
 bounded rule-breaking (a fake evil team its information follows, night deaths as a Demon's), nominating and executing
 the Storyteller, the end of the game, and the edges its text implies (docs/carousel-rulings.md, batch 6, Atheist).
-Reverting the commit that built it removes this file with it."""
+Deleting it deletes this file (clocktower/carousel_extra.py's docstring); switching it off skips it."""
 import io
 import json
 import random
@@ -21,6 +21,11 @@ from test_carousel1 import Batch1Test
 A, B, C, D, E, F, G, H, I = NAMES
 AT = 'Atheist'
 R = ch.rules
+
+
+def setUpModule():
+    if AT not in ch.CHARACTERS:  # switched off (CLOCKTOWER_WITHOUT=atheist: clocktower/carousel_extra.py)
+        raise unittest.SkipTest('the Atheist is not built')
 
 
 class AtheistTest(Batch1Test):

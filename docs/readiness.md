@@ -165,9 +165,8 @@ marked for the owner's review (docs/snv-rulings.md).
 - **Lil' Monsta, the Atheist, the Wizard, Legion and Riot** in `clocktower/carousel_extra.py` (loaded last), each in a
   section of its own, one commit each, with its own tests (`tests/test_carousel_<id>.py`), Storyteller's notes
   (`data/storyteller/extra-<id>.md`), synthetic script (`carousel-8` to `carousel-12`, one character each, with
-  replay fingerprints), rulings and fuzz findings, so that `git revert` of a character's commit removes it and leaves
-  the others; each was checked that way (the revert of each, at the last commit, passes the full check). A scaffold
-  commit before them holds the hooks two or more of them share (`Character.deals`: a character whose presence changes
+  replay fingerprints), rulings and fuzz findings, so that each can be taken out and leave the others (see "Removing a
+  batch 6 character" below: switched off, or deleted for good, each checked). A scaffold commit before them holds the hooks two or more of them share (`Character.deals`: a character whose presence changes
   the whole deal; `Character.rule_text`: a prompt sentence for a rule it brings) and names none of them. Every core
   hook is a no-op on a script without its character; TB, BMR, S&V and `carousel-1` to `-7` replay identically.
 - **Lil' Monsta**: a Demon token (`Player.carries`) the Minions pass between them each night, the babysitter being the

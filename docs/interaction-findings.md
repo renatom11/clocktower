@@ -25,8 +25,8 @@ information checked), `violations.jsonl` (every violation with its repro) and `c
 
 Each batch 6 character (clocktower/carousel_extra.py) is fuzzed on its own when it is built: about 3,000 games, uniform
 random scripts with it in the pool and games with it forced onto the script and into play. Its findings are numbered on
-from B24 and U14 and written up in its subsection here, not in the lists below, so that reverting the character's commit
-takes them out with it.
+from B24 and U14 and written up in its subsection here, not in the lists below, so that deleting the character
+(clocktower/carousel_extra.py's docstring) can take them out with it.
 
 ### Lil' Monsta
 

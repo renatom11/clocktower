@@ -1,7 +1,8 @@
 """Riot (clocktower/carousel_extra.py, batch 6, removable): the Minions becoming Riot on the third night, the riot of
 day 3 (each nominee executed at once, nominating the next), each edge its text implies, and its official jinxes with
-built characters (docs/carousel-rulings.md, batch 6, Riot). Reverting the commit that built it removes this file with
-it. The jinx with the Atheist, another batch 6 character, is tested only while the Atheist is built."""
+built characters (docs/carousel-rulings.md, batch 6, Riot). Deleting it deletes this file
+(clocktower/carousel_extra.py's docstring); switching it off skips it. The jinx with the Atheist, another batch 6
+character, is tested only while the Atheist is built."""
 import io
 import json
 import unittest
@@ -19,6 +20,11 @@ RT = 'Riot'
 R = ch.rules
 JINXED = ('Banshee', 'Exorcist', 'Farmer', 'Grandmother', 'Innkeeper', 'King', 'Mayor', 'Monk', 'Ravenkeeper', 'Sage',
           'Soldier')
+
+
+def setUpModule():
+    if RT not in ch.CHARACTERS:  # switched off (CLOCKTOWER_WITHOUT=riot: clocktower/carousel_extra.py)
+        raise unittest.SkipTest('Riot is not built')
 
 
 class RiotTest(Batch1Test):

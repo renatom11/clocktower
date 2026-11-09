@@ -1,7 +1,7 @@
 """Lil' Monsta (clocktower/carousel_extra.py, batch 6, removable): the deal with a Minion in the Demon's seat, the
-Minions' nightly choice of a babysitter who is the Demon, its kill, how the babysitter registers and dies, each edge its
-text implies, and its official jinxes with built characters (docs/carousel-rulings.md, batch 6, Lil' Monsta). Reverting
-the commit that built it removes this file with it."""
+Minions' nightly choice of a babysitter who is the Demon, its kill, how the babysitter registers and dies, each edge
+its text implies, and its official jinxes with built characters (docs/carousel-rulings.md, batch 6, Lil' Monsta).
+Deleting it deletes this file (clocktower/carousel_extra.py's docstring); switching it off skips it."""
 import io
 import json
 import random
@@ -19,6 +19,11 @@ from test_carousel1 import Batch1Test
 A, B, C, D, E, F, G, H, I = NAMES
 LM = "Lil' Monsta"
 R = ch.rules
+
+
+def setUpModule():
+    if LM not in ch.CHARACTERS:  # switched off (CLOCKTOWER_WITHOUT=lilmonsta: clocktower/carousel_extra.py)
+        raise unittest.SkipTest("Lil' Monsta is not built")
 
 
 class LilMonstaTest(Batch1Test):

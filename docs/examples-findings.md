@@ -195,7 +195,7 @@ Open questions are docs/review/everything-open-voice.md Part A (S1.x, S2.x, S3.x
 ## Experimental characters
 
 Tests: `tests/examples/test_carousel_examples.py`, and `tests/examples/test_carousel_extra_examples.py` for the five
-removable characters of batch 6 (one class each, so reverting a character deletes only its class). Rulings are
+removable characters of batch 6 (one class each: switching a character off skips only its class, deleting it deletes only its class). Rulings are
 numbered as in `docs/carousel-rulings.md`.
 
 - **EC-1. The Damsel: one guess for the whole Minion team.** Example: the Boomdandy guesses the wrong player, then

@@ -6,7 +6,7 @@ and not an accident."""
 import unittest
 
 from clocktower import carousel2, snv
-from clocktower.characters import rules
+from clocktower.characters import CHARACTERS, rules
 from clocktower.game import Night
 from clocktower.state import State
 
@@ -146,6 +146,7 @@ class InstanceTests(Test):
         self.assertIsNot(instance(g, A, 'Philosopher'), first)
         self.assertFalse(snv.used(g.g, g.g[A], 'Philosopher'))
 
+    @unittest.skipUnless('Wizard' in CHARACTERS, 'the Wizard is not built (batch 6, removable)')
     def test_S4_stale_spent_wizard_baron_wizard(self):
         # the fuzz repro (seed 9006975): the tea party makes the Wizard the Baron, and a later one the Wizard again
         g = self.game(['Wizard', T1, T2, T3, 'Poisoner', 'Imp', 'Soldier'], extra=['Baron', 'Hatter'])

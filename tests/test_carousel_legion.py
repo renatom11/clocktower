@@ -1,7 +1,7 @@
 """Legion (clocktower/carousel_extra.py, batch 6, removable): most players Legion, one Demon character shared, its night
-kill, executions that fail when only evil voted, its registration as a Minion too, each edge its text implies, and its
-official jinxes with built characters (docs/carousel-rulings.md, batch 6, Legion). Reverting the commit that built it
-removes this file with it."""
+kill, executions that fail when only evil voted, its registration as a Minion too, each edge its text implies, and
+its official jinxes with built characters (docs/carousel-rulings.md, batch 6, Legion). Deleting it deletes this file
+(clocktower/carousel_extra.py's docstring); switching it off skips it."""
 import io
 import json
 import random
@@ -20,6 +20,11 @@ A, B, C, D, E, F, G, H, I = NAMES
 LG = 'Legion'
 R = ch.rules
 JINXED = ('Engineer', 'Hatter', 'Minstrel', 'Politician', 'Preacher', 'Summoner', 'Zealot', 'Magician')
+
+
+def setUpModule():
+    if LG not in ch.CHARACTERS:  # switched off (CLOCKTOWER_WITHOUT=legion: clocktower/carousel_extra.py)
+        raise unittest.SkipTest('Legion is not built')
 
 
 class LegionTest(Batch1Test):

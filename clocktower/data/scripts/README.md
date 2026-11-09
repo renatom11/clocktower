@@ -41,7 +41,8 @@ Soldier, Princess) meet the Yaggababble, and every table size from 5 to 15 can b
 `custom-carousel-7`.
 
 `carousel-8.json` onwards are batch 6's synthetic scripts (docs/carousel-rulings.md, batch 6): one each for Lil' Monsta,
-the Atheist, the Wizard, Legion and Riot, never two of them on one script, so that reverting a character's commit takes
-its script and fingerprints with it and leaves the others replaying identically. Each holds its character with built
+the Atheist, the Wizard, Legion and Riot, never two of them on one script, so that switching a character off or deleting it
+(clocktower/carousel_extra.py's docstring) takes its script and fingerprints with it and leaves the others replaying
+identically. Each holds its character with built
 ones chosen so that every official jinx between it and a built character is on it and every table size from 5 to 15
 can be dealt; the character's subsection of the rulings says which. Their games are protocol `custom-carousel-<n>`.

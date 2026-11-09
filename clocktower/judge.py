@@ -288,10 +288,11 @@ def _sections(path):
 def storyteller_notes(script_id, characters):
     """The Storyteller's notes for these characters, as text: their sections of data/storyteller/<script_id>.md
     (or of another script's notes, for a character from elsewhere), in the order given."""
+    from .carousel_extra import WITHOUT  # (batch 6's characters switched off: their notes are left out too)
     own = NOTES / f'{script_id}.md'
     found = _sections(own) if own.exists() else {}
     for path in sorted(NOTES.glob('*.md')):
-        if path != own:
+        if path != own and path.stem not in {f'extra-{x}' for x in WITHOUT}:
             for k, v in _sections(path).items():
                 found.setdefault(k, v)
     return '\n\n'.join(f'{c}: {found[c]}' for c in dict.fromkeys(characters) if c in found)

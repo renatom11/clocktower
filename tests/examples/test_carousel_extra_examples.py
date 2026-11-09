@@ -2,9 +2,10 @@
 the Wizard, Legion and Riot), and for other characters' examples that need one of them, as scenario tests (see
 test_carousel_examples.py for the conventions; the findings are EC-n in docs/examples-findings.md).
 
-One test class per removable character, holding every example that needs it: reverting that character's commit
-(each can be reverted on its own) needs only its class here deleted, and nothing else in this file names it. Each class
-builds its games on the shared ExampleTest of test_carousel_examples.py, which names none of the five."""
+One test class per removable character, holding every example that needs it: switched off (CLOCKTOWER_WITHOUT), its
+class is skipped; deleted (clocktower/carousel_extra.py's docstring), its class here is deleted with it, and nothing
+else in this file names it. Each class builds its games on the shared ExampleTest of test_carousel_examples.py, which
+names none of the five."""
 import sys
 import unittest
 from pathlib import Path
@@ -21,8 +22,14 @@ from examples.test_carousel_examples import ExampleTest
 A, B, C, D, E, F, G, H, I = NAMES
 
 
+def needs(name):
+    """Skip the class when batch 6's character `name` is not built (switched off, or deleted)."""
+    return unittest.skipUnless(name in ch.CHARACTERS, f'{name} is not built')
+
+
 # ---- Lil' Monsta -------------------------------------------------------------------------------------------------
 
+@needs("Lil' Monsta")
 class LilMonstaExamples(ExampleTest):
     LM = "Lil' Monsta"
 
@@ -44,6 +51,7 @@ class LilMonstaExamples(ExampleTest):
 
 # ---- Atheist -----------------------------------------------------------------------------------------------------
 
+@needs('Atheist')
 class AtheistExamples(ExampleTest):
     AT = 'Atheist'
 
@@ -91,6 +99,7 @@ class AtheistExamples(ExampleTest):
 
 # ---- Wizard ------------------------------------------------------------------------------------------------------
 
+@needs('Wizard')
 class WizardExamples(ExampleTest):
     WZ = 'Wizard'
     CHARS = [T1, T2, 'Wizard', T3, 'Imp', T4, 'Empath']  # C is the Wizard, E the Imp
@@ -194,6 +203,7 @@ class WizardExamples(ExampleTest):
 
 # ---- Legion ------------------------------------------------------------------------------------------------------
 
+@needs('Legion')
 class LegionExamples(ExampleTest):
     LG = 'Legion'
 
@@ -234,6 +244,7 @@ class LegionExamples(ExampleTest):
 
 # ---- Riot --------------------------------------------------------------------------------------------------------
 
+@needs('Riot')
 class RiotExamples(ExampleTest):
     RT = 'Riot'
 

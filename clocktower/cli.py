@@ -21,6 +21,7 @@
     python -m clocktower replay games/X --view Casey  # re-read a game from one seat (or public/omniscient)
     python -m clocktower watch                        # spectator app at http://127.0.0.1:8800
     python -m clocktower site                         # the old spectator app as static files in site/legacy/
+    python -m clocktower --without lilmonsta,riot ... # any command, built without those batch 6 characters
 """
 from __future__ import annotations
 import argparse
