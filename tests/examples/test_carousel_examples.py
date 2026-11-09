@@ -7,13 +7,17 @@ says so. A Storyteller's choice the example names is forced, so each test checks
 A test the engine disagrees with is kept, skipped with the finding's number (EC-n, docs/examples-findings.md,
 "Experimental characters"). The examples of the five removable characters (Lil' Monsta, the Atheist, the Wizard, Legion
 and Riot), and any example that needs one of them, are in test_carousel_extra_examples.py."""
+import sys
 import unittest
+from pathlib import Path
 
 from clocktower import carousel, carousel3
 from clocktower import characters as ch
 from clocktower.game import ALL_NAMES, NAMES
 from clocktower.state import State
 
+if str(Path(__file__).resolve().parent.parent) not in sys.path:  # tests/, for its helpers (and run alone:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # `discover -s tests/examples`)
 from test_carousel import O1, T1, T2, T3, T4, run
 from test_carousel2 import Batch2Test
 

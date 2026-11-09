@@ -5,11 +5,15 @@ test_carousel_examples.py for the conventions; the findings are EC-n in docs/exa
 One test class per removable character, holding every example that needs it: reverting that character's commit
 (each can be reverted on its own) needs only its class here deleted, and nothing else in this file names it. Each class
 builds its games on the shared ExampleTest of test_carousel_examples.py, which names none of the five."""
+import sys
 import unittest
+from pathlib import Path
 
 from clocktower import characters as ch
 from clocktower.game import NAMES
 
+if str(Path(__file__).resolve().parent.parent) not in sys.path:  # tests/, for its helpers (and run alone:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # `discover -s tests/examples`)
 from test_carousel import O1, T1, T2, T3, T4, run
 
 from examples.test_carousel_examples import ExampleTest
