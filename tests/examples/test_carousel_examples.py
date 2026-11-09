@@ -1620,7 +1620,6 @@ class PrincessExamples(Batch4Example):
         self.assertTrue(g.g[C].alive)
         self.assertTrue(self.told(D, 'YES, a Minion nominated today'))
 
-    @unittest.skip('disagrees with the example: finding EC-13')
     def test_princess_example_2(self):
         """On night 4 the Pit-Hag makes the Dreamer the Princess; that day she nominates the Zealot, who is executed,
         and that night the Kazali's choice, the Princess, lives (wiki: Princess, example 2)."""

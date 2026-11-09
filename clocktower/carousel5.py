@@ -304,8 +304,9 @@ class Princess(Townsfolk):
         return g.notes.get('Princess day', {}).get(p.name, 1)
 
     def becomes(self, game, me):
-        # "your 1st day": a Princess made later (the Pit-Hag's) has hers the next day she is the Princess (a reading)
-        game.g.notes.setdefault('Princess day', {})[me.name] = game.day + (1 if game.tonight is not None else 0)
+        # "your 1st day": a Princess made later (the Pit-Hag's) has hers the next day she is the Princess (a reading):
+        # made at night n, day n (the day after night n is day n: finding EC-13); made by day, today
+        game.g.notes.setdefault('Princess day', {})[me.name] = game.day
 
     @staticmethod
     def stops(g, p, day):
