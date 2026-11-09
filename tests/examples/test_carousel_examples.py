@@ -492,8 +492,8 @@ class PoppyGrowerExamples(ExampleTest):
         self.assertTrue(self.intro(G, 'Three good characters not in play'))
 
     def test_poppy_grower_example_2(self):
-        """The Poppy Grower is executed and dies; that night the Shabaloth learns its Minions, and the Godfather and
-        Baron learn each other and the Demon (wiki: Poppy Grower, example 2)."""
+        """Once the Poppy Grower has died by execution, the Demon (a Shabaloth) is told its Minions that night, and
+        the two Minions (a Godfather, a Baron) each other and the Demon (wiki: Poppy Grower, example 2)."""
         g = self.dealt(['Poppy Grower', T1, T2, T3, 'Saint', T4, 'Godfather', 'Baron', 'Shabaloth', 'Monk'])
         run(g.night(1))
         self.day(g, 1)
@@ -713,7 +713,7 @@ class HereticExamples(ExampleTest):
         self.assertEqual(g.g.winner, 'good')
 
     def test_heretic_example_3(self):
-        """The Heretic is dead; the Saint is executed: good wins (wiki: Heretic, example 3)."""
+        """Executing the Saint while the Heretic lies dead: the win is good's (wiki: Heretic, example 3)."""
         g = self.game(['Heretic', 'Saint', T2, 'Poisoner', 'Imp', T3])
         g.g[A].alive = False
         g.execute(B)
@@ -721,7 +721,8 @@ class HereticExamples(ExampleTest):
         self.assertEqual(g.g.winner, 'good')
 
     def test_heretic_example_4(self):
-        """The Heretic is poisoned; the Assassin kills the Demon: good wins (wiki: Heretic, example 4)."""
+        """With the Heretic poisoned, the Demon dies to the Assassin's kill and good wins (wiki: Heretic, example
+        4)."""
         g = self.game(['Heretic', T1, T2, 'Assassin', 'No Dashii', T3])
         self.poison(A)
         self.night(2, {D: [E], E: [B]})
@@ -908,8 +909,8 @@ class VillageIdiotExamples(ExampleTest):
 
 class AcrobatExamples(ExampleTest):
     def test_acrobat_example_1(self):
-        """The Sailor chooses the Assassin and the Storyteller makes the Sailor drunk; the Acrobat chose the Sailor,
-        and dies (wiki: Acrobat, example 1)."""
+        """The Sailor's choice falls on the Assassin, and the Storyteller decides the Sailor is the drunk one; the
+        Acrobat, who picked the Sailor, dies (wiki: Acrobat, example 1)."""
         g = self.game(['Acrobat', 'Sailor', T2, 'Assassin', 'Imp', T3], forced={'Sailor': {'players': [B]}})
         self.night(2, {A: [B], B: [D], E: [C]})
         self.assertTrue(g.g.is_drunk(g.g[B]))
@@ -939,8 +940,8 @@ class LycanthropeExamples(ExampleTest):
         self.assertEqual(self.alive(B, C), [False, True])
 
     def test_lycanthrope_example_2(self):
-        """The Lycanthrope attacks the Farmer, who dies and another good player becomes a Farmer; the Magician the
-        Pukka poisoned last night does not die, the Pukka killing nobody tonight (wiki: Lycanthrope, example 2)."""
+        """The Farmer dies to the Lycanthrope and passes the Farmer on to a good player; the Magician, poisoned by
+        the Pukka a night earlier, survives, as the Pukka kills nobody tonight (wiki: Lycanthrope, example 2)."""
         g = self.game(['Lycanthrope', 'Farmer', 'Magician', T3, 'Pukka', T4], forced={'Farmer:': {'players': [D]}})
         self.night(2, {A: [E], E: [C]})
         self.assertTrue(g.g.is_poisoned(g.g[C]))
@@ -1066,16 +1067,16 @@ class HarpyExamples(ExampleTest):
         return g
 
     def test_harpy_example_1(self):
-        """The Harpy chooses the Monk and the Engineer; the Monk insists the Engineer is evil, and lives (wiki: Harpy,
-        example 1)."""
+        """The Harpy picks the Monk, then the Engineer; the Monk keeps insisting the Engineer is evil, and survives
+        (wiki: Harpy, example 1)."""
         g = self.harpy(['Monk', 'Engineer', T3, 'Harpy', 'Imp', T4], A, B, {'players': [A]})
         self.say(A, f'I am the Investigator and I saw {B}: {B} is evil, execute them.')
         run(ch.rules('Harpy').moment(g, g.g[D], 'nominations'))
         self.assertTrue(g.g[A].alive)
 
     def test_harpy_example_2(self):
-        """The Harpy chooses the Oracle and the dead Alchemist; the Oracle says she trusts the Alchemist, and the
-        Storyteller declares that the Oracle dies (wiki: Harpy, example 2)."""
+        """The Harpy picks the Oracle, then the Alchemist, who is dead; the Oracle vouches for the Alchemist, and the
+        Storyteller kills the Oracle for it (wiki: Harpy, example 2)."""
         g = self.game(['Oracle', 'Alchemist', T3, 'Harpy', 'Imp', T4], forced={'Harpy deaths': {'players': [A]}})
         g.g[B].alive = False
         self.night(1, {D: [A, B]})
@@ -1116,8 +1117,8 @@ class BoffinExamples(ExampleTest):
 
     @unittest.skip('disagrees with the example: finding EC-9')
     def test_boffin_example_3(self):
-        """The Kazali has the Banshee's ability; it dies at night and the Scarlet Woman becomes the Kazali; the dead
-        Kazali may nominate and vote twice a day (wiki: Boffin, example 3)."""
+        """A Kazali given the Banshee's ability is killed at night, the Scarlet Woman taking over; the dead one may
+        then nominate twice and vote twice each day (wiki: Boffin, example 3)."""
         g = self.game([T1, T2, 'Boffin', 'Scarlet Woman', 'Kazali', T3, T4],
                       forced={'Boffin:': {'character': 'Banshee'}}, extra=['Banshee'])
         self.assertIn('Banshee', carousel3.boffin_options(g.g))
@@ -1155,8 +1156,8 @@ class FearmongerExamples(ExampleTest):
         self.assertEqual(self.nominated(g, D, A), 'evil')
 
     def test_fearmonger_example_2(self):
-        """The Fearmonger chooses the Juggler; the Flowergirl nominates the Juggler, who is executed: the game goes on
-        (wiki: Fearmonger, example 2)."""
+        """The Fearmonger's player is the Juggler, but the Flowergirl makes the nomination that executes the Juggler:
+        no win (wiki: Fearmonger, example 2)."""
         g = self.game(['Juggler', 'Flowergirl', T2, 'Fearmonger', 'Imp', T3])
         self.night(1, {D: [A]})
         self.day(g, 1)
@@ -1369,8 +1370,8 @@ class ChoirboyExamples(Batch3bExample):
         self.assertTrue(self.told(A, f'{F} is the Demon'))
 
     def test_choirboy_example_2(self):
-        """The Shabaloth kills the King; the drunk Choirboy wakes and is wrongly shown the General as the Demon (wiki:
-        Choirboy, example 2)."""
+        """After the Shabaloth's kill of the King, a drunk Choirboy is woken and shown the General, wrongly, as the
+        Demon (wiki: Choirboy, example 2)."""
         g = self.game(['Choirboy', 'King', 'General', T3, 'Poisoner', 'Shabaloth', T4],
                       forced={'Choirboy:': {'players': [C]}})
         self.drunk(A)
@@ -1432,7 +1433,7 @@ class SnitchExamples(Batch3bExample):
 
     @unittest.skip('disagrees with the example: finding EC-11')
     def test_snitch_example_3(self):
-        """On the fourth night the Pit-Hag creates a Snitch: every Minion learns three characters not in play (wiki:
+        """A Snitch made by the Pit-Hag on night 4 gives each Minion three out-of-play characters to bluff (wiki:
         Snitch, example 3)."""
         g = self.game([T1, T2, T3, 'Pit-Hag', 'Imp', T4, 'Spy'], extra=['Snitch'] + self.BLUFFS)
         self.day(g, 3)
@@ -1509,6 +1510,373 @@ class LleechExamples(Batch3bExample):
         g.execute(E)
         self.assertFalse(g.g[E].alive)
         self.assertEqual(g.g.winner, 'good')
+
+
+# ---- Batch 4 -----------------------------------------------------------------------------------------------------
+
+class Batch4Example(Batch3bExample):
+    def queue(self, name, kind, *answers):
+        self.seats[name].day.setdefault(kind, []).extend(answers)
+
+
+class BountyHunterExamples(Batch4Example):
+    def test_bounty_hunter_example_1(self):
+        """The Bounty Hunter starts knowing the Harpy; the Tea Lady is the evil Townsfolk; the Harpy is executed on day
+        3, and that night the Bounty Hunter learns the Tea Lady (wiki: Bounty Hunter, example 1)."""
+        g = self.game(['Bounty Hunter', 'Harpy', 'Tea Lady', T1, 'Imp', T2], forced={'Bounty Hunter:': {'players':
+                                                                                                         [B]}})
+        g.g.notes['Evil Townsfolk'] = C
+        g.g[C].alignment = 'evil'
+        self.night(1, {B: [D, F]})
+        self.assertTrue(self.told(A, f'{B} is evil'))
+        self.day(g, 3)
+        g.execute(B)
+        g.st.forced = {'Bounty Hunter:': {'players': [C]}}
+        self.night(3, {E: [F]})
+        self.assertTrue(self.told(A, f'the player you knew has died: {C} is evil'))
+
+    def test_bounty_hunter_example_2(self):
+        """The Bounty Hunter starts knowing the Baron; when the Baron dies, the Poisoner poisons the Bounty Hunter, who
+        learns the good Magician that night (wiki: Bounty Hunter, example 2)."""
+        g = self.game(['Bounty Hunter', 'Magician', 'Baron', 'Poisoner', 'Imp', T2, O1, 'Saint'],
+                      forced={'Bounty Hunter:': {'players': [C]}})
+        g.g.notes['Evil Townsfolk'] = 'none'
+        self.night(1, {D: [F]})
+        self.day(g, 1)
+        g.execute(C)
+        g.st.forced = {'Bounty Hunter:': {'players': [B]}}
+        self.night(2, {D: [A], E: [F]})
+        self.assertTrue(self.told(A, f'the player you knew has died: {B} is evil'))
+
+    def test_bounty_hunter_example_3(self):
+        """A Drunk believing they are the Bounty Hunter: no Townsfolk was made evil at setup; they learn the good
+        Empath, and when she dies, the good Flowergirl (wiki: Bounty Hunter, example 3)."""
+        g = self.dealt(['Drunk', 'Empath', 'Flowergirl', 'Poisoner', 'Imp', T3, T4, 'Chef'],
+                       extra=['Bounty Hunter'], forced={'drunk_as': {'character': 'Bounty Hunter'},
+                                                        'Bounty Hunter:': {'players': [B]}})
+        self.assertEqual(g.g[A].shown, 'Bounty Hunter')
+        self.assertFalse([q for q in g.g.players if q.evil and ch.kind(q.character) == 'Townsfolk'])
+        self.night(1, {D: [F]})
+        self.assertTrue(self.told(A, f'{B} is evil'))
+        self.day(g, 1)
+        g.execute(B)
+        g.st.forced = {'Bounty Hunter:': {'players': [C]}}
+        self.night(2, {D: [F], E: [F]})
+        self.assertTrue(self.told(A, f'{C} is evil'))
+
+
+class EngineerExamples(Batch4Example):
+    def test_engineer_example_1(self):
+        """On the second night the Engineer chooses the Lleech: the Imp becomes the Lleech (wiki: Engineer, example
+        1)."""
+        g = self.game(['Engineer', T1, T2, 'Poisoner', 'Imp', T3], extra=['Lleech'])
+        self.night(1, {D: [B]})
+        self.day(g, 1)
+        self.night(2, {A: ([], 'Lleech'), D: [B], E: [C]})
+        self.assertEqual(g.g[E].character, 'Lleech')
+
+    def test_engineer_example_2(self):
+        """On the first night the Engineer makes the Baron the Boomdandy: the two extra Outsiders stay (wiki:
+        Engineer, example 2)."""
+        from clocktower import carousel3
+        g = self.game(['Engineer', T1, 'Saint', O1, 'Baron', 'Imp', T3], extra=['Boomdandy'])
+        self.queue(A, 'night', {'character': 'Boomdandy'})
+        run(g.night(1))
+        self.assertEqual(g.g[E].character, 'Boomdandy')
+        self.assertEqual(carousel3.outsiders(g.g), 2)
+
+    def test_engineer_example_3(self):
+        """With the Fearmonger and the Psychopath in play, the Engineer chooses the Mezepheles and the Spy; the
+        Storyteller makes the Fearmonger the Mezepheles and the Psychopath the Spy (wiki: Engineer, example 3)."""
+        g = self.game(['Engineer', T1, T2, 'Fearmonger', 'Imp', T3, T4, 'Psychopath', 'Chef', 'Monk', 'Mayor'],
+                      extra=['Mezepheles', 'Spy'],
+                      forced={'Engineer assign': {'players': [D, H]}})
+        self.queue(A, 'night', {'character': 'Mezepheles'}, {'character': 'Spy'})
+        run(g.night(1))
+        self.assertEqual((g.g[D].character, g.g[H].character), ('Mezepheles', 'Spy'))
+
+    def test_engineer_example_4(self):
+        """With the Spy, Assassin and Witch in play, the Engineer chooses the Spy, Assassin and Mezepheles: the Witch
+        becomes the Mezepheles (wiki: Engineer, example 4)."""
+        names = ALL_NAMES[:13]
+        chars = ['Engineer', T1, T2, 'Spy', 'Imp', T3, T4, 'Assassin', 'Witch', 'Chef', 'Monk', 'Mayor', 'Soldier']
+        g = self.game(chars, extra=['Mezepheles'])
+        self.queue(A, 'night', {'character': 'Spy'}, {'character': 'Assassin'}, {'character': 'Mezepheles'})
+        run(g.night(1))
+        self.assertEqual([g.g[x].character for x in (D, H, names[8])], ['Spy', 'Assassin', 'Mezepheles'])
+
+
+class PrincessExamples(Batch4Example):
+    def test_princess_example_1(self):
+        """The Princess nominates the Preacher, who is executed; that night the Vortox's choice, the Pixie, lives, and
+        the Town Crier learns, falsely under the Vortox, that a Minion nominated today (wiki: Princess, example 1)."""
+        g = self.game(['Princess', 'Preacher', 'Pixie', 'Town Crier', 'Poisoner', 'Vortox', T1])
+        self.night(1, {B: [C], E: [G]})
+        self.day(g, 1)
+        self.nominate(A, B)
+        g.execute(B)
+        self.night(2, {E: [G], F: [C]})
+        self.assertTrue(g.g[C].alive)
+        self.assertTrue(self.told(D, 'YES, a Minion nominated today'))
+
+    @unittest.skip('disagrees with the example: finding EC-13')
+    def test_princess_example_2(self):
+        """On night 4 the Pit-Hag makes the Dreamer the Princess; that day she nominates the Zealot, who is executed,
+        and that night the Kazali's choice, the Princess, lives (wiki: Princess, example 2)."""
+        g = self.game(['Dreamer', 'Zealot', T2, 'Pit-Hag', 'Kazali', T3], extra=['Princess'])
+        self.day(g, 3)
+        self.night(4, {D: ([A], 'Princess'), E: [C], A: [D]})
+        self.assertEqual(g.g[A].character, 'Princess')
+        self.day(g, 4)
+        self.nominate(A, B)
+        g.execute(B)
+        self.night(5, {D: ([D], 'Pit-Hag'), E: [A]})
+        self.assertTrue(g.g[A].alive)
+
+
+class HermitExamples(Batch4Example):
+    @unittest.skip('disagrees with the example: finding EC-12')
+    def test_hermit_example_2(self):
+        """The Hermit with the Drunk's, Mutant's and Sweetheart's abilities believes he is the Exorcist and chooses a
+        player each night; saying he might be the Drunk, he is executed for the Mutant's madness, and the Sweetheart's
+        ability makes the Alchemist drunk (wiki: Hermit, example 2)."""
+        g = self.dealt(['Hermit', 'Alchemist', T2, 'Poisoner', 'Imp', T3], extra=['Drunk', 'Mutant', 'Sweetheart',
+                                                                                 'Exorcist'])
+        self.assertIn('Drunk', g.g.abilities(g.g[A]))
+
+
+class OgreExamples(Batch4Example):
+    def test_ogre_example_1(self):
+        """On the first night the Ogre chooses the Summoner, becomes evil and stays so (wiki: Ogre, example 1)."""
+        g = self.game(['Ogre', T1, T2, 'Summoner', T3, T4], extra=['Imp'])
+        self.night(1, {A: [D]})
+        self.assertEqual(g.g[A].alignment, 'evil')
+        self.day(g, 1)
+        self.night(2, {})
+        self.assertEqual(g.g[A].alignment, 'evil')
+
+    def test_ogre_example_2(self):
+        """An Ogre who picked the Banshee is good, and stays good when the Mezepheles later turns the Banshee evil
+        (wiki: Ogre, example 2)."""
+        g = self.game(['Ogre', 'Banshee', T2, 'Mezepheles', 'Imp', T3])
+        self.night(1, {A: [B]})
+        self.assertEqual(g.g[A].alignment, 'good')
+        run(g.change(g.g[B], alignment='evil'))
+        self.assertEqual((g.g[A].alignment, g.g[B].alignment), ('good', 'evil'))
+
+
+class PsychopathExamples(Batch4Example):
+    def test_psychopath_example_1(self):
+        """The Psychopath chooses the Sailor, who is sober and does not die; the Psychopath may not choose again today
+        (wiki: Psychopath, example 1)."""
+        g = self.game(['Sailor', T1, T2, 'Psychopath', 'Imp', T3])
+        self.claim(D, 'Psychopath', target=A)
+        self.assertTrue(g.g[A].alive)
+        self.claim(D, 'Psychopath', target=B)
+        self.assertTrue(g.g[B].alive)
+
+    def test_psychopath_example_2(self):
+        """Nominated by the Barber and executed, the Psychopath ties and replays the roshambo and lives; the next day
+        the Saint nominates and the Psychopath wins and lives; the day after the Barber's nomination and execution end
+        in a loss, and the Psychopath dies (wiki: Psychopath, example 2)."""
+        g = self.game(['Barber', 'Saint', T2, 'Psychopath', 'Imp', T3])
+        for day, nominator, won in ((1, A, True), (2, B, True), (3, A, False)):
+            if day > 1:
+                self.night(day, {E: [C if day == 2 else F]})
+            self.day(g, day)
+            g.st.forced = {'Psychopath roshambo': {'yes': won}}
+            self.nominate(nominator, D)
+            run(g.execution(D))
+            self.assertEqual(g.g[D].alive, won, day)
+
+
+class WraithExamples(Batch4Example):
+    def test_wraith_example_1(self):
+        """The Wraith watches with eyes open and sees that a player woke and pointed at two players; it tells the Demon
+        on a later night (wiki: Wraith, example 1). The signalling is the players'; checked: eyes open, the Wraith is
+        told who woke and whom they chose."""
+        g = self.game(['Fortune Teller', T1, T2, 'Wraith', 'Imp', T3])
+        self.decide(D, True)
+        self.night(1, {A: [B, C]})
+        self.day(g, 1)
+        self.decide(D, True)
+        self.night(2, {A: [B, C], E: [F]})
+        seen = self.told(D, 'Wraith (eyes open)')[-1]
+        self.assertIn(f'{A} (chose {B}, {C})', seen)
+
+
+class VizierExamples(Batch4Example):
+    def vote_and_maybe(self, nominator, nominee, voters, execute):
+        self.nominate(nominator, nominee)
+        self.g.g.nominations[-1]['voters'] = list(voters)
+        self.decide(D, execute)
+        return run(self.g.vote_over_judged(nominee))
+
+    def test_vizier_example_1(self):
+        """Five vote for the King and the Vizier does nothing; eight vote for the Boomdandy and the Vizier executes it
+        at once (wiki: Vizier, example 1)."""
+        g = self.game(['King', T1, T2, 'Vizier', 'Imp', T3, T4, 'Boomdandy', 'Chef'])
+        self.assertFalse(self.vote_and_maybe(A, A, (B, C, F, G, I), False))
+        self.assertTrue(self.vote_and_maybe(B, H, (A, B, C, D, E, F, G, I), True))
+        run(g.execution(H))
+        self.assertTrue(self.public(f'{H}'))
+
+    def test_vizier_example_2(self):
+        """With the Demon on seven votes, the Vizier nominates the Barber; three hands go up, one of them good, and
+        the Vizier has the Barber executed at once, so the Demon survives the day (wiki: Vizier, example 2)."""
+        g = self.game(['Barber', T1, T2, 'Vizier', 'Imp', T3, T4, 'Poisoner', 'Chef'])
+        self.assertTrue(self.vote_and_maybe(D, A, (E, H, B), True))
+        run(g.execution(A))
+        self.assertEqual(self.alive(A, E), [False, True])
+
+    def test_vizier_example_3(self):
+        """Executed by day the Vizier survives, then dies to the Demon at night (wiki: Vizier, example 3)."""
+        g = self.game(['King', T1, T2, 'Vizier', 'Imp', T3])
+        g.execute(D)
+        self.assertTrue(g.g[D].alive)
+        self.night(2, {E: [D]})
+        self.assertFalse(g.g[D].alive)
+
+
+# ---- Batch 5 -----------------------------------------------------------------------------------------------------
+
+class Batch5Example(Batch4Example):
+    def whisper(self, name, to, text):
+        self.g.emit('whisper', {'from': name, 'to': [to], 'text': text}, [name, to])
+
+    def setup_step(self, character):
+        run(ch.rules(character).setup(self.g))
+
+
+class MezephelesExamples(Batch5Example):
+    def start(self, chars, word='honestly'):
+        g = self.game(chars, forced={'Mezepheles word': {'statements': [word]}})
+        self.setup_step('Mezepheles')
+        return g
+
+    def test_mezepheles_example_1(self):
+        """The Mezepheles tells the Barber the secret word; the Barber says it aloud in a sentence and turns evil that
+        night (wiki: Mezepheles, example 1). The example's word is the Storyteller's; the engine's come from its list,
+        so one of those is used."""
+        g = self.start(['Barber', T1, T2, 'Mezepheles', 'Imp', T3])
+        self.night(1, {})
+        self.whisper(D, A, 'The secret word is "honestly".')
+        self.day(g, 1)
+        self.say(A, 'Honestly, this reminds me of a fairy tale about guessing a name.')
+        self.assertEqual(g.g[A].alignment, 'good')
+        self.night(2, {E: [F]})
+        self.assertEqual(g.g[A].alignment, 'evil')
+
+    def test_mezepheles_example_2(self):
+        """The Mezepheles tells the Mayor the word; the Mayor, wanting to stay good, tells the town who the
+        Mezepheles is (wiki: Mezepheles, example 2). Talk; checked: a good player who never says the word stays good."""
+        g = self.start(['Mayor', T1, T2, 'Mezepheles', 'Imp', T3])
+        self.night(1, {})
+        self.whisper(D, A, 'The secret word is "honestly".')
+        self.day(g, 1)
+        self.say(A, f'{D} is the Mezepheles: they just told me their word.')
+        self.night(2, {E: [F]})
+        self.assertEqual(g.g[A].alignment, 'good')
+
+    def test_mezepheles_example_3(self):
+        """Told the word in private, the Noble repeats it to the Storyteller on a visit; with the Mezepheles drunk by
+        the Courtier that night, the Noble remains good (wiki: Mezepheles, example 3)."""
+        g = self.start(['Noble', 'Courtier', T2, 'Mezepheles', 'Imp', T3])
+        self.night(1, {B: ([], None)})
+        self.whisper(D, A, 'The secret word is "honestly".')
+        self.day(g, 1)
+        run(g.visit_judged(A, {'character': 'Noble', 'text': 'honestly'}))
+        self.night(2, {B: ([], 'Mezepheles'), E: [F]})
+        self.assertTrue(g.g.is_drunk(g.g[D]))
+        self.assertEqual(g.g[A].alignment, 'good')
+
+
+class YaggababbleExamples(Batch5Example):
+    def start(self, chars, forced=None, first=()):
+        g = self.game(chars, forced={'Yaggababble phrase': {'statements': ['to be fair']}, **(forced or {})})
+        self.setup_step('Yaggababble')
+        self.night(1, first)
+        self.day(g, 1)
+        return g
+
+    def test_yaggababble_example_1(self):
+        """Saying the phrase once on day 1, the Yaggababble kills a player that night; saying it three times the next
+        day, three players that night (wiki: Yaggababble, example 1)."""
+        y = E
+        g = self.start([T1, T2, T3, T4, 'Yaggababble', 'Chef', 'Soldier', 'Mayor'],
+                       forced={f'Yaggababble:{y}:1': {'players': [A]}, f'Yaggababble:{y}:2': {'players': [C]},
+                               f'Yaggababble:{y}:3': {'players': [D]}})
+        self.say(y, 'To be fair, I trust nobody.')
+        self.night(2, {})
+        self.assertEqual([p.name for p in g.g.players if not p.alive], [A])
+        self.day(g, 2)
+        g.st.forced = {f'Yaggababble:{y}:1': {'players': [B]}, f'Yaggababble:{y}:2': {'players': [C]},
+                       f'Yaggababble:{y}:3': {'players': [D]}}
+        self.say(y, 'To be fair... to be fair, to be fair.')
+        self.night(3, {})
+        self.assertEqual([p.name for p in g.g.players if not p.alive], [A, B, C, D])
+
+    @unittest.skip('disagrees with the example: finding EC-14')
+    def test_yaggababble_example_2(self):
+        """The Yaggababble has said the phrase twice today, with a Witch in play: the Heretic nominates and dies,
+        though not cursed, and the Golem nominates the Demon and dies, both by the Yaggababble's ability (wiki:
+        Yaggababble, example 2)."""
+        g = self.start(['Heretic', 'Golem', T2, 'Witch', 'Yaggababble', T3],
+                       forced={f'Yaggababble:{E}:1': {'players': [A]}, f'Yaggababble:{E}:2': {'players': [B]}},
+                       first={D: [F]})
+        self.say(E, 'To be fair, and to be fair again.')
+        self.nominate(A, C)
+        run(g.nomination_judged(A, C))
+        self.nominate(B, E)
+        run(g.nomination_judged(B, E))
+        self.assertEqual(self.alive(A, B), [False, False])
+
+
+class AmnesiacExamples(Batch5Example):
+    @unittest.skip('disagrees with the example: finding EC-15')
+    def test_amnesiac_example_1(self):
+        """The Amnesiac points at two players each night, shown a shake then a nod; guessing they learn whether both
+        are Minions, they are told "hot": their ability detects whether either is a Minion (wiki: Amnesiac, example
+        1)."""
+        from clocktower import carousel6
+        g = self.game(['Amnesiac', T1, T2, 'Poisoner', 'Imp', T3])
+        choice = carousel6.gift_choice(g.g, g.g[A])
+        self.assertTrue(choice.legal({'statements': ['Each night, pick two players: you learn whether one of them '
+                                                     'is a Minion.']}))
+
+    @unittest.skip('disagrees with the example: finding EC-15')
+    def test_amnesiac_example_2(self):
+        """The Amnesiac learns a number each night: how many of their living neighbours are Townsfolk (wiki:
+        Amnesiac, example 2)."""
+        from clocktower import carousel6
+        g = self.game(['Amnesiac', T1, T2, 'Poisoner', 'Imp', T3])
+        texts = [v['statements'][0] for v in carousel6.gift_choice(g.g, g.g[A]).values]
+        self.assertTrue([t for t in texts if 'Townsfolk' in t and 'neighbour' in t])
+
+
+# ---- The jinx examples (the Djinn's page) --------------------------------------------------------------------
+
+class JinxExamples(ExampleTest):
+    """The Djinn (a Fabled, not built) is the page whose examples are about jinxes; the jinxes they name are built, so
+    their rules are tested without the Djinn."""
+
+    @unittest.skip('disagrees with the example: finding EC-21')
+    def test_djinn_example_1(self):
+        """Under the Pit-Hag/Heretic jinx, a Pit-Hag's attempt to make a Heretic is refused by the Storyteller, and
+        she picks some other character (wiki: Djinn, example 1)."""
+        g = self.game([T1, T2, 'Pit-Hag', 'Imp', T3, T4], extra=['Heretic', 'Saint'])
+        self.night(2, {C: ([A], 'Heretic'), D: [B]})
+        self.assertEqual(g.g[A].character, T1)
+        asked = [r for r in self.seats[C].log if r.kind == 'night' and r.day == 2]
+        self.assertGreaterEqual(len(asked), 2)
+
+    def test_djinn_example_2(self):
+        """With the Spy and the Magician jinxed, the jinx is read out though neither is in play, so the town cannot
+        tell which Minion is (wiki: Djinn, example 2). Checked: the jinx is in effect, and on the character sheet,
+        with neither in play."""
+        g = self.game([T1, T2, 'Poisoner', 'Imp', T3], extra=['Spy', 'Magician'])
+        self.assertTrue(g.g.script.jinxed('Spy', 'Magician'))
+        self.assertIn('Jinx, Magician and Spy', g.g.script.sheet())
 
 
 if __name__ == '__main__':
