@@ -489,11 +489,7 @@ def line_up(game, lot):
     seats = [(lot.seat - i) % n for i in range(1, left + 1)] + [(lot.seat + i) % n for i in range(1, k - left + 1)]
     movers = [q for q in minions if q.seat not in seats]
     for s in [s for s in seats if kind(g.players[s].character) != 'Minion']:
-        m, q = movers.pop(0), g.players[s]
-        for attr in ('character', 'shown', 'alignment'):
-            a, b = getattr(m, attr), getattr(q, attr)
-            setattr(m, attr, b)
-            setattr(q, attr, a)
+        g.swap_seats(movers.pop(0), g.players[s])  # (the one path's setup form: instances move with the tokens)
 
 
 class LordOfTyphon(Demon):

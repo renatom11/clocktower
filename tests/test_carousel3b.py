@@ -398,6 +398,17 @@ class LordOfTyphonTests(Batch3bTest):
             for q in (left, right):
                 self.assertTrue(self.intro(q.name, f'The Demon is {lot.name}'))
 
+    def test_the_line_moves_the_instances_with_the_tokens(self):
+        # the tokens move by the one path's setup form (Grimoire.swap_seats): no instance is left with the seat it was
+        # dealt to, so every player's live instances are their character's (and those gained with it)
+        for chars in (['Lord of Typhon', T1, 'Poisoner', T2, T3, 'Spy', T4],
+                      [T1, 'Spy', T2, 'Lord of Typhon', T3, 'Poisoner', 'Mayor', 'Baron', T4, 'Monk', 'Chef']):
+            g = self.dealt(chars)
+            for q in g.g.players:
+                held = [a.character for a in g.g.held(q)]
+                self.assertIn(q.character, held)
+                self.assertEqual(sorted(set(held)), sorted(set(g.g.abilities(q))), q.name)
+
     def test_it_kills_each_night_but_the_first(self):
         g = self.game(['Poisoner', 'Lord of Typhon', 'Spy', T1, T2, T3])
         self.assertIsNone(R('Lord of Typhon').night_spec(g, g.g[B], type('N', (), {'first': True})()))
