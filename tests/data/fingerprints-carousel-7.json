@@ -11785,7 +11785,7 @@
 "players": 11,
 "seed": 11061,
 "minion": "Pit-Hag",
-"sha": "086ef51a5787ddf460987ae9a67731aeeed4f9958945d148faca4820dc18b4f5",
+"sha": "710228722a3bad8e28deef93ae00ec6909d464cd16aa0fbe9699df53b34f4107",
 "winner": "good",
 "days": 6,
 "starting": [
@@ -18520,7 +18520,7 @@
 "players": 14,
 "seed": 14059,
 "minion": "Poisoner",
-"sha": "ac9b175544b658524d5c036a4207dfcd9b2f535148287af4f49cb5a5204c2d4d",
+"sha": "e5db8a5ae4611ae93c754f2439b72f783ba2f82a1f255e8e977fffcfa0855e0a",
 "winner": "evil",
 "days": 10,
 "starting": [
@@ -18664,9 +18664,9 @@
 "players": 14,
 "seed": 14065,
 "minion": "Pit-Hag",
-"sha": "5e68aecbc69daa5ddfb6970990bcd40e54abcb72f8217b578e2af5b0d622da47",
+"sha": "1811ed2ef9252ed357db3c611a1bc7b6a44fe5f320e2239c1a49279f83079316",
 "winner": "evil",
-"days": 6,
+"days": 4,
 "starting": [
 "Amnesiac",
 "Chambermaid",
@@ -19192,7 +19192,7 @@
 "players": 14,
 "seed": 14087,
 "minion": "Poisoner",
-"sha": "0482a8473fb0bbecf3f14fa0c732105768f2e0164c7a04e2585138da1036636a",
+"sha": "a3f174076f1698f5377734a8d0e1af3898312508c7806c77ceed9bb5bdfd407c",
 "winner": null,
 "days": 10,
 "starting": [

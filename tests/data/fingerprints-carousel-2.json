@@ -3008,7 +3008,7 @@
 "players": 6,
 "seed": 6094,
 "minion": "Pit-Hag",
-"sha": "c5057c9715463e0ccb46d4250448208e87111d2deed7e26a435c0e0a4bc17d20",
+"sha": "afa5a04474184b5c2c805a497af3f23f633b6ff02d1e02d2f2f46d863e63b657",
 "winner": "good",
 "days": 2,
 "starting": [
@@ -4362,7 +4362,7 @@
 "players": 7,
 "seed": 7074,
 "minion": "Pit-Hag",
-"sha": "8a322e2abc260c3fa6960a24f54d075683312d7c1beadfc05fb681d9c652e601",
+"sha": "0cc5406beb1b4f3acabd7787d257c8926766589cd154f9a1d1a5fbb9fea9c655",
 "winner": "good",
 "days": 2,
 "starting": [
@@ -4894,7 +4894,7 @@
 "players": 8,
 "seed": 8005,
 "minion": "Pit-Hag",
-"sha": "69610deb982b089aff4d156a2efb36cf1d560583ecc259c740e36364fc9f9f33",
+"sha": "9307ff76a18f24b1926a53cc3e35673c03abd10162804b6214528683d557167e",
 "winner": "evil",
 "days": 6,
 "starting": [
@@ -6154,7 +6154,7 @@
 "players": 8,
 "seed": 8075,
 "minion": "Pit-Hag",
-"sha": "c6d2d87d4f6428db0c56572bdc284a408738649ade2f2d01b2e03177a5f6e299",
+"sha": "60fb28b04e7435954c2e291b967cdead5797e533560ba951dfa23cf5a2ac8417",
 "winner": "good",
 "days": 2,
 "starting": [
@@ -7516,7 +7516,7 @@
 "players": 9,
 "seed": 9048,
 "minion": "Pit-Hag",
-"sha": "ed98af71bc1fe2f739122650c4b290e2cb7e93d0ecea4ea215089915d7704872",
+"sha": "9fe5e050dec2370b45ae88b708fb2820da99beff37c03931344d4cf85a7be72a",
 "winner": null,
 "days": 10,
 "starting": [
@@ -10945,7 +10945,7 @@
 "players": 11,
 "seed": 11021,
 "minion": "Baron",
-"sha": "d0bceed86ab7e532bb4c5fa052e2edb9ba6073e24de1c63d63bc7210636aabc2",
+"sha": "863932fd0e6d3530490f4e14b2c31f4f8d516d92715cbb935097ed4d0bf75932",
 "winner": "good",
 "days": 3,
 "starting": [
@@ -11407,7 +11407,7 @@
 "players": 11,
 "seed": 11043,
 "minion": "Pit-Hag",
-"sha": "6002b3e1bba8f5f76ad3193c261e2f8c4423a8e94da925effc11cd9395172101",
+"sha": "03edca59b04db870a85b68d0ee4f43bcada439373e994ae95d378e458caf09b3",
 "winner": null,
 "days": 10,
 "starting": [
@@ -11512,7 +11512,7 @@
 "players": 11,
 "seed": 11048,
 "minion": "Scarlet Woman",
-"sha": "511234c0845e43d48af4f01bc62d1aa099f3ad5038c5c4151cb8fa0d2988d91b",
+"sha": "c10d2a8ae2d2183dacd695785a8c80902855c870a567332ea4859b641d22a919",
 "winner": null,
 "days": 10,
 "starting": [
@@ -13022,7 +13022,7 @@
 "players": 12,
 "seed": 12019,
 "minion": "Summoner",
-"sha": "18476b1c425755bb2e5615a1979a36fe3dbea04e16c40b63daf59adf73fa7e5b",
+"sha": "65cf551c4c9a9596fbd088febfa80ebb5c37f75b7eeb97d616e7c05c031d9ff8",
 "winner": "evil",
 "days": 5,
 "starting": [
@@ -13484,7 +13484,7 @@
 "players": 12,
 "seed": 12040,
 "minion": "Summoner",
-"sha": "915871b059f9cde335390811594d3476bd9e6d37a241eb7c7c6b2f8c5e26f107",
+"sha": "45ac4d97bdb14f35ff3e5e85a941d7b802bda681ede86c3bf481e44add111b20",
 "winner": "good",
 "days": 7,
 "starting": [
@@ -13572,9 +13572,9 @@
 "players": 12,
 "seed": 12044,
 "minion": "Pit-Hag",
-"sha": "a9b4892d130caaf51ec41b22e3ce8e56362a03ebdfb67b563ac592354e308346",
-"winner": "evil",
-"days": 5,
+"sha": "a3f0ba2954565f60ed067c4d345bd1d9e08952189a66302551140c995cc9e330",
+"winner": "good",
+"days": 6,
 "starting": [
 "Al-Hadikhia",
 "Banshee",
@@ -15356,7 +15356,7 @@
 "players": 13,
 "seed": 13024,
 "minion": "Pit-Hag",
-"sha": "e06eaf560f71b4d3c69d8ea20754f618538274f884e9c87dfc2e71a685a1b012",
+"sha": "61c6c4d8f5fee4a9fdf29544f5981fd36629890a1b77fc614cb18ec2bb43fa6a",
 "winner": null,
 "days": 10,
 "starting": [
@@ -16552,7 +16552,7 @@
 "players": 13,
 "seed": 13076,
 "minion": "Summoner",
-"sha": "121b36b6dcbc88ab8d046ef5d09a528c62b035a24ae126b45e4f3893e7956b5d",
+"sha": "e610e6bc0c86f3e84c0437124bd5ae7870ad7b77328602e2528c0a70b1945b01",
 "winner": "evil",
 "days": 6,
 "starting": [
@@ -16805,7 +16805,7 @@
 "players": 13,
 "seed": 13087,
 "minion": "Pit-Hag",
-"sha": "55bdae7e3597917d88fda9f86ab4799d03b557cafbf76401f33a33ac40789db4",
+"sha": "1653c1bc81d1a21c7d41fb9bcf8725ec97601f87272a12fc6074dfcd89419a6b",
 "winner": "good",
 "days": 5,
 "starting": [
@@ -17176,9 +17176,9 @@
 "players": 14,
 "seed": 14003,
 "minion": "Baron",
-"sha": "7b5eae8d33a62388155558973b293a1132da5a17917a6d8dfb71386068fd45f3",
-"winner": null,
-"days": 10,
+"sha": "13de798e77f8562407f3955c3f3d1f9083b497878c66852cfc065dae954a9eff",
+"winner": "good",
+"days": 5,
 "starting": [
 "Banshee",
 "Baron",
@@ -17416,7 +17416,7 @@
 "players": 14,
 "seed": 14013,
 "minion": "Mastermind",
-"sha": "62b531c7ff978720c21cfea08e10e22d3dd2e66f282de02c9162fb07bcc8543f",
+"sha": "6bfc5acb79912f2f2489d9d6e7e0593f087184f5f98357067324a7a1cd8075ea",
 "winner": null,
 "days": 10,
 "starting": [
@@ -18256,7 +18256,7 @@
 "players": 14,
 "seed": 14048,
 "minion": "Mastermind",
-"sha": "9f836736bdd6f8993d9074591d4fc3e0fac12163e2c2b39f47692422b8b4f202",
+"sha": "145794b378742142e595a4ab1cb1a145c4c17fd807f96bf8fe1936300cbeb902",
 "winner": "good",
 "days": 7,
 "starting": [
@@ -18832,7 +18832,7 @@
 "players": 14,
 "seed": 14072,
 "minion": "Scarlet Woman",
-"sha": "a0e1ce3489a1fa87a4ae0a5d9be45b11318b3d9d4cabf4eb8b565c37c9f303b0",
+"sha": "12e1e7febced93c8a8126cb9a91c685f7ead87bf79aa95c54f21d429aaef39d4",
 "winner": null,
 "days": 10,
 "starting": [
@@ -18928,7 +18928,7 @@
 "players": 14,
 "seed": 14076,
 "minion": "Mastermind",
-"sha": "b5ab6fafbae2b390a1125036ca7f5d8314ddbbb3762349f098b716f1f4555c67",
+"sha": "0d35a49f7d497d40dfec0bc1697d382326ba780289598acb5fd4ba3b0a0c243c",
 "winner": "good",
 "days": 6,
 "starting": [
@@ -20179,7 +20179,7 @@
 "players": 15,
 "seed": 15027,
 "minion": "Evil Twin",
-"sha": "ecfb882a52df024479b141013497616b2865d02066bc1b0e3d7287ee8f14d06a",
+"sha": "71ed1a22c91d80b5e78ac3ba083c236589f565d84d6b1d7763318cdc51702a30",
 "winner": "good",
 "days": 8,
 "starting": [
@@ -20754,7 +20754,7 @@
 "players": 15,
 "seed": 15050,
 "minion": "Summoner",
-"sha": "8505e28303b18ab7403dd6476bb6d4ad4e513d9ed35438dcbaecd1e0c66b56ef",
+"sha": "8f4b557a4c5269729906dec010ccd72e904937c3f2904045d427a58ca52384ce",
 "winner": null,
 "days": 10,
 "starting": [
@@ -20879,7 +20879,7 @@
 "players": 15,
 "seed": 15055,
 "minion": "Evil Twin",
-"sha": "c2805a970d09dd404466f65d0bbcbd873f1fce64f033f0a36a729e8b6287c297",
+"sha": "f78d90a99c386556fdc0e345152b2c27375821f14d0b05b4399dd5d3e2d5d862",
 "winner": "evil",
 "days": 4,
 "starting": [
@@ -21129,7 +21129,7 @@
 "players": 15,
 "seed": 15065,
 "minion": "Spy",
-"sha": "788dd6b1163e846fc7060af569d1c14d0f73301da68b9b1a8ec93cdf27581e23",
+"sha": "76646c6e8cb7ed06df208e3391d2321e4de09dcd425fb89ca3d659dc1f8a7d71",
 "winner": null,
 "days": 10,
 "starting": [

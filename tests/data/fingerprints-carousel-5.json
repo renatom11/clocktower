@@ -1600,7 +1600,7 @@
 "players": 6,
 "seed": 6006,
 "minion": "Boffin",
-"sha": "d59f30b362d0960860ae17cd98ed1c4de4d017450922bbade1acc10d3ce2cb7c",
+"sha": "d8343cca210c94852fafa9311d9edd428b06dc3ee9a8f61e39513a23283c0460",
 "winner": "good",
 "days": 3,
 "starting": [
@@ -2064,7 +2064,7 @@
 "players": 6,
 "seed": 6035,
 "minion": "Pit-Hag",
-"sha": "f9ad2ee21441b19f443d6d379a4f1cdabb3fd964a8cc9828125fbbb9fdb85b00",
+"sha": "98a89c71f9ebcc0a9f3999bd449f0e0c4d6fb6bf467f98bf4cf04bc1022c3c28",
 "winner": "good",
 "days": 2,
 "starting": [
@@ -6927,7 +6927,7 @@
 "players": 9,
 "seed": 9017,
 "minion": "Pit-Hag",
-"sha": "420dbee298ffed453eea452e460e31a7b7d9f600249fbb138edff445063b345b",
+"sha": "5f9a3ac153e483701b253d9815f80302f617ec2041d3caaa265bb7180d7f9e18",
 "winner": "good",
 "days": 4,
 "starting": [
@@ -9564,7 +9564,7 @@
 "players": 10,
 "seed": 10053,
 "minion": "Pit-Hag",
-"sha": "83cf11b2315800663947be81efa83fb3f6faa32c0fae00d12f78d03dbe15d423",
+"sha": "1a8f5bfea8a4c6a9f73d5bd13f015bc9a4709d98fe26937451e41eeb689b95c6",
 "winner": "good",
 "days": 3,
 "starting": [
@@ -9764,7 +9764,7 @@
 "players": 10,
 "seed": 10063,
 "minion": "Summoner",
-"sha": "1cccc7d71623043d048510acd7bcc5f4c4f4b28951c238c2e591f4f4dfa10899",
+"sha": "a4d7aede3b5cedaf62d892f55ac2783ccb9f8c1861836664dd66ade0b58ec44e",
 "winner": "good",
 "days": 3,
 "starting": [
@@ -10525,7 +10525,7 @@
 "players": 11,
 "seed": 11001,
 "minion": "Summoner",
-"sha": "05aa63ee4d7ae12677b4dc143017da45ea5dd232b0dafc994b1144a20a28fa25",
+"sha": "eb0e5e6541c8714fdc73aa2d1185065a5435347988b94da20cc903e06007a8f6",
 "winner": "evil",
 "days": 5,
 "starting": [
@@ -11197,7 +11197,7 @@
 "players": 11,
 "seed": 11033,
 "minion": "Pit-Hag",
-"sha": "ae9daee808efbbb09e0f6d3c8014f6b852ada774fe4f1505079981be12acb5bb",
+"sha": "febfeaa0437dda4abc335b7359c884986b412ac5e11282f8c13cdadbb23695ae",
 "winner": "good",
 "days": 10,
 "starting": [
@@ -11218,7 +11218,7 @@
 "players": 11,
 "seed": 11034,
 "minion": "Mastermind",
-"sha": "bceb12e45c9f1ed910f41d4f8bc67120321ecdc6f56572e1a8bea922d7391b30",
+"sha": "7bdd87cf49372c236cd2a73543e1af229f76c940a387c64238c4562c271e3cef",
 "winner": "good",
 "days": 3,
 "starting": [
@@ -12736,7 +12736,7 @@
 "players": 12,
 "seed": 12006,
 "minion": "Pit-Hag",
-"sha": "eb774b869a78074fc26c6b5640ad0c1e7e3fe4c496dc5c99061bfbfecd2bd8b4",
+"sha": "63dff0e5b85f628f6b9017aa3b4a62a0a62d686e5d9b54c8a3c3841fa06ba29c",
 "winner": "good",
 "days": 3,
 "starting": [
@@ -15034,7 +15034,7 @@
 "players": 13,
 "seed": 13010,
 "minion": "Summoner",
-"sha": "8d421121826763e85f062c45e364f41f3f1f297bb033c6f422e1e640b17c6c7e",
+"sha": "e315b4e3f904610d4d3910021cd4f3523c4c1e67cbb919a59eb7958f090f549d",
 "winner": "evil",
 "days": 2,
 "starting": [
@@ -15103,7 +15103,7 @@
 "players": 13,
 "seed": 13013,
 "minion": "Boffin",
-"sha": "1f20a842043c6cb1806fd93bfce681b171e33edfd9391839e2860cde03990914",
+"sha": "51f18531a26e755b74a56eafe222317f6fadbb6039afcf8c192455f9e95c52ec",
 "winner": "good",
 "days": 3,
 "starting": [
@@ -15632,7 +15632,7 @@
 "players": 13,
 "seed": 13036,
 "minion": "Mastermind",
-"sha": "698afccf9d93f03e57f4522245a2a66535aee0a68a3af88b46173569bf01a9fc",
+"sha": "ff6cc8e12fe9b28b2aeec90ac78b4ca6196acb064d99cfabce453d7bcf427b93",
 "winner": null,
 "days": 10,
 "starting": [
@@ -15839,7 +15839,7 @@
 "players": 13,
 "seed": 13045,
 "minion": "Summoner",
-"sha": "f2b609baba585fce7a72120a554910319da5131f2eed9d51daecd801146a89e2",
+"sha": "caae32124ab99e08099dd327c96aa85ebbe4a77fa9c0777cfa59b8c2fc6a8363",
 "winner": null,
 "days": 10,
 "starting": [
@@ -16000,7 +16000,7 @@
 "players": 13,
 "seed": 13052,
 "minion": "Summoner",
-"sha": "a093f0902b56a269a5f1648093a90663cd6d993e320a704cbcdec84b51644527",
+"sha": "28d41dfdcf8ba3413b7a18c5a3349a2ab8db31e9a82bc26c55ac1bdbb74820c4",
 "winner": null,
 "days": 10,
 "starting": [
@@ -16414,7 +16414,7 @@
 "players": 13,
 "seed": 13070,
 "minion": "Pit-Hag",
-"sha": "60b27ebc5bdbef7a7348f9a83c56b2da7fc65f82c037f88331fdadf2c238c5f3",
+"sha": "13849466730923c52a0cb68e47b8d28e6ce4ac8784028bf302bdc50af2a1482b",
 "winner": "good",
 "days": 3,
 "starting": [
@@ -16828,7 +16828,7 @@
 "players": 13,
 "seed": 13088,
 "minion": "Poisoner",
-"sha": "ba6eea352ca30543f93582a323ea5e051cfa1eef172d9cf18518a248e2b42d39",
+"sha": "dcd443a166abdf34180b1b96a1342cff8d832ec50fa28baf35fe1f35fff8c4de",
 "winner": "good",
 "days": 5,
 "starting": [
@@ -16851,7 +16851,7 @@
 "players": 13,
 "seed": 13089,
 "minion": "Spy",
-"sha": "2cf431756dc59f41b97b3adc77d1ff8f08437a0a30e4cd54cd192e86226dac85",
+"sha": "25594e12ec2190e926f25562461fc9966a48e87ba0b33bf872c3b2ee4c4502b8",
 "winner": "good",
 "days": 8,
 "starting": [
@@ -17058,7 +17058,7 @@
 "players": 13,
 "seed": 13098,
 "minion": "Pit-Hag",
-"sha": "ca2ae7568979abe607b4e4fe662cf2e45f569a60d6ed1d548d5016de0936c4a6",
+"sha": "9f2a49d457d9d5a0bb97a20981ba8a873fa70061e44468bfc8163e80e9b83e4c",
 "winner": "good",
 "days": 3,
 "starting": [
@@ -17128,7 +17128,7 @@
 "players": 14,
 "seed": 14001,
 "minion": "Pit-Hag",
-"sha": "98af184bae603e4a3fb28232a0e2d477ad015859df17e98508c0ea13b38e08c4",
+"sha": "244fb4ca794677aa18e9ec6c2b5bf5665ae45f2cafbc8af1ba526f90434023ab",
 "winner": "good",
 "days": 6,
 "starting": [
@@ -17272,7 +17272,7 @@
 "players": 14,
 "seed": 14007,
 "minion": "Boffin",
-"sha": "94d8ffd2750776abbce8436af5bdcfd5f70a080d55bd8d4554b19e030120aa53",
+"sha": "3f889fc15b528084c9fde7dd044f407ec833953f3cb21fa04085b02989aedc6b",
 "winner": null,
 "days": 10,
 "starting": [
@@ -18352,7 +18352,7 @@
 "players": 14,
 "seed": 14052,
 "minion": "Marionette",
-"sha": "8f6e2c1399a13cafddb9e55630c9ee5c93f6476b380aa0814dba286113662f78",
+"sha": "60e41021edfd355a5f5bfd72116b5b7fb7464ec1604f6233120b077d2d225208",
 "winner": "evil",
 "days": 4,
 "starting": [
@@ -18976,7 +18976,7 @@
 "players": 14,
 "seed": 14078,
 "minion": "Pit-Hag",
-"sha": "0d11263bd752416107ee78b2e48e47c1fe2ed3ec2feaba5379d12ae4116bb239",
+"sha": "e485b5e1f51ffd65dc8bcf99826a8fd19272f8f049413913988072bb00ed41e4",
 "winner": "evil",
 "days": 5,
 "starting": [
@@ -19120,7 +19120,7 @@
 "players": 14,
 "seed": 14084,
 "minion": "Boffin",
-"sha": "6b6add007eea569dd238438d00890cdc6ff61f5b7f1cb10d4700054859da1433",
+"sha": "6ea40c9f1c51219a7069aac86c105bb288742449978028f0fadd84b0c88cbf6f",
 "winner": "good",
 "days": 10,
 "starting": [
@@ -19264,7 +19264,7 @@
 "players": 14,
 "seed": 14090,
 "minion": "Spy",
-"sha": "615a3ee7b7ffa371f8bdd7632b14a2e26d32f606538845c6a300b0eca3ed8034",
+"sha": "aa46b3bd0c71584c2e59b8fb1525d8270ef3eb9687445b8316305669754ef43f",
 "winner": "good",
 "days": 8,
 "starting": [
@@ -20679,7 +20679,7 @@
 "players": 15,
 "seed": 15047,
 "minion": "Summoner",
-"sha": "0acfa6702bcef6befad5b43282d119af5434a110e4405ccc580002c144b26de8",
+"sha": "35412e3b53df9be2fd40c9f7a5fd9982d23757e914fd10de0c0f57f054d8f552",
 "winner": "good",
 "days": 9,
 "starting": [
@@ -20979,7 +20979,7 @@
 "players": 15,
 "seed": 15059,
 "minion": "Mastermind",
-"sha": "986b4aad46bbc9701e2e876f7eaeb0b34bd076faecddd34fcf6ce99f04e8eb0c",
+"sha": "5e168c37cd23399c1df306c6cd95db3422d15293ebf0e18ca3fa886314fa0ccc",
 "winner": null,
 "days": 10,
 "starting": [
@@ -21129,7 +21129,7 @@
 "players": 15,
 "seed": 15065,
 "minion": "Pit-Hag",
-"sha": "a7169b5272960b310be58c9866397ecf84f6f00f1b09cd473312de5649a8beb1",
+"sha": "18657cf9a37861ef64244079698cfbe0470917a91181409b92f8232708b29667",
 "winner": "good",
 "days": 10,
 "starting": [
