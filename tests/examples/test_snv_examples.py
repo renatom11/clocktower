@@ -11,7 +11,6 @@ import unittest
 from clocktower import characters as ch
 from clocktower import judge, snv
 from clocktower.agents import ScriptedStoryteller
-from clocktower.characters import kind
 from clocktower.game import ALL_NAMES, Game
 from clocktower.llm import Reply
 from clocktower.state import Grimoire, State
