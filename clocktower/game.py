@@ -712,8 +712,11 @@ class Game:
         """The Storyteller decides an information role's result (a judged call: misinformation, misregistration)
         and tells the player."""
         text = info_text(role, await self.decide_judged(choice), target)
-        self.woken(p)
-        self.emit('info', {'text': f'Night {self.day} — {role}: {text}'}, [p.name])
+        if self.tonight is None and self.phase in ('day', 'nominations'):  # (by day: a "you start knowing" ability
+            self.emit('info', {'text': f'Day {self.day} — {role}: {text}'}, [p.name])  # gained acts at once)
+        else:
+            self.woken(p)
+            self.emit('info', {'text': f'Night {self.day} — {role}: {text}'}, [p.name])
         if rules(role).remembered:
             self.g.reminders.append(f'{p.name} ({role}) was shown: {text}')
 

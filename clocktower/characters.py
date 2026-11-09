@@ -417,6 +417,18 @@ class InfoRole(Townsfolk):
                 if told:
                     await game.tell(p, self.name, *told)
 
+    async def becomes(self, game, me):
+        # a "you start knowing" ability (a step on the first night only), gained or become later (the Pixie's, the
+        # Philosopher's, the Pit-Hag's), acts at once (the Barber's almanac; docs/carousel-rulings.md 40: finding
+        # EC-8). On the first night it acts at its step. The base scripts never change a player into one
+        g = game.g
+        if (self.name in g.script.other_nights or self.name not in g.script.first_night or not me.alive
+                or (game.tonight is not None and game.tonight.first)):
+            return
+        told = self.information(game, me, game.tonight)
+        if told:
+            await game.tell(me, self.name, *told)
+
 
 # ---- Trouble Brewing ------------------------------------------------------------------------------------------
 

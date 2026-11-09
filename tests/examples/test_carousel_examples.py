@@ -406,13 +406,13 @@ class AlHadikhiaExamples(ExampleTest):
 # ---- Batch 2 -----------------------------------------------------------------------------------------------------
 
 class PixieExamples(ExampleTest):
-    @unittest.skip('disagrees with the example: finding EC-8')
     def test_pixie_example_1(self):
         """The Pixie learns the Washerwoman is in play and claims to be her for days; the Washerwoman is executed, and
         that night the Pixie has her ability and learns that one of two players is the Monk (wiki: Pixie, example
-        1)."""
-        g = self.game(['Pixie', 'Washerwoman', 'Monk', 'Poisoner', 'Imp', T3], forced={'Pixie': {'character':
-                                                                                                  'Washerwoman'}})
+        1). The engine gives it at once, the day she is executed (ruling 40: a "you start knowing" ability gained
+        acts at once); the pair shown is forced."""
+        g = self.game(['Pixie', 'Washerwoman', 'Monk', 'Poisoner', 'Imp', T3], forced={
+            'Pixie': {'character': 'Washerwoman'}, f'Washerwoman:{A}': {'players': [C, F], 'character': 'Monk'}})
         self.night(1, {D: [E], C: [A]})
         for day in (1, 2, 3):
             self.day(g, day)
@@ -420,9 +420,10 @@ class PixieExamples(ExampleTest):
         g.execute(B)
         run(g.run_pending())
         self.assertEqual(g.g[A].extra, ['Washerwoman'])
+        self.assertTrue(self.told(A, 'Day 3 — Washerwoman: You learn that either Casey or Frankie is the Monk'))
         self.day(g, 3)
         self.night(4, {D: [E], C: [A], E: [F]})
-        self.assertTrue(self.told(A, 'is the Monk'))
+        self.assertEqual(len(self.told(A, 'is the Monk')), 1)  # (once)
 
     def test_pixie_example_2(self):
         """A Drunk who believes they are the Pixie learns the Lycanthrope is in play, which it is not (a Minion
