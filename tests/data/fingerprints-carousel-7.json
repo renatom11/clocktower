@@ -12289,7 +12289,7 @@
 "players": 11,
 "seed": 11085,
 "minion": "Pit-Hag",
-"sha": "1498f8e6432fef8c892a836cdc17ebfb4dc124566946a3b75d25be03d2ef1738",
+"sha": "407cd798a83a635384c1a4953e5a048c7d2222cfb307b4dbb94bfe0f55eaa046",
 "winner": "good",
 "days": 1,
 "starting": [
@@ -18592,7 +18592,7 @@
 "players": 14,
 "seed": 14062,
 "minion": "Spy",
-"sha": "44176543e65a26bef824682ff659069a980cad4ef228f69cfd26613f918eb0b6",
+"sha": "f9a1bfbd721db7678e84f2cf2108d2602cd350a68d6b7715209078040c218708",
 "winner": null,
 "days": 10,
 "starting": [
@@ -19024,7 +19024,7 @@
 "players": 14,
 "seed": 14080,
 "minion": "Mezepheles",
-"sha": "ca2e071a1aa71691e233766a47054ea2e23c859cb188c1b7ace6ffd61c80bd70",
+"sha": "fdb44725e7a1815205c3400759e611bcab610bb6df1ba21fbe5a09352991400a",
 "winner": null,
 "days": 10,
 "starting": [
@@ -21454,7 +21454,7 @@
 "players": 15,
 "seed": 15078,
 "minion": "Spy",
-"sha": "1c3648080db2a0c6cc0bec47d9676506873112631f4246393d99fc91748c3792",
+"sha": "15b36910791968dc7b4650b7a4f6b21d96b40f69fbce78328bcb55e21c918ce4",
 "winner": null,
 "days": 10,
 "starting": [
