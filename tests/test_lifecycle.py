@@ -443,6 +443,19 @@ class OtherTests(Test):
             self.assertNotIn(A, g.g.sample_evil(r))
             self.assertIn(B, g.g.sample_evil(r))
 
+    def test_G13_a_drunk_slayer_or_imp_does_not_act(self):
+        # made drunk by an ability (the Sailor's, the Innkeeper's): "drunk or poisoned", as a poisoned one
+        g = self.game(['Slayer', T1, T2, T3, 'Sailor', 'Imp', 'Soldier'])
+        g.g.add(State('drunk', A, source=E, until=None))
+        self.assertFalse(run(rules('Slayer').act_publicly(g, A, F)))
+        self.assertTrue(g.g[F].alive)
+        self.assertTrue(g.g.spent_ability('Slayer', g.g[A]))  # (the shot is spent all the same)
+        g.g.add(State('drunk', F, source=E, until=None))
+        self.as_role(2, F, 'Imp', [B])
+        self.as_role(2, E, 'Sailor', [C])
+        run(g.night(2))
+        self.assertTrue(g.g[B].alive)
+
     def test_S2_organ_grinder_secret_tally_stays_secret(self):
         # a secret vote puts Casey on the block with 5; the Organ Grinder (Ellis) is then poisoned, and two public votes
         # follow: Drew gets none, Gray ties at 5. Nothing public, and no prompt, may show the secret 5 (as the votes

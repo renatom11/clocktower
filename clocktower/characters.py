@@ -552,7 +552,7 @@ class Slayer(Townsfolk):
                 game.abnormal(s, self.name, 'shot the Demon, who did not die')
             return False  # anyone can claim a shot; only a real, unused Slayer's does anything
         g.spend(self.name, s)
-        if g.is_poisoned(s) or not t.alive:
+        if g.impaired(s) or not t.alive:
             return False
         if g.script.jinxed('Lleech', self.name) and any(  # the jinx (custom scripts): the Lleech's host dies
                 q.alive and q.character == 'Lleech' and g.notes.get('Lleech host', {}).get(q.name) == t.name
@@ -771,7 +771,7 @@ class Imp(Demon):
     async def resolve_night(self, game, night):
         g = game.g
         imp, t = night.choice_of(g, self.name)
-        if not (imp and t) or g.is_poisoned(imp):
+        if not (imp and t) or g.impaired(imp):
             return
         target = g[t]
         if target is not imp:
