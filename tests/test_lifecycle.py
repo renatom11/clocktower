@@ -77,6 +77,23 @@ class InstanceTests(Test):
         self.assertEqual(night.before_of(g.g, g.g[A], 'Shabaloth'), [])
         self.assertEqual(night.before_of(g.g, g.g[A], 'Monk'), [])  # (ended: a fresh one, never woken)
 
+    def test_G8_checkpoint_before_instances_keeps_the_charge_and_the_meal(self):
+        # a checkpoint saved before ability instances: no instances, the last choice by player (last_choices) and the
+        # nights each woke (woke). Restored, the Po is still charged and the Shabaloth still has last night's meal
+        import pickle
+        from clocktower.state import Grimoire
+        g = self.game(['Po', T1, T2, T3, 'Poisoner', 'Shabaloth', 'Soldier'])
+        d = dict(g.g.__dict__)
+        del d['instances']
+        d['last_choices'], d['woke'], d['day'] = {A: [], F: [C, D]}, {2: [E, A, F]}, 3
+        old = object.__new__(Grimoire)
+        old.__dict__.update(d)
+        g.g = restored = pickle.loads(pickle.dumps(old))
+        self.assertEqual(rules('Po').night_spec(g, restored[A], Night(3)).players, 3)
+        night = Night(3)
+        night.prior = {a.id: (a.data.get('last_night'), a.data['last']) for a in restored.instances if 'last' in a.data}
+        self.assertEqual(night.before_of(restored, restored[F], 'Shabaloth'), [C, D])
+
     def test_G3_two_zombuuls_each_have_a_first_death(self):
         # the Summoner's second Zombuul (U7): the first one's seeming death no longer spends the second's
         g = self.game(['Zombuul', T1, T2, T3, 'Poisoner', T4, 'Soldier'], extra=['Summoner'])

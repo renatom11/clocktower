@@ -498,6 +498,11 @@ class Grimoire:
                 inst = self.ability(p, p.character)
                 inst.used = list(self.notes.get('Used', {}).get(p.name, ()))
                 inst.spent = {c for c in self.spent if c == p.character}
+                if p.name in self.last_choices:  # the last night choice, then by player: their own character's (the
+                    # Po's charge, the Shabaloth's meal); its night is the last they woke on
+                    inst = self.ability(p, p.shown)
+                    inst.data['last'] = list(self.last_choices[p.name])
+                    inst.data['last_night'] = max((n for n, who in self.woke.items() if p.name in who), default=None)
         if 'states' not in d:
             self.states, self.spent = [], set()
             for kind_, name in (('poisoned', old['poisoned']), ('safe', old['protected']), ('master', old['master'])):
