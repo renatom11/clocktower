@@ -74,7 +74,6 @@ class AtheistExamples(ExampleTest):
         more = [self.AT, T1, T2, 'Empath', T3, 'Saint', 'Recluse']  # seven players: two Outsiders, not none
         self.assertIsNone(setup_error(more, g.script))
 
-    @unittest.skip('disagrees with the example: finding EC-23')
     def test_politician_example_3(self):
         """With no Atheist in play, the Politician (thinking evil is winning) claims the Atheist and the town executes
         the Storyteller: evil wins, and the Politician with them (wiki: Politician, example 3). Checked with the

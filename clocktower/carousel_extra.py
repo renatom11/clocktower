@@ -493,7 +493,8 @@ class Atheist(_Townsfolk):
 
     async def nominee_executed(self, game, nominee):
         g = game.g
-        game.emit('execution', {'player': nominee, 'died': True})
+        g.executions.append({'player': nominee, 'day': game.day, 'died': True})  # (on the record: the Politician's
+        game.emit('execution', {'player': nominee, 'died': True})  # nominator reads it, finding EC-23)
         if any(q.character == self.name for q in g.players):
             g.winner, g.reason = 'good', 'The Storyteller was executed, and the Atheist is in play.'
         else:
