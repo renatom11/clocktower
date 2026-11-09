@@ -133,12 +133,15 @@ class WizardExamples(ExampleTest):
         values = [v['statements'][0] for v in g.st.seen[f'Wizard wish:{C}'].values]
         self.assertIn('win', values)
 
-    @unittest.skip('disagrees with the example: finding EC-22')
     def test_wizard_example_5(self):
         """The Wizard wishes everyone five lives and every reminder token in play; the Storyteller finds it too
         awkward, declines, and asks for another wish (wiki: Wizard, example 5). The engine's wish is matched to its
-        list, here to none: no wish is made, and the Wizard may wish again (on a later night)."""
-        g = self.wish('I wish everyone had 5 lives, with the reminders of the script all out', forced=self.FREE)
+        list, here to none (the Storyteller's match is forced, as the example has it: the scripted match reads "all" as
+        the Grimoire's, EC-17): no wish is made, and the Wizard may wish again (on a later night). The "5" in the words
+        is not the list's wish 5 (EC-22)."""
+        g = self.wish('I wish everyone had 5 lives, with the reminders of the script all out',
+                      forced={**self.FREE, f'Wizard wish:{C}': {'statements': ['none']}})
+        self.assertIn(f'Wizard wish:{C}', g.st.seen)  # (matched in words: not read as wish 5)
         self.assertTrue(self.told(C, 'not a wish the Storyteller can grant'))
         self.assertFalse(g.g.notes.get('Used', {}).get(C))
         self.seats[C].day.setdefault('night', []).append({'say': '5', 'targets': []})

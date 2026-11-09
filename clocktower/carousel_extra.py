@@ -653,8 +653,10 @@ class Wizard(_Minion_wz):
         say = (a.get('say') or '').strip()
         if not say:
             return
-        m = _re_wz.search(r'\d+', say)
-        wid = WISHES[int(m.group()) - 1].id if m and 1 <= int(m.group()) <= len(WISHES) else None
+        # the wish's number on the list only when that is all it says ("5", "wish 5"); a number among words ("5 lives
+        # for everyone") is a wish in words, matched to the list (finding EC-22)
+        m = _re_wz.fullmatch(r'(?:wish|number|no\.?)?\s*#?(\d+)[.):]?', say, _re_wz.I)
+        wid = WISHES[int(m.group(1)) - 1].id if m and 1 <= int(m.group(1)) <= len(WISHES) else None
         if wid is None:
             wid = (await game.decide_judged(wish_match_choice(g, p, say)))['statements'][0]
             if wid == 'none':
