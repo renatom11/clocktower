@@ -171,7 +171,7 @@ class LilMonsta(_Demon):
         if m and g.script.jinxed('Marionette', self.name) and not g.notes.get('Marionette waiting'):
             # the jinx: "they enter play after the Demon & must start as their neighbor": for now the good character
             # they believe they are, made the Marionette beside the first babysitter (carousel2.marionette_enters)
-            g.change_character(m, m.shown)
+            game.transition(m, m.shown, how='dealt', quiet=True)
             m.alignment = 'good'
             g.notes['Marionette waiting'] = True
 

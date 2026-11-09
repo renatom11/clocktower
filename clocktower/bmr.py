@@ -130,18 +130,14 @@ class Assassin(Minion):
     kills_at_night = True
     picks_in_turn = True  # the Goon it chooses makes it drunk, but the kill goes through ("even if ...")
 
-    # spent per player (as snv.use), so two players with the ability each have theirs (custom scripts: an Alchemist's
-    # and an Assassin made later); with one Assassin, as Bad Moon Rising has, the same as the Grimoire's spent record
+    # spent per instance (as snv.use), so two players with the ability each have theirs (custom scripts: an
+    # Alchemist's and an Assassin made later); with one Assassin, as Bad Moon Rising has, the same as the Grimoire's
+    # spent record. A new Assassin's instance is fresh (Grimoire.change_character)
     def used(self, g, me):
-        return self.name in g.notes.get('Used', {}).get(me.name, ())
+        return once_used(g, me, self.name)
 
     def night_spec(self, game, me, night):
         return None if night.first or self.used(game.g, me) else self.night_choice
-
-    def becomes(self, game, me):
-        used = game.g.notes.get('Used', {})
-        if me.name in used:  # a new Assassin starts fresh (as Game.changes does for the Grimoire's record)
-            used[me.name] = [x for x in used[me.name] if x != self.name]
 
     async def resolve_night(self, game, night):
         g = game.g
@@ -153,7 +149,7 @@ class Assassin(Minion):
             works = g.works(a, self.name)  # as it chooses: a Goon chosen by a sober Assassin dies, and turns evil
             game.pick(night, a, t)
             g.spend(self.name)  # spent even when drunk or poisoned: the Assassin won't wake again
-            g.notes.setdefault('Used', {}).setdefault(a.name, []).append(self.name)
+            once_use(g, a, self.name)
             if works:
                 # nothing stops it: protections, the Fool's survival, and (a reading: like the Fool's) the Zombuul's
                 # first death, or a Zombuul who only seems dead
@@ -218,8 +214,10 @@ class Zombuul(Demon):
 
     def dies(self, game, me, cause):
         g = game.g
-        if g.works(me, self.name) and not g.spent_ability(self.name):  # a drunk or poisoned Zombuul dies for real
-            g.spend(self.name)
+        # a drunk or poisoned Zombuul dies for real. Spent for this Zombuul (state.Ability): a Scarlet Woman or a
+        # summoned second Zombuul has a first death of its own
+        if g.works(me, self.name) and not g.spent_ability(self.name, me):
+            g.spend(self.name, me)
             return 'seems'
         return None
 
@@ -239,7 +237,12 @@ class Pukka(Demon):
 
     @staticmethod
     def poisons(g, pukka):
-        return [s for s in g.states if s.kind == 'poisoned' and s.source == pukka.name and s.until is None]
+        # the victims of this Pukka's ability (state.Ability), not every lasting poison its player is the source of
+        # (the Snake Charmer's charm on the old Demon, finding S1); a state from a checkpoint without instances has
+        # none recorded, and goes by its player
+        mine = g.ability(pukka, 'Pukka').id
+        return [s for s in g.states if s.kind == 'poisoned' and s.source == pukka.name and s.until is None
+                and (s.ability == mine or (s.ability is None and s.ends_with_source))]
 
     async def resolve_night(self, game, night):
         g = game.g
@@ -252,7 +255,8 @@ class Pukka(Demon):
             return  # a drunk Pukka poisons nobody, and the earlier victim waits for it to sober up
         if t:
             # lasts until the victim dies; paused while the Pukka is drunk or poisoned ("the poison resumes")
-            g.add(State('poisoned', t, source=pukka.name, until=None, ends_with_source=True, while_source_works=True))
+            g.add(State('poisoned', t, source=pukka.name, until=None, ends_with_source=True, while_source_works=True,
+                        ability=g.ability(pukka, self.name).id))
         for s in earlier:  # the previously poisoned player dies (still poisoned), then is healthy
             await game.demon_attack_judged(g[s.target], pukka, night)
             g.states = [x for x in g.states if x is not s]
@@ -288,7 +292,8 @@ class Shabaloth(Demon):
         if not shab:
             return
         # just before the Shabaloth acts: a dead player it chose last night may come back (the Storyteller's call)
-        last = night.before.get(shab.name, []) if shab.name in g.woke.get(night.n - 1, []) else []
+        # (its own last choice: this Shabaloth's instance woke and chose last night, not another of its player's)
+        last = night.before_of(g, shab, self.name)
         dead = [x for x in last if not g[x].alive]
         if dead and g.works(shab, self.name):
             value = await game.decide_judged(regurgitation_choice(g, shab, dead))
@@ -315,7 +320,8 @@ class Po(Demon):
     def night_spec(self, game, me, night):
         # "last choice": the first night and a night the Po was not woken (the Exorcist) are not choices, so a
         # charge survives them; a drunk Po's "no one" still charges
-        return self.charged if game.g.last_choices.get(me.name) == [] else self.night_choice
+        # (this Po's last choice, state.Ability: not its player's choice as another character)
+        return self.charged if game.g.ability(me, self.name).data.get('last') == [] else self.night_choice
 
     async def resolve_night(self, game, night):
         g = game.g
@@ -527,7 +533,7 @@ class Pacifist(Townsfolk):
         g = game.g
         if not (g.works(me, self.name) and p.alive and not p.evil) or g.safe(p, 'execution'):
             return  # nothing to decide: a drunk Pacifist, an evil or dead player, or one saved anyway
-        if p.character == 'Fool' and g.works(p, 'Fool') and not g.spent_ability('Fool'):
+        if p.character == 'Fool' and g.works(p, 'Fool') and not g.spent_ability('Fool', p):
             # owner's ruling B2.10: the Fool survives either way; the Storyteller chooses whether the Pacifist saves
             # them (the Fool keeps their ability) or the Fool's own ability does
             choice = judged(yes_choice(f'Pacifist or Fool:{p.name}', POLICY['pacifist_over_fool']),
@@ -552,8 +558,8 @@ class Fool(Townsfolk):
         # asked only once no protection saved them (the Tea Lady's, the Innkeeper's keep the Fool's ability); a drunk
         # or poisoned Fool dies
         g = game.g
-        if g.works(me, self.name) and not g.spent_ability(self.name):
-            g.spend(self.name)
+        if g.works(me, self.name) and not g.spent_ability(self.name, me):  # (this Fool's: state.Ability)
+            g.spend(self.name, me)
             return True
         return False
 
@@ -803,7 +809,7 @@ def will_die(g, p, cause):
     """Whether `p` would really die from `cause` now: alive, unprotected, and not the Fool with their ability."""
     if not p.appears_alive or g.safe(p, cause):
         return False
-    return not (p.character == 'Fool' and g.works(p, 'Fool') and not g.spent_ability('Fool'))
+    return not (p.character == 'Fool' and g.works(p, 'Fool') and not g.spent_ability('Fool', p))
 
 
 def gossip_victim_choice(g, gossip):

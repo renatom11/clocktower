@@ -55,7 +55,7 @@ def remove_outsider(game, by):
     towns = towns[:len(towns) - drunk] if drunk else towns
     v = game.decide(Choice('Fewer outsiders', [{'players': [x], 'character': c} for x in outs for c in towns],
                            lambda r: {'players': [r.choice(outs)], 'character': r.choice(towns)}))
-    g.change_character(g[v['players'][0]], v['character'])
+    game.transition(g[v['players'][0]], v['character'], how='dealt', quiet=True)
     return True
 
 
@@ -121,7 +121,7 @@ class VillageIdiot(Townsfolk):
             towns = [q.name for q in g.players if kind(q.character) == 'Townsfolk' and q.character != self.name
                      and not (rules(q.character).setup_order or 0) < -1]  # (not the Alchemist: its step has run)
             for x in (await game.decide_judged(extra_idiots_choice(g, towns)))['players']:
-                g.change_character(g[x], self.name)
+                game.transition(g[x], self.name, how='dealt', quiet=True)
         await self.mark_drunk(game)
 
     async def mark_drunk(self, game, again=False):
@@ -613,6 +613,7 @@ async def boomdandy_made(game):
 class Fearmonger(Minion):
     name = 'Fearmonger'
     ability = ability(name)
+    instance_notes = ('Fear',)  # the chosen player is this instance's (a new Fearmonger chooses, and it is announced)
     night_choice = Choose(players=1, prompt='Choose a player: if you nominate and execute them, their team loses. '
                                             'Everyone learns if you choose a new player.')
 
@@ -735,6 +736,7 @@ def alchemist_text(g, m):
 class Alchemist(Townsfolk):
     name = 'Alchemist'
     ability = ability(name)
+    instance_notes = ('Alchemist',)  # the Minion this instance has
     setup_order = -1.5  # its Minion's setup changes (the Baron's Outsiders) come first
 
     @staticmethod
@@ -754,7 +756,7 @@ class Alchemist(Townsfolk):
                                              'they have?', recipient=me.name)))['character']
         g.notes.setdefault('Alchemist', {})[me.name] = m
         if m not in ALCHEMIST_NONE:
-            me.extra.append(m)
+            g.gain(me, m, self.name)
             game.emit('gains', {'player': me.name, 'character': m}, 'audit')
         if setup and not game.forced:
             await self.setup_change(game, me, m)
@@ -779,7 +781,7 @@ class Alchemist(Townsfolk):
             if demon and towns:
                 c = game.decide(Choice('Alchemist Summoner townsfolk', [{'character': c} for c in towns],
                                        lambda r: {'character': r.choice(towns)}))['character']
-                g.change_character(demon, c)
+                game.transition(demon, c, how='dealt', quiet=True)
                 demon.alignment = 'good'
 
     async def setup(self, game):

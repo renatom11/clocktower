@@ -47,7 +47,7 @@ def add_character(game, by, character, order):
     x = game.decide(judged(Choice(f'Add {character}', [{'players': [x]} for x in pool],
                                   lambda r: {'players': [r.choice(pool)]}), 'add_character',
                            f'The {by.shown} adds the {character}: whose token does it take?'))['players'][0]
-    g.change_character(g[x], character)
+    game.transition(g[x], character, how='dealt', quiet=True)
     return True
 
 
@@ -539,7 +539,7 @@ class LordOfTyphon(Demon):
                 v = game.decide(Choice('Typhon fewer outsiders', [{'players': [x], 'character': c} for x in outs
                                                                   for c in towns],
                                        lambda r: {'players': [r.choice(outs)], 'character': r.choice(towns)}))
-                g.change_character(g[v['players'][0]], v['character'])
+                game.transition(g[v['players'][0]], v['character'], how='dealt', quiet=True)
 
 
 async def typhon_summoned(game, s, target):
@@ -584,6 +584,7 @@ def host(g, lleech):
 class Lleech(Demon):
     name = 'Lleech'
     ability = ability(name)
+    instance_notes = ('Lleech host', 'Lleech lost')  # (a swap hands the host over first: hand_over)
     night_choice = Choose(players=1, prompt='Choose a player: they die.')
     kills_at_night = True
     host_choice = Choose(players=1, may_self=False, prompt='Choose a player (not yourself): they are poisoned, and you '

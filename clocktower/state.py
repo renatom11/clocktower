@@ -67,6 +67,30 @@ class State:
     while_source_works: bool = False  # in force only while its source is alive, sober and healthy (the Courtier)
     about: str | None = None    # what a 'mad' or 'has ability' state is about (a character, or a character type)
     while_source_sober: bool = False  # in force only while its source is sober and healthy (the Poisoner's poison)
+    ability: int | None = None  # the Ability instance that made it (Ability.id): set where it is made, or worked out
+    #                             by Grimoire.add (the step acting, else the source's own character), so a reader
+    #                             finds its own ability's states, not every state of its player (the Pukka's victim)
+
+
+@dataclass
+class Ability:
+    """One player's instance of one character's ability: the character it comes from, its holder, how it was gained,
+    whether it is spent, and its own bookkeeping. A character change ends the holder's instances (Grimoire.
+    change_character: the one path) and starts a fresh one for the new character, so what an instance records (a
+    once-per-game use, the Po's last choice, the Golem's nomination) never reaches another instance, even of the same
+    character later (a change and back). A death does not end an instance (a dead player may keep their ability: the
+    Vigormortis's Minions; a revival restores it: Grimoire.revive). docs/state-machines.md, "Refactor results"."""
+    id: int
+    character: str
+    holder: str
+    how: str = 'dealt'      # 'dealt'; 'changed' (became it mid-game); gained through an ability: 'Philosopher',
+    #                         'Cannibal', 'Pixie', 'Alchemist', 'Boffin', 'Hermit', 'Amnesiac', 'Plague Doctor', ...;
+    #                         'token' (a Demon token carried: Lil' Monsta's); 'believed' (a Drunk's, a Lunatic's)
+    since: int = 0          # the day (or night) number it began
+    used: list = field(default_factory=list)  # once-per-game uses recorded (snv.use), one entry per use
+    spent: set = field(default_factory=set)   # spent once-per-game abilities (Grimoire.spend, by character)
+    data: dict = field(default_factory=dict)  # its own bookkeeping: 'last' (its last night choice), 'last_night'
+    ended: str | None = None  # why it ended ('changed', 'lost'), None while held
 
 
 def team_sizes(n, outsiders=0, floor=False):
@@ -446,6 +470,10 @@ class Grimoire:
         self.truthful = {}          # Drunk -> whether their information is true this game
         self.winner = None
         self.reason = None
+        self.instances = []         # Ability: every ability instance, held or ended, in the order begun
+        self.acting = None          # the character whose night step is running (Game.night): Grimoire.add's guess
+        for p in self.players:
+            self.begin(p, p.character)
 
     def __setstate__(self, d):
         """Games checkpointed before states existed held one field per state: carry them over."""
@@ -461,6 +489,15 @@ class Grimoire:
         self.__dict__.setdefault('revivals', [])
         self.__dict__.setdefault('notes', {})
         self.__dict__.setdefault('abnormal', [])
+        self.__dict__.setdefault('acting', None)
+        if 'instances' not in d:  # checkpointed before ability instances: one for each ability held, uses carried over
+            self.instances = []
+            for p in self.players:
+                for c in self.abilities(p):
+                    self.begin(p, c, 'dealt' if c == p.character else 'gained')
+                inst = self.ability(p, p.character)
+                inst.used = list(self.notes.get('Used', {}).get(p.name, ()))
+                inst.spent = {c for c in self.spent if c == p.character}
         if 'states' not in d:
             self.states, self.spent = [], set()
             for kind_, name in (('poisoned', old['poisoned']), ('safe', old['protected']), ('master', old['master'])):
@@ -475,7 +512,101 @@ class Grimoire:
 
     # ---- states ----------------------------------------------------------------------
     def add(self, state):
+        if state.ability is None and state.source in self.by_name:  # the instance that made it: the step acting, if
+            src = self.by_name[state.source]  # its player has that ability, else their own character's
+            c = self.acting if self.acting in self.abilities(src) else src.character
+            state.ability = self.ability(src, c).id
         self.states.append(state)
+
+    # ---- ability instances (Ability) -------------------------------------------------------------------------
+    def begin(self, p, character, how='dealt'):
+        """A new instance of `character`'s ability for p (fresh: nothing used or recorded)."""
+        inst = Ability(len(self.instances) + 1, character, p.name, how, self.day)
+        self.instances.append(inst)
+        return inst
+
+    def held(self, p):
+        """p's instances that have not ended, in the order begun."""
+        return [a for a in self.instances if a.holder == p.name and a.ended is None]
+
+    def ability(self, p, character, create=True):
+        """p's instance of `character`'s ability: the one they hold (their own character's, one gained, a token's), or
+        for an ability they only believe they have (the Drunk's, the Lunatic's), one begun for that belief. None if
+        there is none and `create` is false."""
+        inst = next((a for a in self.held(p) if a.character == character), None)
+        if inst is None and create:
+            gift = self.gift(p) if self.notes.get('Boffin gift') else None
+            how = ('dealt' if character == p.character else 'gained' if character in getattr(p, 'extra', ())
+                   else 'token' if character == p.carries else 'gift' if gift and gift['ability'] == character
+                   else 'believed')
+            inst = self.begin(p, character, how)
+        return inst
+
+    def gain(self, p, character, how):
+        """p gains `character`'s ability beyond their own (the Philosopher's choice: `how` names the ability through
+        which): a fresh instance, held while p keeps the character they had (Grimoire.change_character ends it)."""
+        p.extra.append(character)
+        old = self.ability(p, character, create=False)
+        if old is not None and old.how == 'believed':
+            old.ended = 'replaced'
+        self.begin(p, character, how)
+
+    def believe(self, p, old):
+        """p, changed into another character without knowing it (the Marionette), still believes they have `old`, the
+        instance that ended: what it used or recorded stays so for their belief (they are not woken to use a spent
+        once-per-game ability again, which would tell them they changed)."""
+        inst = self.begin(p, old.character, 'believed')
+        inst.used, inst.spent, inst.data = list(old.used), set(old.spent), dict(old.data)
+        self._used_view(p)
+        return inst
+
+    def set_gained(self, p, characters, how):
+        """p's gained abilities become `characters` (the Cannibal's latest meal, the Hermit's Outsiders): instances
+        no longer held end, new ones start fresh, one still held carries on."""
+        for inst in self.held(p):
+            if inst.how not in ('dealt', 'changed', 'token', 'gift', 'believed') and inst.character not in characters:
+                self.end(inst, 'lost')
+        p.extra = list(characters)
+        for c in characters:
+            inst = self.ability(p, c, create=False)
+            if inst is None or inst.how == 'believed':
+                if inst is not None:
+                    inst.ended = 'replaced'
+                self.begin(p, c, how)
+
+    def end(self, inst, why):
+        """An instance ends: its per-holder notes go with it (Character.instance_notes: the Golem's nomination, the
+        Lleech's host, the Fearmonger's choice)."""
+        inst.ended = why
+        if inst.used:
+            self._used_view(self.by_name[inst.holder])
+        for key in rules(inst.character).instance_notes:
+            mark = self.notes.get(key)
+            if isinstance(mark, dict):
+                mark.pop(inst.holder, None)
+            elif isinstance(mark, list) and inst.holder in mark:
+                self.notes[key] = [x for x in mark if x != inst.holder]
+
+    def _used_view(self, p):
+        """notes['Used'][p], kept as a view of p's instances' uses (older code and the fuzzer read it)."""
+        uses = [x for a in self.held(p) for x in a.used]
+        if uses or p.name in self.notes.get('Used', {}):
+            self.notes.setdefault('Used', {})[p.name] = uses
+
+    def use(self, p, name):
+        """p used the once-per-game `name` (snv.use): recorded on their instance of it, or, for one they only believe
+        they have or a use of their own character's (the Amnesiac's 'Amnesiac fool'), on their own character's."""
+        inst = self.ability(p, name, create=False) or self.ability(p, p.character)
+        inst.used.append(name)
+        self._used_view(p)
+
+    def used(self, p, name):
+        return any(name in a.used for a in self.held(p))
+
+    def fresh(self, p, name):
+        for a in self.held(p):
+            a.used = [x for x in a.used if x != name]
+        self._used_view(p)
 
     def expire(self, moment, night=None):
         """Remove the states that end at `moment` ('night': each dusk; `night` is the number of the night that
@@ -565,11 +696,19 @@ class Grimoire:
     master = property(lambda self: next(iter(self.holders('master')), None),
                       lambda self, name: self._single('master', name))
 
-    def spend(self, character):
+    def spend(self, character, p=None):
+        """`character`'s once-per-game ability is spent: for p's instance of it, and in the Grimoire's record by
+        character (`spent`, what the Spy sees)."""
         self.spent.add(character)
+        if p is not None:
+            self.ability(p, character).spent.add(character)
 
-    def spent_ability(self, character):
-        return character in self.spent
+    def spent_ability(self, character, p=None):
+        """Whether p's instance of `character`'s ability is spent (without p: whether any was, by character)."""
+        if p is None:
+            return character in self.spent
+        inst = self.ability(p, character, create=False)
+        return inst is not None and character in inst.spent
 
     slayer_used = property(lambda self: 'Slayer' in self.spent)
     virgin_used = property(lambda self: 'Virgin' in self.spent)
@@ -676,8 +815,9 @@ class Grimoire:
         even a spent once-per-game one. `source` names the ability (for the log)."""
         p.alive, p.seems_dead, p.ghost_vote = True, False, True
         self.spent.discard(p.character)
-        if p.character in self.notes.get('Used', {}).get(p.name, ()):  # (spent per player: snv.use)
-            self.notes['Used'][p.name] = [x for x in self.notes['Used'][p.name] if x != p.character]
+        inst = self.ability(p, p.character)  # the same instance, restored: its own use fresh again (gained abilities
+        inst.spent.discard(p.character)  # are kept as they are)
+        self.fresh(p, p.character)
         self.revivals.append({'player': p.name, 'day': self.day, 'source': source})
 
     def jinxed(self, a, b):
@@ -689,13 +829,47 @@ class Grimoire:
         day = self.day if day is None else day
         return [d['player'] for d in self.death_log if d['day'] == day and d['phase'] != 'night']
 
-    def change_character(self, p, character):
-        """p becomes `character` (and believes it), keeping their alignment. States that last only while their
-        source has its ability end (a Poisoner who becomes the Imp stops poisoning)."""
+    def change_character(self, p, character, how='changed'):
+        """p becomes `character` (and believes it), keeping their alignment: the Grimoire's side of every character
+        change (the one path: Game.become and Game.changes call it; setup steps with how='dealt'). The old character's
+        instances end, with the abilities gained through it (the Philosopher's) and everything they recorded; the new
+        one starts fresh, even a once-per-game ability someone used before. States that last only while their source
+        has its ability end (a Poisoner who becomes the Imp stops poisoning). A seeming death is the Zombuul's: a
+        player who stops being the character that made it is dead, as the town already believes (G11)."""
+        for inst in self.held(p):
+            if inst.how not in ('token', 'gift'):  # (a carried Demon token and a Boffin's gift are not the
+                self.end(inst, 'changed')  # character's: they have rules of their own)
         p.character = p.shown = character
         if getattr(p, 'extra', None):  # abilities gained through the old character go with it (the Philosopher's)
             p.extra = []
+        self.spent.discard(character)
+        self.begin(p, character, how)
+        if p.seems_dead:  # (custom scripts: the Barber's, the Pit-Hag's or a tea party's change of a seeming Zombuul)
+            p.seems_dead = p.alive = False
+            last = next((d for d in reversed(self.death_log) if d['player'] == p.name and d.get('seems')), None)
+            if last:
+                last['seems'], last['ended'] = False, 'changed'
         self._source_lost(p)
+
+    def swap_seats(self, a, b):
+        """At setup, before anyone is told their character, two dealt tokens change places (the Marionette's seat
+        beside the Demon): each player takes the other's character, belief and alignment, with the abilities gained
+        with it (an Alchemist's Minion: finding U16), its instances and what they recorded (Character.instance_notes).
+        The one path's setup form: nothing has happened yet, so nothing ends."""
+        for k in ('character', 'shown', 'alignment', 'extra'):
+            x, y = getattr(a, k), getattr(b, k)
+            setattr(a, k, y)
+            setattr(b, k, x)
+        moving = [i for i in self.instances if i.ended is None and i.holder in (a.name, b.name)]
+        for inst in moving:
+            inst.holder = b.name if inst.holder == a.name else a.name
+        for key in {k for i in moving for k in rules(i.character).instance_notes}:
+            mark = self.notes.get(key)
+            if isinstance(mark, dict):
+                x, y = mark.pop(a.name, None), mark.pop(b.name, None)
+                mark.update({n: v for n, v in ((b.name, x), (a.name, y)) if v is not None})
+            elif isinstance(mark, list):
+                self.notes[key] = [b.name if n == a.name else a.name if n == b.name else n for n in mark]
 
     def _source_lost(self, p):
         kept = [s.target for s in self.states if s.kind == 'has ability' and s.source == p.name and s.ends_with_source]
