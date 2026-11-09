@@ -53,10 +53,11 @@ unchanged): a player who registers as dead while alive holds a character that ca
 state does not outlive the character: 'lifecycle-seems-dead'); a player who becomes a character whose once-per-game
 ability was already marked spent, by character or for that player, gets it fresh ('lifecycle-stale-spent'); a Pukka
 kills only a player some Pukka chose on an earlier night ('lifecycle-pukka'); after a secret vote today (the Organ
-Grinder's), no later prompt shows the block or a tally ('lifecycle-secret-vote'); at each dusk, when the game
-checkpoints, nothing is left outside the checkpoint (no pending ability, no night in progress: 'lifecycle-checkpoint');
-and, as an advisory, an ability gained beyond the character (the Philosopher's, the Pixie's, the Cannibal's) that acts
-only through its own character's hooks, so does nothing for its gainer ('lifecycle-inert-gain').
+Grinder's), no later prompt or public event shows the block or a tally ('lifecycle-secret-vote'); at each dusk, when
+the game checkpoints, nothing is left outside the checkpoint (no pending ability, no night in progress:
+'lifecycle-checkpoint'); and, as an advisory, an ability gained beyond the character (the Philosopher's, the Pixie's,
+the Cannibal's) that acts only through its own character's hooks, so does nothing for its gainer
+('lifecycle-inert-gain').
 
 Pair coverage counts, for every pair of characters, the games in which both were in play (at any point) and the games
 in which both also acted (woke, learned, killed, placed a state or used a public ability; a character with no
@@ -121,6 +122,9 @@ OWN_HOOKS = ('survives', 'safe_from', 'safe_from_demon', 'redirect_attack', 'exe
 INERT_GAINS = {c: [h for h in OWN_HOOKS if getattr(type(x), h) is not getattr(Character, h)]
                for c, x in CHARACTERS.items()}
 INERT_GAINS = {c: hs for c, hs in INERT_GAINS.items() if hs}
+# words that, after a secret vote today, would show its tally (the block, a tie) in a prompt or a public event
+SECRET_LEAKS = ('is on the block with', '(replacing ', 'of an earlier tied vote', 'an earlier vote tied at',
+                'ties the leader', 'is about to be executed.')
 
 
 def misreg(p):
@@ -342,8 +346,7 @@ class Monitor:
             self.flag('continued-past-win', f'{name} asked ({request.kind}) after {g.winner} won: {g.reason}')
         if self.lifecycle and g is not None and self.secret_day == self.game.day and request.kind in ('nominate',
                                                                                                     'vote'):
-            leak = next((w for w in ('is on the block with', '(replacing ', 'of an earlier tied vote',
-                                     'an earlier vote tied at') if w in request.prompt), None)
+            leak = next((w for w in SECRET_LEAKS if w in request.prompt), None)
             if leak:
                 self.flag('lifecycle-secret-vote', f'after a secret vote today, a {request.kind} prompt shows the '
                                                    f'tally ("{leak}")', ['Organ Grinder'])
@@ -777,6 +780,13 @@ class Monitor:
             self.pukka_targets.update((self.game.day, t) for t in data.get('targets') or [])
         elif kind_ == 'vote_result' and to != 'public':
             self.secret_day = self.game.day
+        if self.secret_day == self.game.day and to == 'public':  # nor any public event (a later vote's result)
+            from .render import render
+            text = render({'kind': kind_, 'data': data, 'to': to}, 'public') or ''
+            leak = next((w for w in SECRET_LEAKS if w in text), None)
+            if kind_ == 'vote_result' or leak:
+                self.flag('lifecycle-secret-vote', f'after a secret vote today, a public {kind_} shows the tally '
+                                                   f'("{leak or text}")', ['Organ Grinder'])
         elif kind_ == 'gains':
             c = data['character']
             if c in INERT_GAINS and g[data['player']].character not in (c, 'Hermit'):

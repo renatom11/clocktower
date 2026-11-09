@@ -401,18 +401,34 @@ class OtherTests(Test):
             self.assertIn(B, g.g.sample_evil(r))
 
     def test_S2_organ_grinder_secret_tally_stays_secret(self):
+        # a secret vote puts Casey on the block with 5; the Organ Grinder (Ellis) is then poisoned, and two public votes
+        # follow: Drew gets none, Gray ties at 5. Nothing public, and no prompt, may show the secret 5 (as the votes
+        # needed beyond the majority of 4, a tie, a block or a replaced block)
+        from clocktower.render import render
         g = self.game([T1, T2, T3, T4, 'Organ Grinder', 'Imp', 'Soldier'])
-        g.secret_day = g.day  # a vote earlier today was secret (the Organ Grinder's ability has since ended)
-        run(g.vote(C, B, 4))
-        prompts = [r.prompt for s in self.seats.values() for r in s.log if r.kind == 'vote']
-        self.assertTrue(prompts)
-        for text in ('(replacing ', 'is on the block with', 'It takes 5', 'of an earlier tied vote'):
-            self.assertFalse([p for p in prompts if text in p], text)
+        for name in (A, B, C, D, G):
+            self.seats[name].day['vote'] = [{'vote': True}, {'vote': False}, {'vote': True}]
+        block, top = run(g.vote(C, None, 0))
+        self.assertEqual((block, top, g.secret_day), (C, 5, g.day))
+        g.g.add(State('poisoned', E, source=F, until=None))
+        self.assertFalse(g.secret_votes())
+        start = len(g.events)
+        block, top = run(g.vote(D, block, top))
+        block, top = run(g.vote(G, block, top))
+        self.assertEqual((block, top), (None, 5))  # (the tie: the Storyteller's tally is kept)
+        public = [render(e, 'public', set()) for e in g.events[start:] if e['to'] == 'public']
+        self.assertTrue([t for t in public if 'Gray received 5 votes' in t])  # (the hands raised are seen)
+        prompts = [r.prompt for s in self.seats.values() for r in s.log if r.kind in ('vote', 'nominate')]
+        for text in public + prompts:
+            for leak in ('6 needed', 'It takes 6', 'ties the leader', 'about to be executed.', '(replacing ',
+                         'is on the block with', 'of an earlier tied vote', 'an earlier vote tied at', 'who has 5'):
+                self.assertNotIn(leak, text)
         g = self.game([T1, T2, T3, T4, 'Poisoner', 'Imp', 'Soldier'])  # without one, as before
         run(g.vote(C, B, 4))
         self.assertTrue([r for s in self.seats.values() for r in s.log if r.kind == 'vote'
                          and '(replacing Blair, who has 4)' in r.prompt])
-
+        self.assertTrue([e for e in g.events if e['kind'] == 'vote_result' and e['to'] == 'public'
+                         and render(e, 'public', set()) == 'Casey received 0 votes (5 needed).'])
 
 if __name__ == '__main__':
     unittest.main()

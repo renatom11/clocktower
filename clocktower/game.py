@@ -1195,11 +1195,17 @@ class Game:
             block, outcome = None, 'tie'
         else:
             outcome = 'short'
+        # after a secret vote today, a public vote's result would show the earlier tally (the votes needed beyond the
+        # majority, a tie, a block or none): the hands are seen, the result only the Storyteller knows (finding S2)
         self.emit('vote_result', {'nominee': nominee, 'votes': count, 'needed': required, 'outcome': outcome,
-                                  'voters': yes}, 'audit' if secret else 'public')
+                                  'voters': yes}, 'audit' if secret or hidden else 'public')
         if secret:
             self.secret_day = n
             self.emit('text', {'text': f'The vote on {nominee} is over (eyes closed: the tally is secret).'})
+        elif hidden:
+            self.emit('text', {'text': f'{nominee} received {count} vote{"s" if count != 1 else ""} (at least '
+                                       f'{needed} needed, and more than any earlier vote today: an earlier vote was '
+                                       'secret, so only the Storyteller knows whether they are about to be executed).'})
         if g.nominations and g.nominations[-1]['nominee'] == nominee:
             # the voters' characters as they voted (the Flowergirl detects a Demon who voted, even one who changed
             # character later that day or night)
