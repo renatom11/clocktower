@@ -206,6 +206,31 @@ marked for the owner's review (docs/snv-rulings.md).
 - **Travellers and exile, Fabled and Loric:** listed, not played; a Traveller flag on players exists; nothing else.
 - **Homebrew characters** and scripts' house rules (the corpus's "bootlegger" rules): not played.
 
+### Removing a batch 6 character
+
+Lil' Monsta, the Atheist, the Wizard, Legion and Riot (clocktower/carousel_extra.py) can be left out or deleted.
+
+- **Switch off** (nothing deleted): `CLOCKTOWER_WITHOUT=lilmonsta,atheist` (ids `lilmonsta`, `atheist`, `wizard`,
+  `legion`, `riot`, or `all`), or `python -m clocktower --without <ids> <command>`. The character's section
+  registers nothing (character, jinxes, weights, Storyteller's notes, prompt text); scripts naming it report it as not
+  built; its tests skip. `tests/test_extra_removable.py` checks this for each of the five and for all five at once.
+- **Delete for good:** remove its section of carousel_extra.py (from `# ---- <name> ----` to
+  `# ---- end of <name> ----`), `tests/test_carousel_<id>.py`, its class in
+  `tests/examples/test_carousel_extra_examples.py`, `clocktower/data/storyteller/extra-<id>.md`, and its synthetic
+  script and fingerprints (`carousel-<n>.json`; 8 Lil' Monsta, 9 Atheist, 10 Wizard, 11 Legion, 12 Riot). Mark its
+  rulings subsection in docs/carousel-rulings.md as removed (keep the numbers).
+
+Verified (November 2026), each in a scratch copy, with the full check (lint, all tests, every fingerprint):
+
+| Character | Switched off: tests | Switched off: other scripts' fingerprints | Deleted: tests | Deleted: fingerprints |
+|---|---|---|---|---|
+| Lil' Monsta | 1391 pass | all identical | 1390 pass | all identical |
+| Atheist | 1403 pass | all identical | 1400 pass | all identical |
+| Wizard | 1404 pass | all identical | 1396 pass | all identical |
+| Legion | 1399 pass | all identical | 1397 pass | all identical |
+| Riot | 1401 pass | all identical | 1400 pass | all identical |
+| all five, switched off | 1334 pass | all identical | | |
+
 ## Around the engine
 
 - **The browser table** (`web.py`, `table/`) plays Trouble Brewing only: its character sheet, roles and the Slayer

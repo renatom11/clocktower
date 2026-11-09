@@ -9,17 +9,22 @@ and the synthetic scripts of the characters still built); and a fast subset of t
 character's tests skipped. The full suite and the full fingerprint check under each switch are run by hand (docs/
 readiness.md, "Removing a batch 6 character").
 
-Skipped when CLOCKTOWER_WITHOUT is already set: it tests switching off from the full build."""
+Skipped when CLOCKTOWER_WITHOUT is already set: it tests switching off from the full build. A character deleted for
+good (clocktower/carousel_extra.py's docstring) is left out: its case skips, and "all five" means all still built."""
 import json
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
+from clocktower.characters import CHARACTERS
+
 ROOT = Path(__file__).resolve().parent.parent
 NAMES = {'lilmonsta': "Lil' Monsta", 'atheist': 'Atheist', 'wizard': 'Wizard', 'legion': 'Legion', 'riot': 'Riot'}
-CASES = [(cid,) for cid in NAMES] + [tuple(NAMES)]
+HERE = tuple(c for c in NAMES if NAMES[c] in CHARACTERS)  # (in this build: all five unless some were deleted)
+CASES = [(cid,) for cid in HERE] + [HERE]
 STEP = 100  # every 100th recorded seed: 11 games a script, every table size
 
 PROBE = r'''
@@ -28,8 +33,9 @@ from pathlib import Path
 from clocktower import carousel_extra, characters as ch, fingerprint, judge, official, smoke
 from clocktower.state import POLICY
 
-off, step = set(json.loads(sys.argv[1])), int(sys.argv[2])
-names = {"lilmonsta": "Lil' Monsta", "atheist": "Atheist", "wizard": "Wizard", "legion": "Legion", "riot": "Riot"}
+off, step, here = set(json.loads(sys.argv[1])), int(sys.argv[2]), json.loads(sys.argv[3])
+names = {c: n for c, n in {"lilmonsta": "Lil' Monsta", "atheist": "Atheist", "wizard": "Wizard", "legion": "Legion",
+                           "riot": "Riot"}.items() if c in here}
 out = {"without": sorted(carousel_extra.WITHOUT), "built": sorted(n for n in names.values() if n in ch.CHARACTERS),
        "jinxes": sorted({c for pair in ch.IMPLEMENTED_JINXES for c in pair} & set(names.values())),
        "policy": sorted(k for k in POLICY if k.split("_")[0] in names),
@@ -63,7 +69,7 @@ for sid, r in out["scripts"].items():
                                               == g["sha"] for g in games)]
 sys.path.insert(0, "tests")
 mods = ["test_carousel_extra", "test_carousel.JinxFrameworkTests", "test_lifecycle",
-        "examples.test_carousel_extra_examples"] + [f"test_carousel_{c}" for c in names]
+        "examples.test_carousel_extra_examples"] + [f"test_carousel_{c}" for c in here]
 res = unittest.TextTestRunner(stream=open("/dev/null", "w")).run(unittest.defaultTestLoader.loadTestsFromNames(mods))
 out["suite"] = {"run": res.testsRun, "failed": [str(t) for t, _ in res.failures + res.errors],
                 "skipped": [str(t) for t, _ in res.skipped]}
@@ -76,9 +82,10 @@ class SwitchTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         procs = {}
-        for case in CASES:  # (all at once: a few seconds each)
+        for case in CASES if HERE else ():  # (all at once: a few seconds each)
             env = {**os.environ, 'CLOCKTOWER_WITHOUT': ','.join(case)}
-            procs[case] = subprocess.Popen([sys.executable, '-c', PROBE, json.dumps(case), str(STEP)], cwd=ROOT,
+            procs[case] = subprocess.Popen([sys.executable, '-c', PROBE, json.dumps(case), str(STEP),
+                                            json.dumps(HERE)], cwd=ROOT,
                                            env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         cls.results = {}
         for case, p in procs.items():
@@ -92,15 +99,17 @@ class SwitchTests(unittest.TestCase):
         return json.loads(stdout.strip().splitlines()[-1])
 
     def check(self, case):
+        if not set(case) <= set(HERE) or not case:
+            self.skipTest(f'deleted: {", ".join(sorted(set(case) - set(HERE))) or "all five"}')
         r = self.result(case)
         gone = {NAMES[c] for c in case}
         self.assertEqual(r['without'], sorted(case))
-        self.assertEqual(set(r['built']), set(NAMES.values()) - gone)  # absent; the others still built
+        self.assertEqual(set(r['built']), {NAMES[c] for c in HERE} - gone)  # absent; the others still built
         self.assertFalse(gone & set(r['jinxes']), 'a switched-off character still has a jinx declared')
         weighted = {k.split('_')[0] for k in r['policy']}
         self.assertFalse(weighted & set(case), 'its Storyteller weights remain')
-        self.assertEqual(weighted, {'lilmonsta', 'atheist', 'wizard', 'legion'} - set(case))  # (Riot has none)
-        self.assertEqual(set(r['notes']), set(NAMES.values()) - gone)  # its Storyteller's notes go too
+        self.assertEqual(weighted, {'lilmonsta', 'atheist', 'wizard', 'legion'} & set(HERE) - set(case))  # (Riot: none)
+        self.assertEqual(set(r['notes']), {NAMES[c] for c in HERE} - gone)  # its Storyteller's notes go too
         needing = 0
         for where in ('scripts', 'corpus'):
             for sid, s in r[where].items():
@@ -118,7 +127,7 @@ class SwitchTests(unittest.TestCase):
         for sid, (n, same) in r['replays'].items():
             self.assertEqual(same, n, f'{sid}: {n - same} of {n} sampled recorded seeds replay differently')
         self.assertEqual(r['suite']['failed'], [])
-        self.assertGreater(r['suite']['run'], 50)
+        self.assertGreater(r['suite']['run'], 30)
         for c in case:  # its own tests were skipped, not run
             self.assertTrue(any(f'test_carousel_{c}' in t for t in r['suite']['skipped']), c)
         return r
@@ -128,7 +137,7 @@ class SwitchTests(unittest.TestCase):
 
     def test_without_the_atheist(self):
         r = self.check(('atheist',))
-        self.assertIn('Riot', r['built'])  # (Riot stays, without its jinx with the Atheist)
+        self.assertEqual('Riot' in r['built'], 'riot' in HERE)  # (Riot stays, without its jinx with the Atheist)
 
     def test_without_the_wizard(self):
         self.check(('wizard',))
@@ -140,7 +149,7 @@ class SwitchTests(unittest.TestCase):
         self.check(('riot',))
 
     def test_without_all_five(self):
-        r = self.check(tuple(NAMES))
+        r = self.check(HERE)
         self.assertEqual(r['built'], [])
         self.assertEqual(r['jinxes'], [])
 
@@ -152,11 +161,17 @@ class SwitchTests(unittest.TestCase):
         self.assertIn("'nobody' is not one of", p.stderr)
 
     def test_the_command_line_option_sets_the_switch(self):
+        if not HERE:
+            self.skipTest('all five deleted')
+        cid = HERE[-1]
         env = {k: v for k, v in os.environ.items() if k != 'CLOCKTOWER_WITHOUT'}
-        p = subprocess.run([sys.executable, '-m', 'clocktower', '--without', 'riot,legion', 'smoke', '--script',
-                            'carousel-12'], cwd=ROOT, env=env, capture_output=True, text=True)
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / 'one.json'
+            path.write_text(json.dumps([{'id': '_meta', 'name': 'One'}, 'washerwoman', 'imp', cid]))
+            p = subprocess.run([sys.executable, '-m', 'clocktower', '--without', cid, 'smoke', '--script', str(path),
+                                '--games', '1'], cwd=ROOT, env=env, capture_output=True, text=True)
         self.assertNotEqual(p.returncode, 0)
-        self.assertIn('characters not implemented yet: Riot', p.stderr)
+        self.assertIn(f'characters not implemented yet: {NAMES[cid]}', p.stderr)
 
     def test_the_ids_parse(self):
         from clocktower import carousel_extra

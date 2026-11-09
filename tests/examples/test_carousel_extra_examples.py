@@ -20,6 +20,7 @@ from test_carousel import O1, T1, T2, T3, T4, run
 from examples.test_carousel_examples import ExampleTest
 
 A, B, C, D, E, F, G, H, I = NAMES
+SHARED = (O1, T1, T2, T3, T4, run)  # (a use, so pyflakes sees these wanted whichever classes are deleted)
 
 
 def needs(name):
