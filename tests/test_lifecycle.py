@@ -1,6 +1,6 @@
 """The lifecycle of an ability instance and the one change path (docs/state-machines.md, "Refactor results"): a
 regression test for each item of the audit's families 1 and 2 (identity by player name, not ability instance; two ways
-to change a character). Each test is named after its item and plays the audit's scenario. Items the
+to change a character), and for G13 and S2. Each test is named after its item and plays the audit's scenario. Items the
 owner has still to rule on (U1, U13, G2) are pinned to the engine's current behaviour, so a change to it is a decision
 and not an accident."""
 import unittest
@@ -364,6 +364,37 @@ class ChangePathTests(Test):
         self.assertEqual(instance(g, A, 'Marionette').how, 'changed')
         pool = [q.name for q in carousel2.seat_neighbours(g.g, g.g[B]) if not q.evil]
         self.assertIn(C, pool)
+
+
+# ---- G13 (the sobriety predicate) and S2 (the Organ Grinder's secret tally) ------------------------------------------
+
+class OtherTests(Test):
+    def test_G13_a_drunk_spy_or_recluse_registers_truly(self):
+        g = self.game(['Recluse', 'Spy', T2, T3, 'Sailor', 'Imp', 'Soldier'])
+        for name in (A, B):
+            g.g.add(State('drunk', name, source=E, until=None))
+        self.assertEqual(g.g.registers_evil(g.g[A]), {False})
+        self.assertEqual(g.g.registers_as(g.g[A]), {'Recluse'})
+        self.assertEqual(rules('Recluse').registers_demon_to_ft(g.g, g.g[A]), {False})
+        self.assertEqual((g.g.registers_evil(g.g[B]), g.g.registers_as(g.g[B])), ({True}, {'Spy'}))
+        import random
+        r = random.Random(1)
+        for _ in range(50):
+            self.assertNotIn(A, g.g.sample_evil(r))
+            self.assertIn(B, g.g.sample_evil(r))
+
+    def test_S2_organ_grinder_secret_tally_stays_secret(self):
+        g = self.game([T1, T2, T3, T4, 'Organ Grinder', 'Imp', 'Soldier'])
+        g.secret_day = g.day  # a vote earlier today was secret (the Organ Grinder's ability has since ended)
+        run(g.vote(C, B, 4))
+        prompts = [r.prompt for s in self.seats.values() for r in s.log if r.kind == 'vote']
+        self.assertTrue(prompts)
+        for text in ('(replacing ', 'is on the block with', 'It takes 5', 'of an earlier tied vote'):
+            self.assertFalse([p for p in prompts if text in p], text)
+        g = self.game([T1, T2, T3, T4, 'Poisoner', 'Imp', 'Soldier'])  # without one, as before
+        run(g.vote(C, B, 4))
+        self.assertTrue([r for s in self.seats.values() for r in s.log if r.kind == 'vote'
+                         and '(replacing Blair, who has 4)' in r.prompt])
 
 
 if __name__ == '__main__':

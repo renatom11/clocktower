@@ -1114,12 +1114,21 @@ class Game:
             told = any(rules(c).must_vote(g, q) for c in dict.fromkeys([q.shown, *g.abilities(q)]))
             return told, any(rules(c).must_vote(g, q) and g.works(q, c) for c in g.abilities(q))
 
+        # a secret vote earlier today (custom scripts: the Organ Grinder's, whose ability then ended) keeps its tally
+        # secret: no block or tally from it is shown (finding S2; whether later votes stay secret is not ruled: they
+        # are public, as before)
+        hidden = getattr(self, 'secret_day', None) == n
+
         async def ask_vote(voter):
             p = g[voter]
             lines = [f'Vote: should {nominee} be executed? It takes {required} yes votes to put them on the block']
             if secret:  # eyes closed: no tally, no block, no hands seen
                 lines = [f'Vote, eyes closed: should {nominee} be executed? The votes and the tally are secret (only '
                          'the Storyteller knows who is about to die)']
+            elif hidden:
+                lines = [f'Vote: should {nominee} be executed? It takes at least {needed} yes votes to put them on the '
+                         'block, and more than any earlier vote today (an earlier vote was secret: only the '
+                         'Storyteller knows its tally)']
             elif block:
                 lines[0] += f' (replacing {block}, who has {top})'
             elif top:
@@ -1189,6 +1198,7 @@ class Game:
         self.emit('vote_result', {'nominee': nominee, 'votes': count, 'needed': required, 'outcome': outcome,
                                   'voters': yes}, 'audit' if secret else 'public')
         if secret:
+            self.secret_day = n
             self.emit('text', {'text': f'The vote on {nominee} is over (eyes closed: the tally is secret).'})
         if g.nominations and g.nominations[-1]['nominee'] == nominee:
             # the voters' characters as they voted (the Flowergirl detects a Demon who voted, even one who changed
@@ -1243,6 +1253,8 @@ class Game:
                       f'Nobody is on the block (an earlier vote tied at {top}).' if top else 'Nobody is on the block yet.')
             if self.secret_votes():  # (custom scripts: the Organ Grinder)
                 status = 'Votes are secret today (eyes closed): only the Storyteller knows who is about to die.'
+            elif getattr(self, 'secret_day', None) == n:  # (a secret vote earlier today: its tally stays secret)
+                status = 'An earlier vote today was secret: only the Storyteller knows who is about to die.'
             prompt = (f'Day {n}, nominations. {status} Already nominated today: {", ".join(sorted(nominees)) or "nobody"}. '
                       'You may nominate someone (set `nominate`; your `say` is the accusation), or pass. Only '
                       'nominations are heard now: everyone can comment after the defense. No whispering now.')

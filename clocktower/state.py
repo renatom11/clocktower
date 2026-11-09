@@ -936,7 +936,7 @@ class Grimoire:
         evil = set(self.decoy(p, r)[1])
         for q in self.players:
             c = rules(q.character)
-            if not c.evil and c.misregisters and not self.is_poisoned(q) and r.random() < POLICY[c.misregisters]:
+            if not c.evil and c.misregisters and not self.impaired(q) and r.random() < POLICY[c.misregisters]:
                 evil.add(q.name)
         return evil
 
@@ -977,7 +977,7 @@ class Grimoire:
         for q in self.players:
             key = rules(q.character).misregisters
             chance = POLICY[key] if key else None
-            if chance is not None and not self.is_poisoned(q):
+            if chance is not None and not self.impaired(q):  # (a drunk Spy or Recluse registers truly: G13)
                 if r.random() < chance:
                     out.add(q.name)
             elif q.evil or self.has(q, 'registers evil'):

@@ -643,17 +643,18 @@ class Recluse(Outsider):
     name = 'Recluse'
     ability = 'You might register as evil & as a Minion or Demon, even if dead.'
     misregisters = 'recluse_evil'
+    # only while the ability works: drunk (custom scripts: the Sailor's, the Innkeeper's) as well as poisoned (G13)
 
     def registers_evil(self, g, me, observer=None):
-        return {me.evil} if g.is_poisoned(me) else {True, False}
+        return {me.evil} if g.impaired(me) else {True, False}
 
     def registers_as(self, g, me, observer=None):
-        return {me.character} if g.is_poisoned(me) else {self.name, *g.script.minions, *g.script.demons}
+        return {me.character} if g.impaired(me) else {self.name, *g.script.minions, *g.script.demons}
 
     def registers_demon_to_ft(self, g, me, observer=None):
         if me.name == g.red_herring:
             return {True}
-        return {False} if g.is_poisoned(me) else {True, False}
+        return {False} if g.impaired(me) else {True, False}
 
 
 class Saint(Outsider):
@@ -702,12 +703,13 @@ class Spy(Minion):
     name = 'Spy'
     ability = 'Each night, you see the Grimoire. You might register as good & as a Townsfolk or Outsider, even if dead.'
     misregisters = 'spy_evil'
+    # only while the ability works: drunk as well as poisoned (G13; Trouble Brewing has only the Poisoner's poison)
 
     def registers_evil(self, g, me, observer=None):
-        return {me.evil} if g.is_poisoned(me) else {True, False}
+        return {me.evil} if g.impaired(me) else {True, False}
 
     def registers_as(self, g, me, observer=None):
-        return {me.character} if g.is_poisoned(me) else {self.name, *g.script.townsfolk, *g.script.outsiders}
+        return {me.character} if g.impaired(me) else {self.name, *g.script.townsfolk, *g.script.outsiders}
 
     async def resolve_night(self, game, night):
         g = game.g
