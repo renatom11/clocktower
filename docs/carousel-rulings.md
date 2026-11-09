@@ -328,8 +328,10 @@ implemented.
     dies, and the Pixie then has their own ability (alive, sober, still the Pixie), the Storyteller judges whether
     they were mad, over everything said aloud since day 1 (the Cerenovus's floor: they claimed it aloud, their latest
     claim was it, and they never denied it or confessed); if so they gain the ability on top of their own (as the
-    Philosopher's, without making anyone drunk), and a "you start knowing" ability acts at once. Options: judge only
-    the days before the death; let a dead Pixie gain. Why: "if you were mad" reads as the whole game.
+    Philosopher's, without making anyone drunk), and a "you start knowing" ability acts at once (by day, told at once,
+    "Day n"; for the Washerwoman, Librarian, Investigator and Chef too, through `InfoRole.becomes`, which also tells a
+    player the Pit-Hag or another change makes one of them later, as the S&V characters already were: finding EC-8).
+    Options: judge only the days before the death; let a dead Pixie gain. Why: "if you were mad" reads as the whole game.
 41. **The High Priestess.** Each night (the first too) the Storyteller points at one player. The scripted heuristic,
     and the truth for the Vortox and the Mathematician: a living player of the High Priestess's team, weighted three
     to one towards players with information (`priestess_info_weight`) and against players they have whispered with
@@ -789,7 +791,8 @@ Amnesiac, Mezepheles and Yaggababble are batch 5; the Wizard, Legion, Riot, Athe
      win for good, and at the Summoner's step on the third night the Storyteller makes a player (usually a living good
      one, POLICY `summoner_st_honours`'s choice) an evil Demon on the script not in play (finding B22: never one
      already in play).
-105. **The Princess.** "Your 1st day": day 1, or for a Princess made later the next day she is one (a reading).
+105. **The Princess.** "Your 1st day": day 1, or for a Princess made later the next day she is one (a reading): made
+     at night, the day that follows that night; made by day, that day (finding EC-13 fixed a day's delay).
      "Nominated & executed": she made the last nomination of the player executed that day (died or not, the Vizier's
      immediate execution included). That night, at her step (before the Demons'), with her ability working (alive,
      sober, healthy then), the Demon wakes as normal but its attacks kill nobody tonight (Game.demon_kills_stopped,
@@ -1317,7 +1320,10 @@ Readings the refactor of docs/state-machines.md ("Refactor results") had to take
 plays only on custom scripts (Trouble Brewing, BMR and S&V replay identically). Questions the audit left open (U1, U13,
 G2, and whether a swap carries a Demon's own bookkeeping) are not decided here: the engine keeps what it did.
 
-176. **A seeming death is the Zombuul's** (the audit's G11, fuzz finding S3). A player who registers as dead through the
+176. **A seeming death is the Zombuul's** (the audit's G11, fuzz finding S3). **Pending owner confirmation**: a new
+     choice the refactor made, which flips outcomes (a seeming-dead Zombuul changed is dead, where before it lived on);
+     the engine keeps it, since it is what fixes S3, until the owner rules (docs/review/everything-open-voice.md, Part
+     B, group 7). A player who registers as dead through the
      Zombuul's first death and then stops being the Zombuul (the Pit-Hag's change, the Barber's swap, a tea party) is
      dead, as the town already believes: the ability that kept them alive is gone. Their last death in the Grimoire is
      no longer a seeming one; nothing is announced (the death was). Made a Demon this way, they are a dead Demon (good
@@ -1329,9 +1335,13 @@ G2, and whether a swap carries a Demon's own bookkeeping) are not decided here: 
      as it was (the engine's reading before, unchanged: G2 stays the owner's).
 178. **The Marionette's belief.** A player made the Marionette believes they are still what they were, so what they had
      used as it stays used for that belief (they are not woken to use a spent once-per-game ability again, which would
-     tell them they changed).
+     tell them they changed), and what it recorded for its holder stays theirs (ruling 179's records: a Balloonist made
+     the Marionette is still told "a different type than last night's").
 179. **Records of one holder end with their instance.** The Golem's nomination, the Banshee's powers, the Fearmonger's
-     chosen player, the Lleech's host and lost ability and the Alchemist's Minion belong to the holder's instance
-     (`Character.instance_notes`): a player who becomes the character again starts fresh, and nobody reads a former
-     holder's (the Vizier/Fearmonger jinx read the old Fearmonger's choice). The Damsel's guesses stay by player
+     chosen player, the Lleech's host and lost ability, the Alchemist's Minion, the Balloonist's type shown last night,
+     the Acrobat's choice tonight, the Xaan's night X and the Wraith's open eyes belong to the holder's instance
+     (`Character.instance_notes`), and the Mathematician/Drunk jinx's marks (a Drunk Slayer's first shot, a Drunk
+     Virgin's first nomination) to the believed instance's own record: a player who becomes the character again starts
+     fresh, and nobody reads a former holder's (the Vizier/Fearmonger jinx read the old Fearmonger's choice). The Evil
+     Twin's twin and the Xaan's X are set again by `becomes`, so need no such end. The Damsel's guesses stay by player
      ("each Minion gets 1 guess": the player, not their character; a reading kept as it was).

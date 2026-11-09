@@ -484,16 +484,16 @@ character's `becomes` and everyone's `changed`, for every path but the setup's (
 | item | what changed | test |
 |---|---|---|
 | S1, G7 | the Pukka's victims are its instance's states; the charm's poison is the Snake Charmer's | `test_S1_pukka_snake_charmer`, `test_G7_states_name_their_ability` |
-| G8 | the Po's charge and the Shabaloth's meal are its instance's last choice (`Night.before_of`), not its player's as another character | `test_G8_po_charge_and_shabaloth_meal_are_the_instances` |
+| G8 | the Po's charge and the Shabaloth's meal are its instance's last choice (`Night.before_of`), not its player's as another character; a checkpoint from before instances carries `last_choices` and `woke` into each player's own instance (follow-up, bc37b28) | `test_G8_po_charge_and_shabaloth_meal_are_the_instances`, `test_G8_checkpoint_before_instances_keeps_the_charge_and_the_meal` |
 | G3 | the Zombuul's, Fool's, Virgin's and Slayer's spent record is per instance (`spent` kept for the Spy) | `test_G3_two_zombuuls_each_have_a_first_death` |
-| G4, S4 | a change ends the instance and its uses: a change and back is fresh; a new gained instance (a later meal) too; a Marionette's belief keeps its uses (ruling 178) | `test_G4_once_per_game_fresh_after_a_change_and_back`, `test_S4_stale_spent_wizard_baron_wizard`, `test_G4_a_marionette_still_believes_its_spent_ability`, `test_G4_a_cannibals_new_meal_is_a_fresh_instance` |
-| G16 | the Golem's, Banshee's, Fearmonger's, Lleech's and Alchemist's per-holder notes end with the instance (ruling 179) | `test_G16_per_holder_marks_end_with_the_instance` |
+| G4, S4 | a change ends the instance and its uses: a change and back is fresh; a new gained instance (a later meal) too; a Marionette's belief keeps its uses (ruling 178), and its per-holder notes (follow-up, 3ddf35a) | `test_G4_once_per_game_fresh_after_a_change_and_back`, `test_S4_stale_spent_wizard_baron_wizard`, `test_G4_a_marionette_still_believes_its_spent_ability`, `test_G4_a_marionette_still_believes_its_records`, `test_G4_a_cannibals_new_meal_is_a_fresh_instance` |
+| G16 | the Golem's, Banshee's, Fearmonger's, Lleech's and Alchemist's per-holder notes end with the instance (ruling 179); follow-up (3ddf35a): the Balloonist's, Acrobat's, Xaan's night X and Wraith's eyes too, and the Mathematician/Drunk jinx's marks (`'Drunk shot:<name>'`, `'Drunk Virgin:<name>'`) are now the believed instance's own record (`data`; old checkpoints migrated) | `test_G16_per_holder_marks_end_with_the_instance`, `test_G16_balloonist_acrobat_xaan_wraith_marks_end_with_the_instance`, `test_G16_a_new_drunk_belief_has_its_own_first_shot_and_nomination` |
 | G1 | the Scarlet Woman, the Imp's heir and the Marionette take the one path: a fresh instance, `becomes`, `changed` | `test_G1_scarlet_woman_takes_over_a_fresh_zombuul`, `test_G1_scarlet_woman_yaggababble_learns_a_phrase`, `test_G1_imp_starpass_runs_the_change_hooks` |
-| G11, S3 | a seeming death is the Zombuul's: stopping being it, the player is dead (ruling 176) | `test_G11_a_seeming_zombuul_changed_is_dead`, `test_S3_barber_swaps_a_seeming_zombuul` |
-| U16 (G6) | the seat swap moves gained abilities, instances and notes with the token | `test_U16_marionette_seat_swap_moves_the_gained_ability`, `test_U16_marionette_setup_uses_the_seat_swap` |
-| U6 | a Vigormortis swapped onto a dead player loses its kept Minions, as when it dies | `test_U6_vigormortis_swapped_onto_a_dead_player` |
-| G13 | the Spy's and Recluse's registration test `impaired` | `test_G13_a_drunk_spy_or_recluse_registers_truly` |
-| S2 (G15) | after a secret vote today no prompt shows the block, a tally or the votes needed beyond the majority | `test_S2_organ_grinder_secret_tally_stays_secret` |
+| G11, S3 | a seeming death is the Zombuul's: stopping being it, the player is dead (ruling 176, pending owner confirmation: a new choice that flips outcomes) | `test_G11_a_seeming_zombuul_changed_is_dead`, `test_S3_barber_swaps_a_seeming_zombuul` |
+| U16 (G6) | the seat swap moves gained abilities, instances and notes with the token; follow-up (2c51a67): the Lord of Typhon's line takes the same swap (it moved tokens with raw `setattr`, leaving the dealt instances behind). Settled by the refactor, pending owner confirmation | `test_U16_marionette_seat_swap_moves_the_gained_ability`, `test_U16_marionette_setup_uses_the_seat_swap`, `test_the_line_moves_the_instances_with_the_tokens` (tests/test_carousel3b.py) |
+| U6 | a Vigormortis swapped onto a dead player loses its kept Minions, as when it dies. Settled by the refactor, pending owner confirmation | `test_U6_vigormortis_swapped_onto_a_dead_player` |
+| G13 | the Spy's and Recluse's registration test `impaired`; follow-up (8961567): the Slayer's shot and the Imp's kill too (a Slayer or an Imp made drunk by an ability, or by the Goon, no longer acts) | `test_G13_a_drunk_spy_or_recluse_registers_truly`, `test_G13_a_drunk_slayer_or_imp_does_not_act` |
+| S2 (G15) | after a secret vote today no prompt shows the block, a tally or the votes needed beyond the majority; follow-up (e66f6f1): nor does a later public vote's result (it goes to the audit; the town is told the count and the majority only), and the fuzzer's `lifecycle-secret-vote` reads public events too | `test_S2_organ_grinder_secret_tally_stays_secret` (now plays a secret vote, impairs the Organ Grinder and holds two public votes; it fails on the code before the fix) |
 | B3, B4, B12, B19, B21 | already fixed; now on instances (B19 also through `instance_notes`) | `test_B3_...`, `test_B4_...`, `test_B12_...`, `test_B19_...`, `test_B21_...` |
 | B11, B13, B18 | already fixed; the setup steps now take the one path (`how='dealt'`) | `test_B11_...`, `test_B13_...`, `test_B18_...` |
 
@@ -509,12 +509,15 @@ character's `becomes` and everyone's `changed`, for every path but the setup's (
   Pukka's waiting victim, the Yaggababble's count for today). The engine's swap gives a fresh instance (the Barber's
   almanac), so none of it moves, as before; only the Vigormortis and the Lleech hand theirs over (their rulings).
 - **U6, the second half** (whether the Storyteller should choose a swap onto a dead player): the owner's; unchanged.
-- **The Damsel's guesses** stay by player ("each Minion": ruling 179), and the Mathematician/Drunk jinx's marks
-  (`'Drunk shot:<name>'`, `'Drunk Virgin:<name>'`) stay as they are: no fault was found in either.
+- **The Damsel's guesses** stay by player ("each Minion": ruling 179): an owner question (item C3.4 of the voice
+  review; the official Damsel example 2 has one guess for the team). The Evil Twin's twin (`notes['Twins']`) and the
+  Xaan's X are set again by `becomes` when a player becomes the character again, so they need no end; nothing else
+  reads a former holder's.
+- **Rulings for the owner**: 176 (a seeming-dead Zombuul that changes character is dead) is a new choice the refactor
+  made that flips outcomes, and U6's first half and U16 were settled as consequences of it: all three are pending the
+  owner's confirmation (docs/review/everything-open-voice.md, Part B, group 7, with 177 to 179). The engine keeps them.
 - Outside the two families and not touched: G5 (hooks asked only of the own character, ruling 47), G9, G10, U2, U10
-  (lifetimes evaluated at events), G12 beyond the `as` record, G14, G17 to G20. Found on the way, same shape as G13 and
-  not fixed (outside the brief; custom scripts only): the Slayer's shot and the Imp's kill test `is_poisoned`, so a
-  Slayer or an Imp made drunk by an ability still acts.
+  (lifetimes evaluated at events), G12 beyond the `as` record, G14, G17 to G20.
 
 No item needed TB, BMR or S&V play to change.
 
@@ -580,4 +583,39 @@ whose ability records by player in a way not listed here, read through the `note
 for the player whose instance changed). `Grimoire.add` guesses a state's instance from the step acting; a state made
 outside a night step by a gained ability is tagged with the holder's own character's instance (only the Pukka reads
 the tag today). The Scarlet Woman's `becomes` hooks that consult the judge run at the next safe point (Game.later),
-not at once. Checkpoints made before the refactor are restored with instances rebuilt from `notes['Used']` and `spent`.
+not at once. Checkpoints made before the refactor are restored with instances rebuilt from `notes['Used']` and `spent`,
+and each player's last night choice (`last_choices`, its night from `woke`) on their own character's instance (a choice
+made with a gained ability was then by player too, so it lands on the own character's: the old reading).
+
+**Follow-up: the independent review.** A review of the refactor confirmed most of it and found the gaps above marked
+"follow-up", fixed in bc37b28 to 8961567; the official examples' engine bugs EC-8, EC-13, EC-22 and EC-23
+(docs/examples-findings.md) are fixed in 2280a5f to 35e270a, and the example tests run on their own (91bed69:
+`python -m unittest discover -s tests/examples`). Trouble Brewing, BMR and S&V replay 1100/1100 identically after
+each. The carousel-N fingerprints changed in 432 games, re-recorded in b0f2b3e; each game's cause is the first of these
+commits after which it replays differently (each was replayed after every commit), and one game's first differing
+events were read for each cause:
+
+- **G13, the Slayer and the Imp** (8961567, 118 games): a drunk Imp no longer kills or starpasses, and a drunk Slayer's
+  shot no longer kills (in the games read: the Imp that picked the Goon, who makes their first chooser drunk, and an
+  Imp made drunk by another ability).
+- **EC-8** (2280a5f, 307 games, 5 of them also changed by 8961567): a Washerwoman, Librarian, Investigator or Chef
+  ability that begins later learns at once (`InfoRole.becomes`), as rulings 40 and 47 say and the S&V characters already did:
+  the Pit-Hag's new Washerwoman or Chef at night, the Cannibal's meal of one by day ("Day n — Chef: ...").
+- **EC-13** (07c9b12, 7 games): a Princess made at night has her first day the day that follows, not the one after.
+- None from bc37b28 to 3ddf35a (the S2 fix changes no recorded game: none has a public vote after a secret one with
+  the Organ Grinder impaired; the Lord of Typhon's swap and the notes' ends change none), nor from 904fec7 to 91bed69.
+
+By script, cause and seed (a starred seed changed with 8961567 and again with 2280a5f):
+
+- **carousel-1** (48): G13 (32): 5032, 5046, 6057, 6070*, 6091, 7030, 7037, 8023, 8039, 9010, 9057, 9069, 9071, 9077, 11045, 11066, 11084, 12000, 12019, 12039, 12055, 12057, 12080, 14002, 14069, 14070, 14097, 15017, 15039, 15045, 15068, 15085; EC-8 (16): 6058, 6078, 10014, 10053, 11018, 12009, 13001, 13022, 14028, 14042, 14062, 14087, 15023, 15024, 15047, 15057.
+- **carousel-2** (23): EC-8 (23): 6094, 7074, 8005, 8075, 9048, 11021, 11043, 11048, 12019, 12040, 12044, 13024, 13076, 13087, 14003, 14013, 14048, 14072, 14076, 15027, 15050, 15055, 15065.
+- **carousel-3** (9): G13 (9): 6031, 8083, 9070, 9094, 10093, 13027, 15006, 15080, 15087.
+- **carousel-4** (98): G13 (16): 6012, 8039, 8066, 8087, 8096, 9003, 10070, 11026, 12018, 13018, 14059, 15026*, 15038, 15047, 15074*, 15077; EC-8 (82): 5003, 5015, 5080, 6068, 6071, 7007, 7051, 7066, 7067, 7070, 7091, 8014, 8019, 8037, 8075, 8081, 8091, 9030, 9050, 9070, 9075, 10004, 10020, 10025, 10034, 10043, 10049, 10071, 10083, 10090, 11011, 11017, 11042, 11047, 11057, 11068, 12009, 12016, 12023, 12028, 12059, 12061, 12094, 12098, 13006, 13029, 13034, 13048, 13078, 13080, 13084, 13085, 13086, 13097, 14002, 14005, 14015, 14018, 14027, 14045, 14050, 14053, 14062, 14069, 14071, 14087, 15002, 15004, 15005, 15013, 15014, 15032, 15033, 15035, 15039, 15046, 15050, 15063, 15065, 15081, 15092, 15095.
+- **carousel-5** (27): EC-8 (27): 6006, 6035, 9017, 10053, 10063, 11001, 11033, 11034, 12006, 13010, 13013, 13036, 13045, 13052, 13070, 13088, 13089, 13098, 14001, 14007, 14052, 14078, 14084, 14090, 15047, 15059, 15065.
+- **carousel-6** (171): G13 (9): 6052, 7052, 8063, 10031, 11002*, 14047, 14052, 15009, 15064*; EC-8 (159): 5007, 6019, 6046, 6058, 6097, 7010, 7015, 7026, 7070, 7071, 8000, 8005, 8024, 8029, 8031, 8049, 8079, 8084, 8085, 8086, 9000, 9002, 9011, 9013, 9016, 9029, 9031, 9035, 9042, 9059, 9071, 9079, 10008, 10010, 10018, 10024, 10030, 10066, 10068, 10071, 10079, 10089, 10099, 11009, 11027, 11028, 11034, 11038, 11044, 11045, 11047, 11050, 11055, 11056, 11075, 11077, 11085, 11086, 11093, 11096, 12000, 12002, 12003, 12010, 12013, 12014, 12015, 12019, 12020, 12021, 12027, 12030, 12032, 12037, 12038, 12039, 12041, 12044, 12047, 12049, 12066, 12086, 12097, 13003, 13005, 13010, 13012, 13015, 13016, 13020, 13023, 13025, 13026, 13028, 13034, 13037, 13042, 13045, 13046, 13047, 13050, 13052, 13053, 13054, 13058, 13065, 13069, 13071, 13081, 13083, 13092, 13095, 14003, 14005, 14008, 14012, 14018, 14019, 14024, 14029, 14032, 14033, 14040, 14042, 14043, 14048, 14050, 14055, 14063, 14070, 14071, 14076, 14085, 14089, 14091, 15001, 15004, 15005, 15008, 15014, 15015, 15019, 15028, 15033, 15034, 15037, 15039, 15052, 15055, 15061, 15066, 15067, 15068, 15070, 15073, 15078, 15086, 15091, 15097; EC-13 (3): 7088, 14087, 15074.
+- **carousel-7** (4): EC-13 (4): 11061, 14059, 14065, 14087.
+- **carousel-10** (1): G13 (1): 15024.
+- **carousel-11** (51): G13 (51): 5055, 5074, 6046, 7031, 7035, 7054, 8041, 9054, 9081, 9083, 9096, 10005, 10049, 10061, 11054, 11073, 11089, 12091, 13004, 13006, 13011, 13055, 13068, 13076, 13087, 13088, 13091, 13096, 13097, 14007, 14025, 14028, 14038, 14042, 14045, 14052, 14065, 14068, 14083, 14085, 14087, 14099, 15000, 15013, 15018, 15027, 15037, 15038, 15053, 15089, 15095.
+
+Fuzz: `fuzz run --games 400 --force organgrinder --lifecycle` (seeds from 9,000,000) shows 5 `lifecycle-secret-vote`
+violations with the extended check on the code before e66f6f1 (a later public vote's result) and none after.

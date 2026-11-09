@@ -6,7 +6,10 @@ the engine disagrees, the test is kept but skipped (`@unittest.skip("disagrees w
 and the disagreement is written up here: what the example says (paraphrased), what the engine does instead (checked
 by running it), and which kind of disagreement it is. Examples that need a character the engine does not build
 (Travellers, Fabled, homebrew) are counted and left out. Examples that settle a question still open for the owner
-are listed under each section's "Examples that answer open questions", whether or not the engine agrees.
+are listed under each section's "Examples that answer open questions", whether or not the engine agrees. The tests
+run with the suite or on their own: `python -m unittest discover -s tests/examples`. The open questions they answer
+are put to the owner in docs/review/everything-open-voice.md (each part's instructions list them; EC-20, EBMR-1 and
+EBMR-2 are items there of their own).
 
 ## Trouble Brewing
 
@@ -70,7 +73,8 @@ again and the illegal pick counts as choosing no one. The Professor is not asked
 and keeps the ability. Kind: a gap in the owner's "Required choices, generally" (docs/bmr-rulings.md, the owner's
 review): it re-asks required choices only, so an optional choice that names an illegal player is silently taken as
 declining. Suggested fix: re-ask an optional choice that named players but none legal, with the reason, and take an
-empty answer as declining (the Po, the Assassin, the Professor and the Courtier alike).
+empty answer as declining (the Po, the Assassin, the Professor and the Courtier alike). Put to the owner:
+docs/review/everything-open-voice.md, item B.6.
 
 **EBMR-2. Does the Goon's waking to learn its new alignment count for the Chambermaid?** Example (wiki:
 Chambermaid, example 2): on night 2 the Chambermaid picks the Grandmother and an evil Goon and is shown 2, a false
@@ -81,7 +85,8 @@ false 2 is still shown, as the example has it). Kind: a deliberate ruling the ex
 B3.4 (kept in the owner's review) lists "the Goon learning its alignment" as not waking. The example reads the
 Goon's wake as its own ability's, as against the Shabaloth woken by the Exorcist (Chambermaid example 1, which the
 engine agrees with). A fix would record the Goon in `Grimoire.woke` when its alignment changes at night (the
-Chambermaid's step is last, so every such change has happened by then).
+Chambermaid's step is last, so every such change has happened by then). Put to the owner:
+docs/review/everything-open-voice.md, item B.7.
 
 ### Examples that answer open questions
 
@@ -232,6 +237,10 @@ numbered as in `docs/carousel-rulings.md`.
   (wiki: Pixie, example 1). Engine: the Pixie gains the ability and is told so, but is never given the Washerwoman's
   information, neither at once nor on a later night. An engine bug: ruling 40 says a "you start knowing" ability
   gained this way acts at once, and for the Washerwoman it does not (her ability acts only at her first-night step).
+  **Fixed** in 2280a5f: `InfoRole.becomes` gives a Washerwoman, Librarian, Investigator or Chef ability that begins after
+  the first night its information at once (by day, "Day n"), whether gained (the Pixie's, the Cannibal's, the
+  Philosopher's) or become (the Pit-Hag's). The Pixie learns it the day the Washerwoman is executed, not that night;
+  the test passes.
 - **EC-9. The Boffin's abilities: the Virgin, the Chambermaid, the Banshee.** Examples: the Imp with the Virgin's
   ability executes the Alsaahir who nominates it (wiki: Boffin, example 1); the Lord of Typhon with the Chambermaid's
   wakes each night, and not while the Boffin is drunk (example 2); the Kazali with the Banshee's nominates and votes
@@ -256,6 +265,7 @@ numbered as in `docs/carousel-rulings.md`.
   lives (wiki: Princess, example 2). Engine: a Princess made on night n has her first day set to day n + 1, but the day
   after night n is day n in the engine, so day 4's execution does not count and the Kazali kills her. An engine bug
   (`carousel5.Princess.becomes` adds one for a change made at night): ruling 105 says "the next day she is one".
+  **Fixed** in 07c9b12: made at night n, her first day is day n; the test passes.
 - **EC-14. The Yaggababble's deaths come by day.** Example: having said the phrase twice today, the Yaggababble kills
   the Heretic and the Golem as each nominates, with a Witch in play to hide it (wiki: Yaggababble, example 2). Engine:
   the deaths come at the Yaggababble's step the next night, so nobody dies by day. A deliberate ruling: ruling 130.
@@ -289,7 +299,7 @@ numbered as in `docs/carousel-rulings.md`.
   players, the Slayer and six Legion vote the Fortune Teller out, and evil wins (wiki: Legion, example 1; the page says
   the Storyteller may declare evil's win when one good player is left). Engine: the execution succeeds (a good player
   voted), but the game goes on. An open question the example answers: no ruling covers it (ruling 164 plays on to
-  two alive).
+  two alive). Put to the owner: docs/review/everything-open-voice.md, item C7.7.
 - **EC-21. A jinxed creation is refused and the Pit-Hag chooses again.** Example: with the Pit-Hag and the Heretic
   jinxed, a Pit-Hag's attempt to make a Heretic is refused by the Storyteller, and she picks some other
   character (wiki: Djinn, example 1, the jinx example). Engine: the creation does nothing and the Pit-Hag is not asked
@@ -300,13 +310,17 @@ numbered as in `docs/carousel-rulings.md`.
   (wiki: Wizard, example 5). Engine: the first number in the words is taken as the wish's number on the list, so this
   is wish 5 (see the Grimoire), granted. An engine bug (`carousel_extra.Wizard.offer`): ruling 158 matches a wish in
   words to the list, and only a bare number should be read as one. (Without the number, the engine declines the wish
-  and the Wizard may wish again on a later night, not at once.)
+  and the Wizard may wish again on a later night, not at once.) **Fixed** in 904fec7 (inside the Wizard's section of
+  carousel_extra.py): only a bare number ("5", "wish 5") is the list's number; words with a number in them go to the
+  Storyteller's match. The test forces the Storyteller's match to "none", as the example has it (the scripted match
+  reads "all" as the Grimoire's keyword, EC-17), and passes.
 - **EC-23. The Storyteller's execution is not on the record of executions.** Example: with no Atheist in play, the
   Politician claims the Atheist and the town executes the Storyteller: evil wins, and the Politician with them (wiki:
   Politician, example 3; tested with the Politician as the nominator). Engine: evil wins, but the execution of the
   Storyteller is not written to `Grimoire.executions`, so the Politician's floor (ruling 25: the nominator of the
   executed player) does not see it, and the Politician stays good. An engine bug in the Atheist's core change
-  (`carousel_extra.Atheist.nominee_executed`).
+  (`carousel_extra.Atheist.nominee_executed`). **Fixed** in 35e270a (inside the Atheist's section of carousel_extra.py): the
+  Storyteller's execution is on the record; the Politician who nominated wins with evil, and the test passes.
 
 ### Examples that answer open questions
 
@@ -322,9 +336,9 @@ numbered as in `docs/carousel-rulings.md`.
   and only the Courtier's drunkenness keeps him good, so a word said on a visit counts. The engine does not count it;
   the outcome (he stays good) is the same, so the test passes.
 - Princess, example 2: ruling 105's reading of "your 1st day" for a Princess made later, the day after she is made
-  (the engine means the same, but is a day late: EC-13).
+  (the engine means the same; it was a day late, EC-13, now fixed).
 - Politician, example 3: ruling 154's reading that executing the Storyteller with no Atheist in play is evil's win (its
-  option "no effect" is rejected); the engine agrees on the winner (the Politician's part is EC-23).
+  option "no effect" is rejected); the engine agrees on the winner, and since EC-23's fix on the Politician too.
 - Vizier, example 2: ruling 116, "if good voted" means any good voter (two evil and one good voted, and the Vizier
   executed); its option "most voters were good" is rejected. The engine agrees.
 - Preacher, example 3: ruling 46's present-tense reading (a Minion gets their ability back once the Preacher is
@@ -342,7 +356,8 @@ numbered as in `docs/carousel-rulings.md`.
 
 164 examples read: the 162 in the "Examples" sections of the 66 built experimental characters' wiki pages, and the
 Djinn's two jinx examples (the only wiki page whose examples are about jinxes between built characters). Every wiki
-page in scope has examples, so the Kickstarter almanac was not needed. 164 tests: 133 pass, 30 are skipped as
-disagreements (EC-1 to EC-23), and 1 is skipped as not buildable (Widow, example 2: the Scapegoat is a Traveller).
+page in scope has examples, so the Kickstarter almanac was not needed. 164 tests: 137 pass, 26 are skipped as
+disagreements (EC-1 to EC-23 but the four engine bugs EC-8, EC-13, EC-22 and EC-23, fixed since), and 1 is skipped as
+not buildable (Widow, example 2: the Scapegoat is a Traveller).
 Tests that check only the rules part of an example about the players' reasoning say so in their docstring (the
 General's three, Fisherman 2, Harpy 3, Marionette 1 and 2, Mezepheles 2, Wraith 1).

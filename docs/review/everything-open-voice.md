@@ -11,18 +11,23 @@ time, paste this file again with the last export block and say where to pick up.
 
 This file holds four reviews, one after the other:
 - **Part A: Sects & Violets** (48 rulings in three groups, then optional extras). IDs start with S, SW or J.
-- **Part B: custom scripts and the experimental characters** (100 items in five groups, then eleven optional weight
+- **Part B: custom scripts and the experimental characters** (106 items in six groups, then eleven optional weight
   items). IDs start with C.
-- **Part C: Bad Moon Rising, still open** (5 items: the Pukka, the Courtier, coming back to life, the Gossip). IDs B.n.
+- **Part C: Bad Moon Rising, still open** (7 items: the Pukka, the Courtier, coming back to life, the Gossip, and two
+  questions the official examples raised). IDs B.n.
 - **Part D: open engine decisions** (12 items about the benchmark itself: scoring, balancing, the judge). IDs D.n.
 
 Run the parts in order, A to D, unless the owner asks to start with Part B or jump to a group. Each part has its own
 "Instructions for Claude" section: follow the instructions of the part you are in (counting "ruling n of
-48" in Part A, "item n of 100" in Part B, "item n of 5" in Part C, "item n of 12" in Part D). At the start, say in two sentences that there are four parts and roughly
+48" in Part A, "item n of 106" in Part B, "item n of 7" in Part C, "item n of 12" in Part D). At the start, say in two sentences that there are four parts and roughly
 how big each is. When moving from one part to the next, say so, and offer a pause and export there.
 
 If the owner pastes an earlier export block, skip everything already in it (unless they want "later" items back) and
 say where you are picking up.
+
+The official worked examples (the wiki's "Examples" sections, played as tests: docs/examples-findings.md) answer some
+of these items. Each part's instructions list them. When you reach one, after what the engine does now, say in one
+sentence what the official example shows and whether the engine agrees; it is evidence for the owner, not a decision.
 
 There is ONE export block for all four parts, in the format at the end of this file. Put every part's entries
 together in their sections, in the order discussed.
@@ -59,6 +64,24 @@ How to run the session:
 - IDs: S1.n is ruling n of batch 1 in the rulings document, S2.n ruling n of batch 2, S3.n ruling n of batch 3, in
   that document's order. In group 3 the madness rulings are asked first, so its IDs are not in sequence; always use
   the ID written on the ruling.
+- Official examples that bear on rulings here (say them as described under "How this file works"). The engine agrees
+  with each, except where it says "the engine differs". S1.1 and S3.3: a private hint of madness overheard is fatal
+  (Cerenovus 3); a third player's private report is enough to execute the Mutant (Mutant 2; the engine differs: only
+  the Mutant's own words count). S1.2 and S3.11: an emphatic "no" when asked about madness is safe (Cerenovus 1);
+  silence when questioned, and a pointed denial with a wink, count against the Mutant (Mutant 3 and 4; the engine
+  differs: neither breaks the floor). S1.3 and S3.6: the Mutant executed seconds into day 1 (Mutant 1). S1.12: the
+  Cerenovus may pick a dead player (Cerenovus 2). S1.5: a change is told truly under the Vortox (Vortox 4), and
+  alignment is kept (Seamstress 3, Pit-Hag 3). S1.13: dead players can be changed (Pit-Hag 2, Vigormortis 3). S1.14:
+  the Pit-Hag's arbitrary deaths (Pit-Hag 4, Sage 3). S1.16: the Evil Twin's win (Evil Twin 2 and 4, Vigormortis 2,
+  and the almanac's second Evil Twin example). S1.17: pairing a new Evil Twin (Pit-Hag 3). S1.18: the Fang Gu's jump
+  is not the Sweetheart's death, and a dead Outsider doesn't jump (Fang Gu 1, almanac 2). S1.21: the Vortox at dusk
+  (Vortox 2 and 5). S2.1: what the Mathematician counts (Mathematician 1 to 3). S2.6: the Dreamer (Dreamer 2 and 3).
+  S2.7: an evil Snake Charmer charming the Demon (Snake Charmer 3). S2.9: yes or no on a day with no nominations
+  (Vortox 2). S2.12: the Sage (Sage 2 and 3). S3.4 and S3.8: the Philosopher (Philosopher 2 and 3). S3.9: the Artist's
+  question that isn't yes or no is sent back to be asked again, unspent (Artist 3; the engine differs: "I don't know",
+  spent), and "I don't know" for an unknowable one (Artist 4). S3.10: the Juggler's first day after a change (Juggler
+  2). S3.12: the Sweetheart may pick any player, the Demon too (Sweetheart 1 to 3). S3.13: a Barber swap onto a dead
+  player is allowed (Barber 2 and 4).
 
 ---
 
@@ -398,12 +421,12 @@ and what the engine does now and why. The owner decides each one.
 
 How to run the session:
 - Speak naturally and briefly: this is a conversation, not a document. Never read IDs, headings, asterisks, ruling
-  numbers or formatting aloud, except to say "item 7 of 100" so the owner knows where they are (count items in the
-  order groups 1, 2, 3, 4 and then 6; the optional weights are not counted). Group 6 comes after the optional weights
-  in this file, but run it straight after group 4 and offer the weights last.
-- At the start, say in two sentences what this is: 100 items in five groups (the cross-cutting engine decisions, the
-  interactions the fuzzer found, the characters batch by batch, the open design questions, and the five removable
-  characters of batch 6, starting with whether to keep each one), with madness and the highest-impact rulings first in
+  numbers or formatting aloud, except to say "item 7 of 106" so the owner knows where they are (count items in the
+  order groups 1, 2, 3, 4, 6 and then 7; the optional weights are not counted). Groups 6 and 7 come after the optional
+  weights in this file, but run them straight after group 4 and offer the weights last.
+- At the start, say in two sentences what this is: 106 items in six groups (the cross-cutting engine decisions, the
+  interactions the fuzzer found, the characters batch by batch, the open design questions, the five removable
+  characters of batch 6, starting with whether to keep each one, and the readings the engine's reorganisation took), with madness and the highest-impact rulings first in
   each group, then optional extras (eleven items of Storyteller weights). Say that it is meant for three sittings,
   and that "pause" then "export" part way through is fine. Tell them they can say "keep", "change", "skip", "go back",
   "explain", "pause", or "export" at any time.
@@ -423,8 +446,26 @@ How to run the session:
 - Keep a running tally in your head. When they say "export" (or when everything is done), output the block in the
   exact format at the end of this file, as text, including every item discussed so far. Items not yet discussed are
   left out. Then say it's ready to copy into Claude Code.
-- IDs: C1.n is item n of group 1, C2.n of group 2, C3.n of group 3, C4.n of group 4, C5.n of the optional weights
-  and C6.n of group 6.
+- IDs: C1.n is item n of group 1, C2.n of group 2, C3.n of group 3, C4.n of group 4, C5.n of the optional weights,
+  C6.n of group 6 and C7.n of group 7.
+- Official examples that bear on items here (say them as described under "How this file works"). C3.4, the Damsel:
+  the Minions share one guess (Damsel 2; the engine differs: one guess each). C3.20, the High Priestess: a sober one
+  may be pointed at an evil player, the Goblin or the Imp (High Priestess 1 and 2; the engine differs: only her own
+  team). C4.6, the Alchemist: the Storyteller may refuse a choice and ask for another (Alchemist 2; the engine differs:
+  it never asks again). C6.15, Legion's ruling 165: a vote of only evil players counts zero, so another nominee can be
+  executed instead (Legion 2; the engine differs: the execution fails). C3.11, the Nightwatchman's ruling 20: drunk, the
+  chosen player learns nothing; under the Vortox, another player (Nightwatchman 2 and 3; the engine allows both).
+  C1.1, the Mezepheles: a word said to the Storyteller in private counts (Mezepheles 3; the engine doesn't count
+  visits, though the outcome there is the same). C3.36, the Princess: a Princess made later has her first day the day
+  after she's made (Princess 2; the engine now agrees). C6.7, executing the Storyteller with no Atheist in play is
+  evil's win (Politician 3; the engine agrees, and the Politician who nominated now wins with evil). C3.40, the Vizier:
+  "if good voted" means any good voter (Vizier 2; agrees). C3.15, the Preacher: a Minion gets their ability back once
+  the Preacher is poisoned (Preacher 3; agrees), but a preached Minion is not woken at all (Preacher 2; the engine
+  differs: woken, and nothing happens). C3.35, the Engineer: a new character's setup part doesn't happen and an old
+  one isn't undone (Engineer 2; agrees). C3.22, the Lycanthrope: "the Demon doesn't kill tonight" covers the Pukka's
+  delayed kill (Lycanthrope 2; agrees). C1.10, the Widow's poison pauses while she is drunk (Widow 3; agrees). C3.16,
+  the Cannibal: a poisoned Cannibal who ate an evil player is woken as the claimed character (Cannibal 2; agrees).
+  C7.7 comes from the Legion's first example.
   Each item names, in brackets after its title, the ruling numbers it covers in the rulings document, or the U-numbers
   of the interaction findings; those are for the record only. For a change to one ruling inside a bundle, record the
   bundle's ID followed by a slash and the ruling number, for example C3.11/20, and the rest of the bundle as keep
@@ -493,7 +534,9 @@ Moon Rising and Sects & Violets prompts were.
 **C1.7. Secret votes (rulings 74, 116 and 120).** The Organ Grinder, while alive and working, makes every vote eyes
 closed. Engine now: each voter sees only their own hand, the prompt gives no tally, nominations don't say who is about
 to die, and the count goes only to the Storyteller's record; only whether someone is executed is announced at the
-end. The remark a player makes with a secret vote counts as private speech. With the Butler jinx, the Butler isn't
+end. After a secret vote, a later vote the same day (the Organ Grinder now drunk, say) is public, hands seen, but
+neither its prompt nor its result says the block, a tie or the votes needed beyond the majority, which would give
+away the secret tally. The remark a player makes with a secret vote counts as private speech. With the Butler jinx, the Butler isn't
 shown the master's hand and may raise theirs, but it counts only if the master's is up. The Vizier, who may execute
 straight after a vote in which a good player voted, is still asked under secret votes, because the Storyteller knows
 who voted. Question: is that right? Options: never ask the Vizier under secret votes; announce the final count.
@@ -593,10 +636,10 @@ frozen there. Suggested ruling, for every script except Trouble Brewing: when no
 Townsfolk not in play, as a false result. Question: agree, or prefer the Washerwoman being shown herself as one of the
 two?
 
-**C2.7. The Barber's Demon swaps itself onto a dead player, with the Vigormortis (U6).** The Vigormortis swaps itself
-with a dead player, so the new Vigormortis is dead, and its killed Minions keep their abilities through a dead Demon.
-Suggested ruling: kept abilities end when the Vigormortis character ends up dead, as when it dies; and the Storyteller
-should not choose such a swap.
+**C2.7. The Barber's Demon swaps itself onto a dead player, with the Vigormortis (U6, the second half).** The
+Vigormortis swaps itself with a dead player, so the new Vigormortis is dead. What happens to its killed Minions'
+abilities is now settled (item C7.5 in group 7). Question here: should the Storyteller choose such a swap at all?
+Engine now: it may. Suggested ruling: the Storyteller should not choose it.
 
 **C2.8. The Puzzlemaster guesses right while no Demon is in play (U8).** Before the Summoner summons, or between Demons,
 the Puzzlemaster's right guess has no true answer for "learn who the Demon is". Engine now: any player, which its own
@@ -1069,7 +1112,7 @@ legion_revealed: with the Minstrel or Preacher jinx, the Minstrel or Preacher le
 
 ---
 
-## Part B (experimental characters): Group 6: the removable characters of batch 6 (items 81 to 100)
+## Part B (experimental characters): Group 6: the removable characters of batch 6 (items 81 to 99)
 
 Run this group straight after group 4, before the optional weights. These five characters were kept back for a design
 with the owner, then built on one condition: each one can always be taken out again. Each character lives in its own
@@ -1277,14 +1320,64 @@ a player gives no legal nominee, as when nobody is left to name.
 - Rulings 174 and 175: the core changes do nothing on other scripts, and its test script, with Riot as the only Demon,
   deals at every size.
 
-### Found in the batch 6 runs (item 100)
+## Part B (experimental characters): Group 7: the reorganisation's readings, and a question from the examples (items 100 to 106)
 
-**C6.20. A Marionette who takes an Alchemist's seat keeps the Alchemist's Minion ability (U16).** Not Riot's or any
-batch 6 character's: an older interaction the Riot runs turned up once in 1,500 games. With the Alchemist and the
-Marionette, the Marionette's seat swap beside the Demon swaps characters but not the Minion ability the Alchemist gained
-at setup, so the Marionette's player also holds it and is woken for it. Engine now: unchanged. Suggested fix, in batch
-2's code: the seat swap moves the gained ability with the character, so the Alchemist's ability stays with whoever is
-the Alchemist. Question: apply that fix? Option: leave it, as too rare to matter.
+Run this group straight after group 6, before the optional weights. The engine was reorganised so that each player's
+copy of an ability is a record of its own, and every change of character goes one way. Trouble Brewing, Bad Moon Rising
+and Sects & Violets play exactly as before; on the custom scripts a few hundred of the recorded test games changed. The
+reorganisation had to take four readings, and it settled two older findings along the way; none of them was put to the
+owner. The first item is a real new choice that changes who wins; the others are mostly confirmations. The last item is
+a question the official examples raised.
+
+**C7.1. A Zombuul who seems dead and then stops being the Zombuul is dead. Pending your confirmation; take it slowly
+(ruling 176).** The Zombuul's first death only seems to be one: the player registers as dead but is alive. If that
+player then stops being the Zombuul, through the Pit-Hag, the Barber's swap or a tea party, are they dead or alive?
+Engine now: dead, as the town already believes, since the ability that kept them alive is gone; nothing is announced.
+Made a Demon that way, they are a dead Demon, so good wins unless another Demon lives. Before the reorganisation they
+stayed alive, registering as dead with no character that does that, which the fuzzer flagged as a contradiction. Options:
+one, dead, as now; two, alive, and the town is told they are alive; three, alive, still seeming dead until they die
+again. What follows: seven of the recorded test games changed, all on one test script with the Pit-Hag.
+
+**C7.2. An ability gained again starts fresh (ruling 177).** Example: the Cannibal eats a Philosopher, uses that
+ability, and later eats another Philosopher. Engine now: the new meal is a fresh copy, unused, as when a player takes a
+character anew in the Barber's almanac; an ability still held carries on. A revived player's own ability is the same
+one, fresh again, and what they had gained stays as it was. Question: is that right? Option: a once-per-game ability,
+once used by a player, stays used for them whatever happens.
+
+**C7.3. The Marionette's belief keeps what was used (ruling 178).** A player made the Marionette believes they are
+still what they were. Engine now: what they had used stays used for that belief, so they are not woken again for a
+spent once-per-game ability, and what it recorded stays too, so a Balloonist made the Marionette is still told "a
+different type than last night's"; anything else would tell them they had changed. Option: give the belief a fresh
+start.
+
+**C7.4. A record kept for one holder ends with them (ruling 179).** Engine now: what one holder's ability recorded
+belongs to that holder's copy, so a player who becomes the character again starts fresh, and nobody reads a former
+holder's record. That covers the Golem's nomination, the Banshee's powers, the Fearmonger's chosen player, the Lleech's
+host, the Alchemist's Minion, the Balloonist's type from last night, the Acrobat's choice tonight, the Xaan's night,
+the Wraith's open eyes, and a Drunk Slayer's or Drunk Virgin's first use under the Mathematician jinx. Before, a
+Vizier with the Fearmonger jinx could read a former Fearmonger's choice. The Damsel's guesses stay by player, since
+"each Minion gets one guess" reads as the player; that is item C3.4's question. Question: confirm?
+
+**C7.5. The Vigormortis swapped onto a dead player: its kept abilities end (U6, the first half). Settled by the
+reorganisation, pending your confirmation.** The Barber's Demon swap puts the Vigormortis on a dead player, so the
+Vigormortis is dead. Engine now: the Minions it killed lose the abilities they kept through it, as when it dies; the
+Lleech's host already worked this way. Before, they kept their abilities through a dead Demon. Question: confirm?
+Option: they keep them while the Vigormortis character is in play, dead or alive. Whether the Storyteller should choose
+such a swap at all is item C2.7.
+
+**C7.6. A Marionette who takes an Alchemist's seat (U16). Settled by the reorganisation, pending your
+confirmation.** At setup the Marionette's token moves to a seat beside the Demon by swapping with whoever sat there.
+When that was the Alchemist, the swap moved the characters but not the Minion ability the Alchemist had gained, so the
+Marionette also held it and was woken for it. Engine now: the gained ability moves with the Alchemist's token, so it
+stays with whoever is the Alchemist; the Lord of Typhon's seating, which moves tokens the same way, now does too.
+Question: confirm? Option: none really; this was the suggested fix.
+
+**C7.7. Legion with one good player left (from the official Legion example 1).** With a Fortune Teller and a Slayer
+the last good players, the Slayer and six Legion vote the Fortune Teller out, and the example says evil wins: the
+Legion page lets the Storyteller declare evil's win when only one good player is left. Engine now: the execution
+succeeds, since a good player voted, and the game goes on; Legion kills at night until two players remain. No ruling
+covers it. Question: should one good player left be evil's win? Options: one, play on, as now; two, evil wins at once
+when one good player is left; three, the Storyteller's call, evil's win if the good player cannot win.
 
 ---
 
@@ -1292,9 +1385,16 @@ the Alchemist. Question: apply that fix? Option: leave it, as too rare to matter
 
 These are the Bad Moon Rising items the owner marked "later" in the earlier review, plus one design question they
 raised. Run them the same way as the earlier parts (situation, question, options, what the engine does now; keep,
-change or later), saying "item n of 5". IDs are B.n. The Pukka items: the owner said they would bring their own
+change or later), saying "item n of 7". IDs are B.n. The Pukka items: the owner said they would bring their own
 Pukka rulings, so ask for them first and record them; if they don't have them to hand, offer the engine's reading and
 mark "later".
+
+Official examples that bear on items here (say them as described under "How this file works"): the Pukka's second
+example settles B.1 as the engine reads it (the poison pauses, and the death waits until the Pukka is sober); the
+Professor's second example has a revived Grandmother learn a good player's character again, as the engine does for the
+Professor, and doesn't say whether it's the same Grandchild (B.4); the Gossip's first example, a statement the engine
+can't check, kills no one, as the engine does, and its second ("both my neighbours are good") is a natural claim the
+engine's simple forms can't check (B.5). B.6 and B.7 come from the Professor's and the Chambermaid's examples.
 
 **B.1. The Pukka's victim while the Pukka is drunk (old ruling B1.3).** The Pukka poisons a player each night, and
 the player it poisoned the night before dies. Question: if the Pukka becomes drunk or poisoned, is its victim still
@@ -1325,6 +1425,23 @@ true, a player dies that night. Only a judge can tell whether a free-form statem
 itself checks a few simple forms against the Grimoire ("X is the Y", "X is evil", "X is a Minion", "the Demon is X",
 "the Y is in play"); with no model judge, anything else counts as not true. Question: is that acceptable for rated games, or should the Gossip be left off scripts played without a
 model judge, or should the Gossip pick from a menu of statement forms the engine can check?
+
+**B.6. An optional choice that names a player who can't be chosen (from the official Professor example 3).** The
+owner's rule is that a required choice is never made for a player: it is asked again with the reason. In the example,
+a drunk Professor picks a living player, the Storyteller refuses since only the dead can be picked, the Professor picks
+a dead one, nothing comes of it because she is drunk, and the ability is used up. Engine now: an optional choice, like
+the Professor's, that names only players who can't be chosen is taken as choosing no one; it isn't asked again, and
+the ability is kept. Question: should an optional choice that named someone, but nobody legal, be asked again with the
+reason? Options: one, as now, taken as no one; two, asked again, and an empty answer then means declining; this would
+apply to the Po, the Assassin, the Professor and the Courtier alike.
+
+**B.7. Does the Goon's waking to learn its new alignment count for the Chambermaid? (from the official Chambermaid
+example 2; old ruling B3.4).** The Chambermaid learns how many of two chosen players woke tonight because of their
+ability. In the example she picks the Grandmother and an evil Goon on night 2; picking the Goon first makes her drunk,
+so she is shown a false number, and the example says the true count was one, the Goon, who wakes to learn they turned
+good. Engine now: being told a new alignment is not waking for an ability, which the earlier review kept, so the true
+count is zero; the false number is still shown. Question: does the Goon's wake count? Options: one, as now, it
+doesn't; two, it counts, as the example has it.
 
 ---
 
@@ -1392,7 +1509,7 @@ widen or narrow it?
 
 ```
 CLOCKTOWER-REVIEW v1
-scope: everything open: Sects & Violets rulings (docs/snv-rulings.md) and carousel rulings (docs/carousel-rulings.md 1-138 and batch 6 139-175, interaction findings U1-U13 and U14-U16, the Carousel POLICY weights, batch 6's included), Bad Moon Rising open items (B.1-B.5) and open engine decisions (docs/open-decisions.md, D.1-D.12)
+scope: everything open: Sects & Violets rulings (docs/snv-rulings.md) and carousel rulings (docs/carousel-rulings.md 1-138, batch 6 139-175 and the reorganisation's 176-179, interaction findings U1-U13 and U14-U16, Legion's one-good-player question from the examples, the Carousel POLICY weights, batch 6's included), Bad Moon Rising open items (B.1-B.7, B.6 and B.7 from the official examples) and open engine decisions (docs/open-decisions.md, D.1-D.12)
 date: <today>
 rulings:
 - id: S1.1
